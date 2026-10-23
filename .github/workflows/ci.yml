@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('api/package.json') != '' }}
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: geosmart
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: geosmart
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U geosmart"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://geosmart:test@localhost:5432/geosmart
+      JWT_SECRET: secret-de-test-ci
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+
+  mobile:
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('mobile/gradlew') != '' }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x gradlew
+      - run: ./gradlew testDebugUnitTest ktlintCheck
+
+  commits:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Messages de commit sans mention d'outil
+        run: |
+          if git log --format=%B "origin/${{ github.base_ref }}..HEAD" | grep -iE "co-authored-by|generated with"; then
+            echo "Un message de commit contient une mention interdite."
+            exit 1
+          fi

@@ -1,0 +1,29 @@
+# Secrets et environnement
+.env
+*.pem
+*.key
+*.jks
+*.keystore
+local.properties
+
+# Node
+node_modules/
+dist/
+coverage/
+
+# Android / Gradle
+.gradle/
+build/
+*.apk
+*.aab
+.idea/
+*.iml
+
+# Fichiers du systeme
+.DS_Store
+Thumbs.db
+
+# Donnees locales
+*.sqlite
+*.db
+uploads/
