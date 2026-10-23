@@ -4,6 +4,16 @@ Regle unique : chacun ne modifie que les dossiers de sa ligne. Le fichier `.gith
 
 Charge repartie : Marrich a le moins de code (il integre et il fusionne), les trois autres ont chacun un bloc metier complet.
 
+## Comptes GitHub
+
+| Nom | Compte GitHub |
+|---|---|
+| SODOU Essodina Romuald | Moruald001 |
+| MASSEME Samuel | NegusMasseme |
+| AGLAMEY-SEGBEAYA Kanleto Beni | y6502192-spec |
+| KOUSSOUGBO Kokou Marrich | Gold1705 |
+| ASSOGBA Koffi Ezechiel (LGR) | mcrepert-coder |
+
 ## Romuald (SODOU Essodina Romuald) - GNSS, terrain, carte
 
 Dossiers que je possede :
