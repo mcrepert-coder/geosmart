@@ -42,7 +42,7 @@ interface ConflictRow { id: string; overlap_area_m2: number }
 // Les droits, versions et rejeux doivent etre controles par le service appelant.
 export async function withParcelOverlapCheck<T>(
   db: ParcelTransaction,
-  candidate: { id: string; geometry: ParcelPolygon; excludeParcelId?: string },
+  candidate: { id: string; geometry: ParcelPolygon | (() => ParcelPolygon); excludeParcelId?: string },
   actorId: string,
   audit: OverlapAudit,
   write: (transaction: ParcelTransaction) => Promise<T>,
@@ -54,14 +54,15 @@ export async function withParcelOverlapCheck<T>(
   await db.query('BEGIN ISOLATION LEVEL READ COMMITTED');
   try {
     await db.query('LOCK TABLE parcels IN SHARE ROW EXCLUSIVE MODE');
-    // Le rejeu est recherche sous le meme verrou, avant le controle spatial :
-    // la creation initiale ne doit pas etre confondue avec une parcelle voisine.
+    // Preparation metier sous le meme verrou : rejeu de creation, ou lecture
+    // de l'etat courant avec verification de l'auteur et de la version.
     const early = await beforeCheck?.(db);
     if (early?.handled) {
       await db.query('COMMIT');
       return early.value;
     }
-    const geojson = JSON.stringify(candidate.geometry);
+    const geometry = typeof candidate.geometry === 'function' ? candidate.geometry() : candidate.geometry;
+    const geojson = JSON.stringify(geometry);
     const [validation] = await db.query<{ valid: boolean }>(
       `WITH candidate AS (SELECT ST_SetSRID(ST_GeomFromGeoJSON($1), 4326) AS geom)
        SELECT NOT ST_IsEmpty(geom) AND ST_IsValid(geom)

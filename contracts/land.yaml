@@ -912,6 +912,8 @@ components:
               value: { code: NOT_AUTHOR, message: Seul le geometre auteur modifie cette parcelle }
             nonInscrit:
               value: { code: SURVEYOR_NOT_REGISTERED, message: Geometre non inscrit a l'Ordre }
+            borneNonFixed:
+              value: { code: VERTEX_NOT_RTK_FIXED, message: Toutes les bornes doivent etre RTK Fixed }
             conflit:
               value: { code: PARCEL_IN_CONFLICT, message: Parcelle en litige ou en conflit }
     NotFound:

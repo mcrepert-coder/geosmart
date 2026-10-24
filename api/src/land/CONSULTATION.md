@@ -42,5 +42,6 @@ terrain peut etre achete sans verification. surveyedAt correspond a la derniere
 date de mesure des bornes courantes. EN_LITIGE implique inConflict=true.
 
 Les filtres et visibilites restent soumis a la revue du contrat par l'equipe.
-Le detail complet, les versions, les routes et l'integration NestJS ne font pas
-partie de cette etape.
+L'historique est maintenant disponible via `versions(id, reader)`, reserve aux
+geometres et administrateurs actifs ; voir MODIFICATION.md. Le detail complet,
+les routes et l'integration NestJS restent a developper.

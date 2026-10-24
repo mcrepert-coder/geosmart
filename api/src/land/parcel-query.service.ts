@@ -10,6 +10,16 @@ export interface SurveyorCertification {
 
 export interface ParcelReader { id: string; role: string; active: boolean }
 
+export interface ParcelVersion {
+  version: number;
+  legalStatus: string;
+  geometryHash: string;
+  geometry: ParcelPolygon;
+  changedBy: string;
+  changedAt: string;
+  reason?: string;
+}
+
 export interface ParcelSummary {
   id: string;
   label?: string;
@@ -77,6 +87,24 @@ export class ParcelQueryService {
   constructor(private readonly db: Pick<Pool, 'query'>,
     private readonly certification: SurveyorCertification,
     private readonly clock: Clock = () => new Date()) {}
+
+  async versions(id: string, reader?: ParcelReader): Promise<ParcelVersion[]> {
+    if (!reader) throw new ParcelQueryError('UNAUTHORIZED',401,'Authentification requise');
+    if (typeof reader.id !== 'string' || !reader.id.trim() || reader.active !== true ||
+        !['geometre','admin'].includes(reader.role)) {
+      throw new ParcelQueryError('FORBIDDEN_ROLE',403,'Role insuffisant pour consulter les versions');
+    }
+    if (typeof id !== 'string' || !id.trim()) invalid();
+    const { rows } = await this.db.query<{ versions: ParcelVersion[] }>(
+      `SELECT COALESCE(jsonb_agg(jsonb_build_object('version',v.version,
+        'legalStatus',v.legal_status,'geometryHash',v.geometry_hash,
+        'geometry',ST_AsGeoJSON(v.geometry,17)::jsonb,'changedBy',v.changed_by,'changedAt',v.changed_at)
+        || CASE WHEN v.reason IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('reason',v.reason) END
+        ORDER BY v.version DESC) FILTER (WHERE v.version IS NOT NULL),'[]'::jsonb) AS versions
+        FROM parcels p LEFT JOIN parcel_versions v ON v.parcel_id=p.id WHERE p.id=$1 GROUP BY p.id`, [id]);
+    if (!rows.length) throw new ParcelQueryError('NOT_FOUND',404,'Parcelle introuvable');
+    return rows[0].versions.map((version) => ({ ...version, changedAt: new Date(version.changedAt).toISOString() }));
+  }
 
   async list(input: unknown = {}, reader?: ParcelReader): Promise<{ items: ParcelSummary[]; total: number }> {
     if (!reader) throw new ParcelQueryError('UNAUTHORIZED', 401, 'Authentification requise');
