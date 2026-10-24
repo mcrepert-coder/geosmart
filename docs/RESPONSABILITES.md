@@ -2,6 +2,8 @@
 
 Regle unique : chacun ne modifie que les dossiers de sa ligne. Le fichier `.github/CODEOWNERS` fait respecter cette regle sur GitHub : une PR qui touche le dossier d'un autre demande son accord.
 
+Equipe : 4 etudiants, un encadrant pedagogique (M. Gédéon AMOUSSOU) et LGR (ASSOGBA Koffi Ezechiel).
+
 Charge repartie : Marrich a le moins de code (il integre et il fusionne), les trois autres ont chacun un bloc metier complet.
 
 ## Comptes GitHub
@@ -13,6 +15,7 @@ Charge repartie : Marrich a le moins de code (il integre et il fusionne), les tr
 | AGLAMEY-SEGBEAYA Kanleto Beni | y6502192-spec |
 | KOUSSOUGBO Kokou Marrich | Gold1705 |
 | ASSOGBA Koffi Ezechiel (LGR) | mcrepert-coder |
+| M. Gédéon AMOUSSOU (encadrant) | a renseigner |
 
 ## Romuald (SODOU Essodina Romuald) - GNSS, terrain, carte
 
@@ -116,3 +119,10 @@ Je ne tranche pas seul les decisions de fond : elles vont a LGR.
 | Les autres journalisent | Samuel livre `audit.log(...)` |
 
 En attendant, chacun code contre les donnees simulees decrites dans le contrat du module voisin.
+
+## Encadrant pedagogique (M. Gédéon AMOUSSOU) - avis et signature
+
+- Donne un avis sur le travail des etudiants et sur les livrables pedagogiques.
+- Signe la note de validation du budget et les documents qui le demandent.
+- Ne decide pas des achats ni de l'orientation (c'est LGR) et n'ecrit pas de code.
+- Au depot GitHub : lecture seulement, s'il le souhaite (a renseigner avec son nom d'utilisateur).

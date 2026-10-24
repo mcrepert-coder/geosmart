@@ -1,8 +1,19 @@
 # GeoSmart Field - depot de l'equipe
 
-Projet Confluences Togo (Ambassade de France, SCAC), porte par LGR, realise par 4 etudiants.
+Projet Confluences Togo (Ambassade de France, SCAC), porte par LGR, realise par 4 etudiants, encadre par un encadrant pedagogique.
 Representant LGR (decision, validation finale) : ASSOGBA Koffi Ezechiel.
 Encadrant pedagogique : M. Gédéon AMOUSSOU.
+
+## L'equipe (6 personnes)
+
+| Nom | Role |
+|---|---|
+| ASSOGBA Koffi Ezechiel (LGR) | Decision et validation finale, verification du travail sur GitHub |
+| M. Gédéon AMOUSSOU | Encadrant pedagogique : avis sur le travail, signature des livrables pedagogiques |
+| SODOU Essodina Romuald | GNSS, NTRIP, terrain, calculs, carte |
+| MASSEME Samuel | Foncier : parcelles, chevauchement, journal, attestation |
+| AGLAMEY-SEGBEAYA Kanleto Beni | Comptes, administration, synchronisation, location |
+| KOUSSOUGBO Kokou Marrich (delegue) | Annonces, site web, integration et revue (chef technique) |
 
 ## Ce que fait GeoSmart Field
 

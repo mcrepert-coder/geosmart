@@ -1,6 +1,6 @@
 # Cahier des charges - GeoSmart Field (version equipe)
 
-Version 2.0 - 20 octobre 2026. Remplace la proposition initiale des etudiants. Valide par : LGR (ASSOGBA Koffi Ezechiel).
+Version 2.0 - 20 octobre 2026. Remplace la proposition initiale des etudiants. Valide par : LGR (ASSOGBA Koffi Ezechiel). Encadrant pedagogique : M. Gédéon AMOUSSOU.
 Chaque exigence porte un numero (EF = fonctionnelle, RG = regle de gestion, CA = critere d'acceptation). Une exigence n'est "faite" que si son test automatique passe.
 
 ## 1. Contexte
