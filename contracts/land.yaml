@@ -445,7 +445,9 @@ paths:
       summary: Liste des demandes de leve
       description: |
         Agent - ses propres demandes. Geometre - demandes OUVERTE et celles
-        qu'il a prises. Administrateur - toutes.
+        qu'il a prises. Administrateur - toutes. Ordre : date de creation.
+        contactPhone n'est renvoye qu'a l'agent auteur, a l'administrateur et au
+        geometre qui a pris la demande (proposition, donnee personnelle).
       parameters:
         - name: status
           in: query
@@ -471,7 +473,11 @@ paths:
       operationId: post_survey_requests_id_take
       tags: [demandes-de-leve]
       summary: Un geometre prend une demande ouverte (EF-207)
-      description: Role autorise - geometre actif. Deja prise par un autre - 409.
+      description: |
+        Role autorise - geometre actif. Deja prise par un autre ou fermee - 409.
+        La prise est atomique : un seul geometre l'obtient. Le meme geometre qui
+        reprend sa demande recoit 200 sans nouvel audit (reprise reseau).
+        La demande et l'audit SURVEY_REQUEST_TAKEN sont valides ensemble.
       responses:
         '200':
           description: Demande prise
@@ -777,16 +783,20 @@ components:
 
     SurveyRequestCreate:
       type: object
+      description: |
+        En creation, tout champ inconnu est refuse (400). La demande n'est plus
+        modifiable ensuite ; elle est journalisee par SURVEY_REQUEST_CREATED.
       required: [description, location]
       properties:
-        description: { type: string, maxLength: 1000 }
+        description: { type: string, minLength: 1, maxLength: 1000, pattern: '\S' }
         location:
           type: object
+          additionalProperties: false
           required: [lon, lat]
           properties:
-            lon: { type: number }
-            lat: { type: number }
-        contactPhone: { type: string }
+            lon: { type: number, minimum: -180, maximum: 180 }
+            lat: { type: number, minimum: -90, maximum: 90 }
+        contactPhone: { type: string, pattern: '^\+?[0-9]{8,15}$' }
 
     SurveyRequest:
       allOf:
@@ -800,6 +810,7 @@ components:
             surveyorId: { type: string, nullable: true }
             parcelId: { type: string, nullable: true }
             createdAt: { type: string, format: date-time }
+            takenAt: { type: string, format: date-time }
 
     AuditEntry:
       type: object
