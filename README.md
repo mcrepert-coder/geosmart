@@ -2,7 +2,7 @@
 
 Projet Confluences Togo (Ambassade de France, SCAC), porte par LGR, realise par 4 etudiants.
 Representant LGR (decision, validation finale) : ASSOGBA Koffi Ezechiel.
-Encadrant pedagogique : M. AMOUZOU.
+Encadrant pedagogique : M. Gédéon AMOUSSOU.
 
 ## Ce que fait GeoSmart Field
 
@@ -27,7 +27,7 @@ GeoSmart seconde l'Etat (ANDF). Il ne le remplace pas : le document produit est 
 
 ## Par ou commencer
 
-1. Lire `docs/CAHIER-DES-CHARGES.md` en entier (20 minutes).
+1. Lire `docs/CAHIER-DES-CHARGES.md` en entier (20 minutes), puis `docs/ARCHITECTURE.md`.
 2. Lire `docs/CONSIGNES-ETUDIANTS.md` (une page), puis `docs/FEUILLE-DE-ROUTE.md`.
 3. Lire `docs/RESPONSABILITES.md` : trouver son nom, ses dossiers, ses livrables.
 4. Lire `docs/WORKFLOW-GIT.md` : branches, PR, revue.

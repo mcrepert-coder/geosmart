@@ -60,4 +60,4 @@ Si le temps manque, on garde dans cet ordre : comptes et annonces, foncier, terr
 
 - Questions techniques : le proprietaire du module, puis Marrich.
 - Decisions de fond, achats, hebergement, modele economique : Koffi (LGR).
-- Questions pedagogiques : M. AMOUZOU.
+- Questions pedagogiques : M. Gédéon AMOUSSOU.
