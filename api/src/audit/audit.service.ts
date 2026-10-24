@@ -49,7 +49,9 @@ export class AuditService {
     if (actorId !== null && (typeof actorId !== 'string' || actorId === '')) {
       throw new AuditInputError('Acteur invalide');
     }
-    if (!target.type || !target.id) {
+    if (!target || typeof target !== 'object' || Array.isArray(target) ||
+        typeof target.type !== 'string' || !target.type.trim() ||
+        typeof target.id !== 'string' || !target.id.trim()) {
       throw new AuditInputError('Entite invalide');
     }
     if (details === null || typeof details !== 'object' || Array.isArray(details)) {

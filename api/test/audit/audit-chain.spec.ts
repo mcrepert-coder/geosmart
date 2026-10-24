@@ -151,6 +151,21 @@ describe('verifyChain', () => {
   });
 
   describe('avec une empreinte de reference conservee hors base', () => {
+    it('detecte une reecriture prolongee au-dela de la reference', () => {
+      const original = buildChain(3);
+      const rewritten = buildChain(5);
+      rewritten[0] = seal({ ...rewritten[0], details: { areaM2: 999 } });
+      for (let i = 1; i < rewritten.length; i++) {
+        rewritten[i] = seal({ ...rewritten[i], prevHash: rewritten[i - 1].hash });
+      }
+      expect(verifyChain(rewritten, { seq: 3, hash: original[2].hash })).toMatchObject({
+        valid: false,
+        checked: 2,
+        firstBrokenSeq: 3,
+        reason: 'HEAD_MISMATCH',
+      });
+    });
+
     it('detecte la suppression des dernieres lignes', () => {
       const chain = buildChain(5);
       const head = { seq: 5, hash: chain[4].hash };

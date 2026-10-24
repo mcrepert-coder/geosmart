@@ -38,8 +38,6 @@ info:
     - LGR : visibilite du statut public, des geometries et libelles pour les
       comptes actifs, des attestations et du nom du geometre ;
     - LGR et Marrich : stockage et controle d'acces des photos de bornage ;
-    - Beni et Samuel : signature objet de audit.log, proposee en remplacement
-      de la signature positionnelle des notes du module ;
     - LGR : transitions TERMINEE et ANNULEE des demandes, non exposees ici.
     Les comportements proposes ne constituent pas des decisions approuvees.
 
@@ -566,6 +564,8 @@ components:
         canonicalise selon RFC 8785 (JCS), encode en UTF-8 sans BOM ni saut final.
         Tri recursif des cles, ordre des tableaux preserve, nombres finis selon JCS,
         aucune normalisation Unicode implicite. null est distinct d'un champ absent.
+        Les structures cycliques, tableaux creux, surrogates Unicode isoles et
+        caracteres nuls dans les cles ou valeurs sont refuses avant stockage JSONB.
         Les champs obligatoires absents sont refuses avant le calcul.
         Les dates generees pour le journal sont en UTC au format
         YYYY-MM-DDTHH:mm:ss.SSSZ ; les dates de requete restent les chaines recues.
@@ -593,7 +593,7 @@ components:
       additionalProperties: false
       required: [instrument, fixMode, pdop, satellites, measuredAt]
       properties:
-        instrument: { type: string, example: UM982 }
+        instrument: { type: string, minLength: 1, pattern: '\S', example: UM982 }
         fixMode: { $ref: '#/components/schemas/FixMode' }
         pdop: { type: number, example: 1.4 }
         satellites: { type: integer, example: 21 }
@@ -605,10 +605,10 @@ components:
       additionalProperties: false
       required: [number, lon, lat, source]
       properties:
-        number: { type: string, example: B1, description: Numero de la borne }
+        number: { type: string, minLength: 1, pattern: '\S', example: B1, description: Numero de la borne }
         lon: { type: number, minimum: -180, maximum: 180 }
         lat: { type: number, minimum: -90, maximum: 90 }
-        surveyPointId: { type: string, description: Identifiant de la borne cote terrain }
+        surveyPointId: { type: string, minLength: 1, pattern: '\S', description: Identifiant de la borne cote terrain }
         source: { $ref: '#/components/schemas/PointSource' }
 
     ParcelCreate:
@@ -623,7 +623,7 @@ components:
         vertices:
           type: array
           minItems: 3
-          description: Sommets dans l'ordre, sans repeter le premier a la fin.
+          description: Sommets dans l'ordre ; aucune paire lon/lat repetee, y compris le premier sommet a la fin. Repetition refusee en 400 VALIDATION_ERROR.
           items: { $ref: '#/components/schemas/Vertex' }
 
     ParcelUpdate:
@@ -641,6 +641,7 @@ components:
         vertices:
           type: array
           minItems: 3
+          description: Memes regles que ParcelCreate, aucune paire lon/lat repetee.
           items: { $ref: '#/components/schemas/Vertex' }
         reason: { type: string, minLength: 3 }
 
@@ -814,7 +815,20 @@ components:
         de fin sans empreinte de reference conservee independamment ; aucun
         ancrage externe n'est promis par ce contrat.
         Les autres modules ecrivent par la fonction interne
-        audit.log({ action, actorId, entityType, entityId, details }) : Promise<AuditEntry>.
+        audit.log(action, actorId, details?, target?) : Promise<AuditEntry>,
+        conformement a la signature positionnelle des notes du module.
+        action est une chaine de 2 a 64 caracteres suivant ^[A-Z][A-Z0-9_]{1,63}$.
+        actorId est l'identifiant de l'acteur authentifie (chaine non vide),
+        ou null pour une action systeme ; il ne provient pas du corps HTTP.
+        details est un objet JSON, vide par defaut, valide par CanonicalJson
+        et copie avant l'ajout pour empecher une modification par l'appelant.
+        target est { type, id }, avec deux chaines contenant au moins un
+        caractere autre qu'un espace ; il alimente
+        entityType et entityId. Par defaut, il vaut { type: system, id: '-' }.
+        Les operations metier fournissent la cible concernee pour la recherche.
+        Exemple : audit.log('ACCOUNT_VALIDATED', adminId, { motif: 'dossier valide' },
+        { type: 'user', id: userId }). L'appel renvoie une promesse de ligne scellee ;
+        un rejet doit etre traite par l'appelant, sans annoncer un audit reussi.
       required: [seq, at, actorId, action, entityType, entityId, details, prevHash, hash]
       properties:
         seq: { type: integer, minimum: 1, maximum: 9007199254740991 }

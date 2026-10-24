@@ -1,5 +1,5 @@
 import { GENESIS_HASH } from '../../src/audit/audit-chain';
-import { AuditInputError, AuditService } from '../../src/audit/audit.service';
+import { AuditInputError, AuditService, AuditTarget } from '../../src/audit/audit.service';
 import { InMemoryAuditStore } from '../../src/audit/audit.store';
 import { CanonicalJsonError } from '../../src/audit/canonical-json';
 
@@ -108,6 +108,21 @@ describe('AuditService', () => {
   ])('refuse %s sans rien ecrire', async (_label, action, actor, details) => {
     await expect(
       audit.log(action, actor, details as unknown as Record<string, never>),
+    ).rejects.toThrow(AuditInputError);
+    expect(store.entries).toHaveLength(0);
+  });
+
+  it.each([
+    null,
+    [],
+    { type: 12, id: 'parcel-1' },
+    { type: 'parcel', id: 12 },
+    { type: '   ', id: 'parcel-1' },
+    { type: 'parcel', id: '   ' },
+    { type: 'parcel' },
+  ].map((target) => [target]))('refuse une cible invalide (%j) sans ecriture', async (target) => {
+    await expect(
+      audit.log('PARCEL_CREATED', 'usr', {}, target as unknown as AuditTarget),
     ).rejects.toThrow(AuditInputError);
     expect(store.entries).toHaveLength(0);
   });

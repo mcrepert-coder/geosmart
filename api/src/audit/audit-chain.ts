@@ -74,6 +74,9 @@ export function verifyChain(
       return broken('UNHASHABLE_ENTRY');
     }
     if (entry.hash !== recomputed) return broken('HASH_MISMATCH');
+    if (expectedHead && entry.seq === expectedHead.seq && entry.hash !== expectedHead.hash) {
+      return broken('HEAD_MISMATCH');
+    }
     checked++;
     prevHash = entry.hash;
     expectedSeq++;
@@ -83,10 +86,6 @@ export function verifyChain(
     const lastSeq = expectedSeq - 1;
     if (lastSeq < expectedHead.seq) {
       return { valid: false, checked, firstBrokenSeq: lastSeq + 1, reason: 'TRUNCATED' };
-    }
-    // La ligne de reference doit etre dans la chaine verifiee, avec la meme empreinte.
-    if (lastSeq === expectedHead.seq && prevHash !== expectedHead.hash) {
-      return { valid: false, checked, firstBrokenSeq: lastSeq, reason: 'HEAD_MISMATCH' };
     }
   }
   return { valid: true, checked, firstBrokenSeq: null };
