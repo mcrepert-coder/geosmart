@@ -35,6 +35,8 @@ CREATE TABLE parcels (
   CONSTRAINT land_parcels_geometry_valid CHECK (
     NOT ST_IsEmpty(geometry) AND ST_IsValid(geometry)
     AND ST_Area(geometry) > 0
+    -- Contour exterieur seul, comme ParcelCreate dans contracts/land.yaml.
+    AND ST_NumInteriorRings(geometry) = 0
     AND ST_XMin(Box3D(geometry)) >= -180
     AND ST_XMax(Box3D(geometry)) <= 180
     AND ST_YMin(Box3D(geometry)) >= -90
@@ -86,6 +88,7 @@ CREATE TABLE parcel_versions (
   PRIMARY KEY (parcel_id, version),
   CONSTRAINT land_versions_geometry_valid CHECK (
     NOT ST_IsEmpty(geometry) AND ST_IsValid(geometry) AND ST_Area(geometry) > 0
+    AND ST_NumInteriorRings(geometry) = 0
     AND ST_XMin(Box3D(geometry)) >= -180 AND ST_XMax(Box3D(geometry)) <= 180
     AND ST_YMin(Box3D(geometry)) >= -90 AND ST_YMax(Box3D(geometry)) <= 90
   ),
