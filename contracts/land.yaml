@@ -75,7 +75,7 @@ paths:
           schema: { $ref: '#/components/schemas/LegalStatus' }
         - name: bbox
           in: query
-          description: Emprise "minLon,minLat,maxLon,maxLat" en WGS84.
+          description: Emprise "minLon,minLat,maxLon,maxLat" en WGS84, min strictement inferieur a max. Les emprises traversant l'antimeridien sont refusees (400).
           schema: { type: string, example: '1.20,6.12,1.25,6.18' }
         - name: certified
           in: query
@@ -102,6 +102,7 @@ paths:
               examples:
                 exemple:
                   $ref: '#/components/examples/ParcelPage'
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
     post:
