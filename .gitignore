@@ -27,3 +27,17 @@ Thumbs.db
 *.sqlite
 *.db
 uploads/
+
+# Next.js
+.next/
+out/
+web/next-env.d.ts
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+mobile/.packages
+mobile/pubspec.lock
+!mobile/pubspec.lock
+mobile/coverage/
