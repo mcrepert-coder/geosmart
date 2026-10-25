@@ -10,6 +10,7 @@ class GeoSmartApp extends StatelessWidget {
     return MaterialApp(
       title: 'GeoSmart',
       theme: ThemeData(colorSchemeSeed: const Color(0xFF176B5B)),
+      debugShowCheckedModeBanner: false,
       home: const GnssPage(),
     );
   }
