@@ -30,7 +30,7 @@ GeoSmart seconde l'Etat (ANDF). Il ne le remplace pas : le document produit est 
 | Dossier | Contenu | Responsable principal |
 |---|---|---|
 | `api/` | Serveur NestJS + PostgreSQL/PostGIS | voir docs/RESPONSABILITES.md (un sous-dossier par personne) |
-| `mobile/` | Application Android Kotlin | idem |
+| `mobile/` | Application Flutter (Dart) avec le module materiel en Kotlin natif (`mobile/android/`) | idem |
 | `web/` | Site web : annonces (Marrich), verification d'une parcelle (Samuel) | Marrich et Samuel |
 | `contracts/` | Contrat d'API (OpenAPI), un fichier par module | chaque proprietaire de module |
 | `docs/` | Cahier des charges, responsabilites, workflow Git | Marrich (integrateur) |

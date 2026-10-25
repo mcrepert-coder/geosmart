@@ -1,6 +1,6 @@
 # Module location (proprietaire : Beni)
 
-Dossiers couverts : `api/src/leasing/`, `api/test/leasing/`, `contracts/leasing.yaml`, `mobile/.../field/leasing/`.
+Dossiers couverts : `api/src/leasing/`, `api/test/leasing/`, `contracts/leasing.yaml`, `mobile/lib/features/leasing/`.
 
 Ce module vient apres l'authentification et la synchronisation : ne le commence qu'une fois `@Roles` et `POST /sync` fusionnes.
 

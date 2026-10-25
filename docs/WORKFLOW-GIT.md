@@ -2,20 +2,23 @@
 
 ## Branches
 
-- `main` : toujours livrable. Personne n'y pousse directement.
+- `main` : toujours livrable. Seul LGR y fusionne, a chaque jalon, depuis `dev`.
+- `dev` : branche d'integration de l'equipe. Personne n'y pousse directement : on y fusionne par Pull Request.
 - `feat/<module>-<sujet>` : une branche par tache. Exemples : `feat/land-chevauchement`, `feat/auth-roles`, `feat/gnss-ntrip`.
 - Une branche vit au plus quelques heures. On la fusionne vite pour eviter les conflits.
 
 ## Cycle d'une tache
 
-1. Mettre a jour : `git switch main`, `git pull`.
-2. Creer la branche : `git switch -c feat/land-chevauchement`.
+1. Mettre a jour : `git switch dev`, `git pull`.
+2. Creer la branche depuis `dev` : `git switch -c feat/land-chevauchement`.
 3. Travailler uniquement dans ses dossiers.
 4. Lancer les tests et le linter du dossier.
 5. Commit en francais, une ligne, sans mention d'outil ni ligne de co-auteur : "ajoute le refus 409 en cas de chevauchement".
-6. `git push -u origin feat/land-chevauchement`, puis ouvrir la Pull Request.
-7. Un autre etudiant relit. Marrich fusionne quand la CI est verte et que le relecteur a approuve.
-8. LGR verifie les jalons et valide les versions.
+6. `git push -u origin feat/land-chevauchement`, puis ouvrir la Pull Request vers `dev` (pas vers `main`).
+7. Un autre etudiant relit. Marrich fusionne dans `dev` quand la CI est verte et que le relecteur a approuve.
+8. A chaque jalon, apres la recette, LGR fusionne `dev` dans `main`.
+
+Une Pull Request reste petite : une tache, quelques centaines de lignes au plus. Au-dela, la decouper : personne ne peut relire 6 000 lignes d'un coup.
 
 ## Pull Request
 
@@ -27,7 +30,7 @@ Ne pas le resoudre a la va-vite. Prevenir Marrich. Les conflits viennent presque
 
 ## Protection de la branche principale
 
-Si le depot est public, activer les regles de protection sur `main` : PR obligatoire, une approbation, CI verte. Si le depot est prive en offre gratuite, la protection n'est pas disponible : la regle reste la meme par convention, et LGR refuse toute fusion qui n'a pas de PR.
+Si le depot est public, activer les regles de protection sur `main` et `dev` : PR obligatoire, une approbation, CI verte. Si le depot est prive en offre gratuite, la protection n'est pas disponible : la regle reste la meme par convention, et LGR refuse toute fusion qui n'a pas de PR.
 
 ## Secrets
 
