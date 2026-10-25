@@ -44,6 +44,21 @@ GeoSmart seconde l'Etat (ANDF). Il ne le remplace pas : le document produit est 
 4. Lire `docs/WORKFLOW-GIT.md` : branches, PR, revue.
 5. Lire `docs/REGLES-DE-TRAVAIL.md` : regles communes, fichiers partages, historique propre.
 
+## Lancer les services avec Docker
+
+Docker Compose lance le backend NestJS, le site Next.js et PostgreSQL avec PostGIS :
+
+```powershell
+Copy-Item .env.docker.example .env
+docker compose up --build
+```
+
+Le site est disponible sur `http://localhost:3000`, l'API sur `http://localhost:3001` et PostgreSQL sur le port `5433` (hote). Les ports peuvent etre changes dans `.env`. Les valeurs d'exemple sont reservees au developpement local : remplacez les secrets avant tout deploiement.
+
+Pour arreter les services sans supprimer les donnees, utilisez `docker compose down`. Pour supprimer aussi le volume de la base locale, utilisez `docker compose down -v`.
+
+L'application Flutter reste dans `mobile/` et se lance avec le SDK Flutter de la machine (`cd mobile`, puis `flutter run`). Docker Compose ne construit pas l'APK.
+
 ## Regles d'or
 
 - On ne touche que ses propres dossiers. Pour le reste, on ouvre une issue au proprietaire.
