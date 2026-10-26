@@ -1,0 +1,1023 @@
+openapi: 3.0.3
+info:
+  title: GeoSmart Field - module foncier et journal
+  version: 0.1.0
+  description: |
+    Contrat du module foncier (proprietaire : Samuel, NegusMasseme).
+    Couvre EF-201 a EF-208, RG-01 a RG-04, RG-09, RG-10, CA-2, CA-4.
+
+    Authentification : jeton Bearer fourni par le module auth (Beni).
+    Le role est relu en base a chaque requete (RG-06).
+
+    Garde simule (en attendant `@Roles` de Beni) : en developpement, l'en-tete
+    `X-Dev-Role` (admin, geometre, topographe, agent, client) et l'en-tete
+    `X-Dev-User` (identifiant) remplacent le jeton. Ce garde est desactive en
+    production. Son activation exige NODE_ENV=development et une option explicite
+    DEV_AUTH_ENABLED=true ; toute autre combinaison refuse de l'activer.
+    Avec Authorization present, seul le jeton est utilise : un jeton invalide
+    donne 401, sans repli vers les en-tetes X-Dev-*. Ces en-tetes ne remplacent
+    jamais une identite authentifiee. Les deux en-tetes sont requis en mode simule.
+    Ces garanties devront etre testees dans l'implementation avec Beni.
+
+    Vocabulaire : "attestation de leve", jamais certificat ni titre.
+    Toute attestation porte la mention "Ne vaut pas titre foncier". Pas de QR code.
+
+    Propositions techniques de ce brouillon, a relire avant integration :
+    - canonicalisation JSON et empreintes decrites dans les schemas ;
+    - code 422 pour une borne non RTK Fixed ;
+    - politique d'idempotence et code 409 IDEMPOTENCY_CONFLICT, a convenir avec Beni.
+
+    Decisions ouvertes (aucune issue GitHub creee par ce fichier) :
+    - Beni et Samuel, avec Romuald : point d'entree de la file locale, POST /sync
+      ou POST /parcels. RG-08 impose la file locale dans les deux cas ;
+    - LGR, avec Romuald : eventuel traitement des ecarts de mesure. La proposition
+      de 0,05 m n'est pas approuvee et n'autorise aucun chevauchement ;
+    - LGR : droits de changement de statut par l'admin. Le cahier section 3
+      interdit les limites, tandis que NOTES-MODULE.md ligne 12 autorise des
+      modifications sans preciser les champs. Aucun nouveau droit n'est acquis ;
+    - LGR : visibilite du statut public, des geometries et libelles pour les
+      comptes actifs, des attestations et du nom du geometre ;
+    - LGR et Marrich : stockage et controle d'acces des photos de bornage ;
+    - LGR : transitions TERMINEE et ANNULEE des demandes, non exposees ici.
+    Les comportements proposes ne constituent pas des decisions approuvees.
+
+servers:
+  - url: http://localhost:3000
+    description: Developpement local (la production refuse le HTTP)
+
+tags:
+  - name: parcelles
+    description: Creation, consultation et versions des parcelles.
+  - name: statut
+    description: Consultation du statut avant achat.
+  - name: attestations
+    description: Emission et consultation des attestations de leve.
+  - name: bornage
+    description: Comptes rendus de bornage contradictoire.
+  - name: demandes-de-leve
+    description: Demandes des agents et prise par un geometre.
+  - name: journal
+    description: Consultation et verification du journal chaine.
+
+security:
+  - bearer: []
+
+paths:
+  /parcels:
+    get:
+      operationId: get_parcels
+      tags: [parcelles]
+      summary: Liste des parcelles pour la carte (EF-406, consommateur Romuald)
+      description: Roles autorises - tous les comptes actifs.
+      parameters:
+        - name: legalStatus
+          in: query
+          schema: { $ref: '#/components/schemas/LegalStatus' }
+        - name: bbox
+          in: query
+          description: Emprise "minLon,minLat,maxLon,maxLat" en WGS84, min strictement inferieur a max. Les emprises traversant l'antimeridien sont refusees (400).
+          schema: { type: string, example: '1.20,6.12,1.25,6.18' }
+        - name: certified
+          in: query
+          schema: { type: boolean }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+      responses:
+        '200':
+          description: Page de parcelles
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ParcelSummary' }
+                  total: { type: integer }
+              examples:
+                exemple:
+                  $ref: '#/components/examples/ParcelPage'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: post_parcels
+      tags: [parcelles]
+      summary: Cree une parcelle a partir de bornes (EF-201, EF-202, RG-01, RG-02)
+      description: |
+        Role autorise - geometre actif. Le topographe, l'agent, le client et
+        l'administrateur sont refuses (403).
+        Le terrain passe obligatoirement par la file locale (RG-08). Le routage
+        de cette file vers cette route ou POST /sync reste a convenir avec Beni.
+        Les deux chemins devront partager validation, droits et idempotence.
+        Controles dans l'ordre : au moins 3 sommets distincts, fermeture serveur,
+        pas d'auto-intersection (ST_IsValid), toutes bornes en RTK Fixed,
+        pas de chevauchement, y compris inclusion totale ou geometrie identique.
+        Une limite commune sans intersection des surfaces interieures est acceptee.
+        Aucune tolerance de 0,05 m ni seuil d'aire ne permet d'accepter un recouvrement.
+        Un chevauchement donne 409 et une alerte `PARCEL_OVERLAP_REJECTED`
+        ecrite dans le journal dans une transaction separee.
+        Proposition d'idempotence a convenir avec Beni : cle (acteur authentifie,
+        clientId), commune a cette route et au traitement sync correspondant.
+        Apres authentification et autorisation, un contenu identique renvoie
+        la reponse initiale conservee (200), sans nouvelle version ni nouvel audit.
+        Le contenu compare est ParcelCreate complet, canonicalise comme CanonicalJson.
+        Un contenu different donne 409 IDEMPOTENCY_CONFLICT, sans mutation.
+        L'identite d'un autre acteur ne permet jamais de recuperer sa reponse.
+        Les traitements concurrents de la meme cle sont atomiques : une seule
+        creation reussit ; les autres suivent les memes regles de rejeu.
+        Seules les creations reussies memorisent une reponse de succes ; un refus
+        ne doit jamais etre transforme en succes lors d'une reprise.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ParcelCreate' }
+            example:
+              clientId: 7f3c2a1e-5b7d-4c1a-9e2f-0a1b2c3d4e5f
+              legalStatus: COUTUMIER_NON_TITRE
+              projectId: chantier-12
+              label: Lot 14, Agoe
+              vertices:
+                - { number: B1, lon: 1.212301, lat: 6.172410, source: { instrument: UM982, fixMode: RTK_FIXED, pdop: 1.4, satellites: 21, hAccuracyM: 0.012, measuredAt: '2026-10-24T08:12:00Z' } }
+                - { number: B2, lon: 1.212642, lat: 6.172398, source: { instrument: UM982, fixMode: RTK_FIXED, pdop: 1.5, satellites: 20, hAccuracyM: 0.014, measuredAt: '2026-10-24T08:15:00Z' } }
+                - { number: B3, lon: 1.212650, lat: 6.172102, source: { instrument: UM982, fixMode: RTK_FIXED, pdop: 1.3, satellites: 22, hAccuracyM: 0.011, measuredAt: '2026-10-24T08:19:00Z' } }
+                - { number: B4, lon: 1.212310, lat: 6.172095, source: { instrument: UM982, fixMode: RTK_FIXED, pdop: 1.4, satellites: 21, hAccuracyM: 0.013, measuredAt: '2026-10-24T08:23:00Z' } }
+      responses:
+        '201':
+          description: Parcelle creee (version 1)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Parcel' }
+              examples: { exemple: { $ref: '#/components/examples/Parcel' } }
+        '200':
+          description: Renvoi d'un clientId deja traite, parcelle existante
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Parcel' }
+        '400': { $ref: '#/components/responses/InvalidGeometry' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Overlap' }
+        '422': { $ref: '#/components/responses/NotRtkFixed' }
+
+  /parcels/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ParcelId'
+    get:
+      operationId: get_parcels_id
+      tags: [parcelles]
+      summary: Detail d'une parcelle (version courante)
+      description: Roles autorises - tous les comptes actifs.
+      responses:
+        '200':
+          description: Parcelle
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Parcel' }
+              examples: { exemple: { $ref: '#/components/examples/Parcel' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: patch_parcels_id
+      tags: [parcelles]
+      summary: Modifie une parcelle et cree une nouvelle version (EF-205, CA-4)
+      description: |
+        Modification de la limite (vertices) : seul le geometre auteur.
+        L'administrateur ne modifie jamais une limite (cahier des charges, section 3) ;
+        le droit de changer le statut reste une decision ouverte pour LGR.
+        Dans ce brouillon, aucun droit admin n'est accorde par defaut.
+        Le geometre auteur peut modifier vertices, legalStatus et label.
+        Tout champ interdit ou inconnu fait refuser la requete entiere, sans
+        modification partielle. Aucun auteur n'est fourni par le client.
+        Un agent, un topographe ou un client est refuse (403, CA-4).
+        `expectedVersion` evite d'ecraser une version plus recente (409 VERSION_CONFLICT).
+        Les memes controles que la creation s'appliquent, la parcelle elle-meme exclue.
+        Ils portent sur la parcelle resultant du PATCH, avec les bornes conservees
+        si vertices est absent. Les sommets suivent le format de ParcelCreate.
+        Au moins un champ metier doit etre fourni ; aucun changement effectif
+        donne 400 NO_CHANGE, sans version ni audit supplementaire.
+        Toute modification acceptee cree exactement une version et un audit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ParcelUpdate' }
+            example:
+              expectedVersion: 1
+              legalStatus: EN_LITIGE
+              reason: Contestation deposee par un voisin
+      responses:
+        '200':
+          description: Nouvelle version
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Parcel' }
+        '400': { $ref: '#/components/responses/InvalidGeometry' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/UpdateConflict' }
+        '422': { $ref: '#/components/responses/NotRtkFixed' }
+
+  /parcels/{id}/versions:
+    parameters:
+      - $ref: '#/components/parameters/ParcelId'
+    get:
+      operationId: get_parcels_id_versions
+      tags: [parcelles]
+      summary: Historique des versions (EF-205)
+      description: Roles autorises - geometre, administrateur.
+      responses:
+        '200':
+          description: Versions, la plus recente en premier
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ParcelVersion' }
+              example:
+                - version: 2
+                  legalStatus: EN_LITIGE
+                  geometryHash: d8eb1a24cba4c50b14359bbacb4fc63d6a79b99ffa414014a0db2bf4784b16e6
+                  changedBy: usr_geo_01
+                  changedAt: '2026-10-25T10:00:00Z'
+                  reason: Contestation deposee par un voisin
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /parcels/{id}/status:
+    parameters:
+      - $ref: '#/components/parameters/ParcelId'
+    get:
+      operationId: get_parcels_id_status
+      tags: [statut]
+      summary: Statut avant achat (EF-206, consommateurs Marrich et web/parcelle)
+      description: |
+        Public, sans compte (a confirmer par LGR). Ne renvoie aucune donnee
+        personnelle. Le resultat peut etre conserve en copie locale pour le
+        mode hors ligne ; `checkedAt` indique la fraicheur.
+      security: []
+      responses:
+        '200':
+          description: Statut public
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ParcelStatus' }
+              example:
+                parcelId: PRC-2026-000014
+                legalStatus: COUTUMIER_NON_TITRE
+                certified: true
+                hasAttestation: true
+                inConflict: false
+                version: 1
+                areaM2: 1240.37
+                perimeterM: 141.22
+                surveyedAt: '2026-10-24T08:23:00Z'
+                checkedAt: '2026-10-24T12:00:00Z'
+                notice: Ne vaut pas titre foncier
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /parcels/{id}/attestations:
+    parameters:
+      - $ref: '#/components/parameters/ParcelId'
+    post:
+      operationId: post_parcels_id_attestations
+      tags: [attestations]
+      summary: Emet une attestation de leve (EF-204, RG-03, RG-09)
+      description: |
+        Role autorise - geometre auteur de la parcelle, inscrit a l'Ordre.
+        Conditions RG-03 : geometre inscrit, toutes bornes RTK Fixed,
+        parcelle sans conflit (pas EN_LITIGE, pas d'alerte ouverte).
+        Sinon 403 avec le code de la condition manquante.
+      responses:
+        '201':
+          description: Attestation emise
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Attestation' }
+              examples: { exemple: { $ref: '#/components/examples/Attestation' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    get:
+      operationId: get_parcels_id_attestations
+      tags: [attestations]
+      summary: Liste des attestations d'une parcelle
+      description: Roles autorises - tous les comptes actifs.
+      responses:
+        '200':
+          description: Attestations
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Attestation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /attestations/{number}/pdf:
+    parameters:
+      - name: number
+        in: path
+        required: true
+        schema: { type: string, example: ATL-2026-000031 }
+    get:
+      operationId: get_attestations_number_pdf
+      tags: [attestations]
+      summary: Telecharge le PDF de l'attestation de leve
+      description: |
+        Roles autorises - tous les comptes actifs. Le PDF contient : numero,
+        surface, perimetre, bornes, version, date, geometre, empreinte SHA-256
+        du polygone, mention "Ne vaut pas titre foncier". Pas de QR code.
+      responses:
+        '200':
+          description: Document PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /parcels/{id}/boundary-reports:
+    parameters:
+      - $ref: '#/components/parameters/ParcelId'
+    post:
+      operationId: post_parcels_id_boundary_reports
+      tags: [bornage]
+      summary: Enregistre un bornage contradictoire (EF-208)
+      description: |
+        Role autorise - geometre auteur. Photos : JPEG ou PNG, 5 Mo au plus
+        chacune (limite proposee : 5 000 000 octets par fichier).
+        Au moins une photo est requise a la creation (EF-208).
+        Type reel des fichiers et taille controles cote serveur.
+        Horodatage serveur ajoute a la creation.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [neighbours, heldAt, photos]
+              properties:
+                heldAt: { type: string, format: date-time }
+                neighbours:
+                  type: array
+                  description: Partie JSON validee selon Neighbour, sinon 400.
+                  items: { $ref: '#/components/schemas/Neighbour' }
+                  example: [{ name: KOMLAN Yao, present: true, agrees: true }]
+                photos:
+                  type: array
+                  minItems: 1
+                  items: { type: string, format: binary }
+            encoding:
+              neighbours:
+                contentType: application/json
+              photos:
+                contentType: image/jpeg, image/png
+      responses:
+        '201':
+          description: Bornage enregistre
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BoundaryReport' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413':
+          description: Photo de plus de 5 Mo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    get:
+      operationId: get_parcels_id_boundary_reports
+      tags: [bornage]
+      summary: Bornages d'une parcelle
+      description: Roles autorises - geometre, administrateur.
+      responses:
+        '200':
+          description: Bornages
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/BoundaryReport' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /survey-requests:
+    post:
+      operationId: post_survey_requests
+      tags: [demandes-de-leve]
+      summary: Un agent demande un leve (EF-207)
+      description: Role autorise - agent actif.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SurveyRequestCreate' }
+            example:
+              description: Terrain de 600 m2 a lever avant mise en vente
+              location: { lon: 1.2125, lat: 6.1723 }
+              contactPhone: '90112233'
+      responses:
+        '201':
+          description: Demande creee
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SurveyRequest' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    get:
+      operationId: get_survey_requests
+      tags: [demandes-de-leve]
+      summary: Liste des demandes de leve
+      description: |
+        Agent - ses propres demandes. Geometre - demandes OUVERTE et celles
+        qu'il a prises. Administrateur - toutes. Ordre : date de creation.
+        contactPhone n'est renvoye qu'a l'agent auteur, a l'administrateur et au
+        geometre qui a pris la demande (proposition, donnee personnelle).
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/SurveyRequestStatus' }
+      responses:
+        '200':
+          description: Demandes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SurveyRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /survey-requests/{id}/take:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: post_survey_requests_id_take
+      tags: [demandes-de-leve]
+      summary: Un geometre prend une demande ouverte (EF-207)
+      description: |
+        Role autorise - geometre actif. Deja prise par un autre ou fermee - 409.
+        La prise est atomique : un seul geometre l'obtient. Le meme geometre qui
+        reprend sa demande recoit 200 sans nouvel audit (reprise reseau).
+        La demande et l'audit SURVEY_REQUEST_TAKEN sont valides ensemble.
+      responses:
+        '200':
+          description: Demande prise
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SurveyRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Demande deja prise
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: REQUEST_ALREADY_TAKEN, message: Demande deja prise par un autre geometre }
+
+  /audit:
+    get:
+      operationId: get_audit
+      tags: [journal]
+      summary: Consultation du journal (EF-205, RG-10, EF-404)
+      description: Role autorise - administrateur.
+      parameters:
+        - name: action
+          in: query
+          schema: { type: string }
+        - name: entityId
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Lignes du journal, ordre croissant
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AuditEntry' }
+              examples:
+                exemple:
+                  $ref: '#/components/examples/AuditPage'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /audit/verify:
+    get:
+      operationId: get_audit_verify
+      tags: [journal]
+      summary: Verifie la chaine d'empreintes du journal
+      description: Role autorise - administrateur.
+      responses:
+        '200':
+          description: Resultat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valid, checked]
+                properties:
+                  valid: { type: boolean }
+                  checked: { type: integer }
+                  firstBrokenSeq: { type: integer, nullable: true }
+              example: { valid: true, checked: 1532, firstBrokenSeq: null }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ParcelId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, example: PRC-2026-000014 }
+
+  schemas:
+    CanonicalJson:
+      type: object
+      description: |
+        Proposition de serialisation deterministe pour les empreintes : JSON
+        canonicalise selon RFC 8785 (JCS), encode en UTF-8 sans BOM ni saut final.
+        Tri recursif des cles, ordre des tableaux preserve, nombres finis selon JCS,
+        aucune normalisation Unicode implicite. null est distinct d'un champ absent.
+        Les structures cycliques, tableaux creux, surrogates Unicode isoles et
+        caracteres nuls dans les cles ou valeurs sont refuses avant stockage JSONB.
+        Les champs obligatoires absents sont refuses avant le calcul.
+        Les dates generees pour le journal sont en UTC au format
+        YYYY-MM-DDTHH:mm:ss.SSSZ ; les dates de requete restent les chaines recues.
+        Aucun assemblage par separateur ni arrondi metier implicite.
+      additionalProperties: true
+
+    Sha256:
+      type: string
+      pattern: '^[0-9a-f]{64}$'
+      description: Empreinte SHA-256 en hexadecimal minuscule.
+
+    LegalStatus:
+      type: string
+      enum: [TITRE, COUTUMIER_NON_TITRE, EN_LITIGE]
+      description: EF-203.
+
+    FixMode:
+      type: string
+      enum: [RTK_FIXED, RTK_FLOAT, AUTONOME]
+      description: Seul RTK_FIXED est accepte (RG-01).
+
+    PointSource:
+      type: object
+      description: Source de la mesure (RG-04), fournie par le module survey (Romuald).
+      additionalProperties: false
+      required: [instrument, fixMode, pdop, satellites, measuredAt]
+      properties:
+        instrument: { type: string, minLength: 1, pattern: '\S', example: UM982 }
+        fixMode: { $ref: '#/components/schemas/FixMode' }
+        pdop: { type: number, example: 1.4 }
+        satellites: { type: integer, example: 21 }
+        hAccuracyM: { type: number, example: 0.012 }
+        measuredAt: { type: string, format: date-time }
+
+    Vertex:
+      type: object
+      additionalProperties: false
+      required: [number, lon, lat, source]
+      properties:
+        number: { type: string, minLength: 1, pattern: '\S', example: B1, description: Numero de la borne }
+        lon: { type: number, minimum: -180, maximum: 180 }
+        lat: { type: number, minimum: -90, maximum: 90 }
+        surveyPointId: { type: string, minLength: 1, pattern: '\S', description: Identifiant de la borne cote terrain }
+        source: { $ref: '#/components/schemas/PointSource' }
+
+    ParcelCreate:
+      type: object
+      additionalProperties: false
+      required: [clientId, legalStatus, vertices]
+      properties:
+        clientId: { type: string, format: uuid, description: Identifiant unique cote terrain (RG-08) }
+        legalStatus: { $ref: '#/components/schemas/LegalStatus' }
+        projectId: { type: string, description: Chantier (module survey) }
+        label: { type: string, maxLength: 120 }
+        vertices:
+          type: array
+          minItems: 3
+          description: Sommets dans l'ordre ; aucune paire lon/lat repetee, y compris le premier sommet a la fin. Repetition refusee en 400 VALIDATION_ERROR.
+          items: { $ref: '#/components/schemas/Vertex' }
+
+    ParcelUpdate:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, reason]
+      anyOf:
+        - required: [legalStatus]
+        - required: [label]
+        - required: [vertices]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        legalStatus: { $ref: '#/components/schemas/LegalStatus' }
+        label: { type: string, maxLength: 120 }
+        vertices:
+          type: array
+          minItems: 3
+          description: Memes regles que ParcelCreate, aucune paire lon/lat repetee.
+          items: { $ref: '#/components/schemas/Vertex' }
+        reason: { type: string, minLength: 3 }
+
+    GeoJsonPolygon:
+      type: object
+      description: |
+        WGS84, positions [longitude, latitude]. Chaque anneau contient au moins
+        trois sommets distincts et repete le premier sommet a la fin.
+        Fermeture, bornes geographiques, absence d'auto-intersection et validite
+        des anneaux sont verifiees cote serveur. ParcelCreate fournit uniquement
+        un contour exterieur sans repetition finale ; le serveur ferme l'anneau.
+      required: [type, coordinates]
+      properties:
+        type: { type: string, enum: [Polygon] }
+        coordinates:
+          type: array
+          minItems: 1
+          items:
+            type: array
+            minItems: 4
+            items:
+              type: array
+              minItems: 2
+              maxItems: 2
+              items: { type: number }
+
+    ParcelSummary:
+      type: object
+      required: [id, legalStatus, certified, inConflict, geometry]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        legalStatus: { $ref: '#/components/schemas/LegalStatus' }
+        certified: { type: boolean, description: Toutes bornes RTK Fixed et geometre inscrit }
+        inConflict: { type: boolean }
+        areaM2: { type: number }
+        geometry: { $ref: '#/components/schemas/GeoJsonPolygon' }
+
+    Parcel:
+      allOf:
+        - $ref: '#/components/schemas/ParcelSummary'
+        - type: object
+          required: [version, perimeterM, geometryHash, authorId, vertices, createdAt, updatedAt]
+          properties:
+            version: { type: integer }
+            perimeterM: { type: number }
+            geometryHash: { $ref: '#/components/schemas/GeometryHash' }
+            authorId: { type: string }
+            projectId: { type: string }
+            vertices:
+              type: array
+              minItems: 3
+              items: { $ref: '#/components/schemas/Vertex' }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+
+    ParcelVersion:
+      type: object
+      required: [version, legalStatus, geometryHash, changedBy, changedAt]
+      properties:
+        version: { type: integer }
+        legalStatus: { $ref: '#/components/schemas/LegalStatus' }
+        geometryHash: { $ref: '#/components/schemas/GeometryHash' }
+        geometry: { $ref: '#/components/schemas/GeoJsonPolygon' }
+        changedBy: { type: string }
+        changedAt: { type: string, format: date-time }
+        reason: { type: string }
+
+    ParcelStatus:
+      type: object
+      additionalProperties: false
+      description: Reponse publique fermee, aucun champ supplementaire ni donnee personnelle.
+      required: [parcelId, legalStatus, certified, hasAttestation, inConflict, version, checkedAt, notice]
+      properties:
+        parcelId: { type: string }
+        legalStatus: { $ref: '#/components/schemas/LegalStatus' }
+        certified: { type: boolean }
+        hasAttestation: { type: boolean }
+        inConflict: { type: boolean }
+        version: { type: integer }
+        areaM2: { type: number }
+        perimeterM: { type: number }
+        surveyedAt: { type: string, format: date-time }
+        checkedAt: { type: string, format: date-time }
+        notice: { type: string, enum: [Ne vaut pas titre foncier] }
+
+    Attestation:
+      type: object
+      required: [number, parcelId, parcelVersion, areaM2, perimeterM, geometryHash, surveyorId, surveyorName, issuedAt, notice, pdfUrl]
+      properties:
+        number: { type: string }
+        parcelId: { type: string }
+        parcelVersion: { type: integer }
+        areaM2: { type: number }
+        perimeterM: { type: number }
+        geometryHash: { $ref: '#/components/schemas/GeometryHash' }
+        surveyorId: { type: string }
+        surveyorName: { type: string }
+        issuedAt: { type: string, format: date-time }
+        notice: { type: string, enum: [Ne vaut pas titre foncier] }
+        pdfUrl: { type: string }
+
+    Neighbour:
+      type: object
+      required: [name, present]
+      properties:
+        name: { type: string }
+        present: { type: boolean }
+        agrees: { type: boolean }
+        comment: { type: string }
+
+    BoundaryReport:
+      type: object
+      required: [id, parcelId, heldAt, recordedAt, neighbours, photoUrls]
+      properties:
+        id: { type: string }
+        parcelId: { type: string }
+        heldAt: { type: string, format: date-time }
+        recordedAt: { type: string, format: date-time, description: Horodatage serveur }
+        neighbours:
+          type: array
+          items: { $ref: '#/components/schemas/Neighbour' }
+        photoUrls:
+          type: array
+          minItems: 1
+          description: Acces controle ; stockage et politique d'acces a valider, pas d'URL publique implicite.
+          items: { type: string }
+
+    SurveyRequestStatus:
+      type: string
+      enum: [OUVERTE, PRISE, TERMINEE, ANNULEE]
+
+    SurveyRequestCreate:
+      type: object
+      description: |
+        En creation, tout champ inconnu est refuse (400). La demande n'est plus
+        modifiable ensuite ; elle est journalisee par SURVEY_REQUEST_CREATED.
+      required: [description, location]
+      properties:
+        description: { type: string, minLength: 1, maxLength: 1000, pattern: '\S' }
+        location:
+          type: object
+          additionalProperties: false
+          required: [lon, lat]
+          properties:
+            lon: { type: number, minimum: -180, maximum: 180 }
+            lat: { type: number, minimum: -90, maximum: 90 }
+        contactPhone: { type: string, pattern: '^\+?[0-9]{8,15}$' }
+
+    SurveyRequest:
+      allOf:
+        - $ref: '#/components/schemas/SurveyRequestCreate'
+        - type: object
+          required: [id, status, agentId, createdAt]
+          properties:
+            id: { type: string }
+            status: { $ref: '#/components/schemas/SurveyRequestStatus' }
+            agentId: { type: string }
+            surveyorId: { type: string, nullable: true }
+            parcelId: { type: string, nullable: true }
+            createdAt: { type: string, format: date-time }
+            takenAt: { type: string, format: date-time }
+
+    AuditEntry:
+      type: object
+      description: |
+        Proposition : hash = SHA-256 des octets CanonicalJson de l'objet contenant
+        exactement seq, prevHash, at, actorId, action, entityType, entityId, details.
+        Le champ hash est exclu. Tous ces champs sont presents ; actorId peut etre
+        null pour une action systeme et details vaut {} sans details supplementaires.
+        La premiere ligne a seq=1 et prevHash = 64 zeros. Chaque ligne suivante
+        contient le hash de la precedente. Sequence et ajout sont serialises
+        atomiquement pour eviter deux successeurs concurrents d'une meme ligne.
+        Le verificateur recalcule les hash et controle sequence et liens.
+        Le chainage seul ne detecte pas une reecriture complete ou une suppression
+        de fin sans empreinte de reference conservee independamment ; aucun
+        ancrage externe n'est promis par ce contrat.
+        Les autres modules ecrivent par la fonction interne
+        audit.log(action, actorId, details?, target?) : Promise<AuditEntry>,
+        conformement a la signature positionnelle des notes du module.
+        action est une chaine de 2 a 64 caracteres suivant ^[A-Z][A-Z0-9_]{1,63}$.
+        actorId est l'identifiant de l'acteur authentifie (chaine non vide),
+        ou null pour une action systeme ; il ne provient pas du corps HTTP.
+        details est un objet JSON, vide par defaut, valide par CanonicalJson
+        et copie avant l'ajout pour empecher une modification par l'appelant.
+        target est { type, id }, avec deux chaines contenant au moins un
+        caractere autre qu'un espace ; il alimente
+        entityType et entityId. Par defaut, il vaut { type: system, id: '-' }.
+        Les operations metier fournissent la cible concernee pour la recherche.
+        Exemple : audit.log('ACCOUNT_VALIDATED', adminId, { motif: 'dossier valide' },
+        { type: 'user', id: userId }). L'appel renvoie une promesse de ligne scellee ;
+        un rejet doit etre traite par l'appelant, sans annoncer un audit reussi.
+      required: [seq, at, actorId, action, entityType, entityId, details, prevHash, hash]
+      properties:
+        seq: { type: integer, minimum: 1, maximum: 9007199254740991 }
+        at: { type: string, format: date-time }
+        actorId: { type: string, nullable: true }
+        action:
+          type: string
+          description: |
+            Actions du module foncier : PARCEL_CREATED, PARCEL_UPDATED,
+            PARCEL_OVERLAP_REJECTED, ATTESTATION_ISSUED, BOUNDARY_REPORT_CREATED,
+            SURVEY_REQUEST_CREATED, SURVEY_REQUEST_TAKEN. Les autres modules
+            prefixent par leur nom (par exemple ACCOUNT_VALIDATED).
+        entityType: { type: string }
+        entityId: { type: string }
+        details: { $ref: '#/components/schemas/CanonicalJson' }
+        prevHash: { $ref: '#/components/schemas/Sha256' }
+        hash: { $ref: '#/components/schemas/Sha256' }
+
+    GeometryHash:
+      allOf:
+        - $ref: '#/components/schemas/Sha256'
+      description: |
+        Proposition : SHA-256 des octets CanonicalJson du GeoJsonPolygon renvoye
+        et conserve dans la version. Coordonnees WGS84 [lon, lat], sans arrondi
+        supplementaire, anneaux fermes ; ordre de parcours et sommet initial
+        conserves. Deux parcours differents peuvent avoir des hash differents
+        meme si leur surface est identique. Aucune equivalence topologique
+        n'est deduite d'une empreinte et aucun changement silencieux des sommets.
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details: { type: object, additionalProperties: true }
+
+  responses:
+    BadRequest:
+      description: Requete invalide
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: VALIDATION_ERROR, message: Champ manquant - description }
+    InvalidGeometry:
+      description: Geometrie ou requete invalide (EF-201), champ inconnu ou absence de changement
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            tropPeuDeSommets:
+              value: { code: TOO_FEW_VERTICES, message: Il faut au moins 3 sommets distincts }
+            sansChangement:
+              value: { code: NO_CHANGE, message: Aucun changement effectif }
+            validation:
+              value: { code: VALIDATION_ERROR, message: Champ invalide ou inconnu }
+            autoIntersection:
+              value: { code: SELF_INTERSECTION, message: Le polygone se recoupe }
+    NotRtkFixed:
+      description: Borne non RTK Fixed (RG-01)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: VERTEX_NOT_RTK_FIXED, message: La borne B3 n'est pas en RTK Fixed, details: { vertices: [B3] } }
+    Unauthorized:
+      description: Jeton absent ou invalide
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: UNAUTHORIZED, message: Authentification requise }
+    Forbidden:
+      description: Role ou condition insuffisante (CA-4, RG-03)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            role:
+              value: { code: FORBIDDEN_ROLE, message: Ce role ne peut pas modifier une limite }
+            pasAuteur:
+              value: { code: NOT_AUTHOR, message: Seul le geometre auteur modifie cette parcelle }
+            nonInscrit:
+              value: { code: SURVEYOR_NOT_REGISTERED, message: Geometre non inscrit a l'Ordre }
+            borneNonFixed:
+              value: { code: VERTEX_NOT_RTK_FIXED, message: Toutes les bornes doivent etre RTK Fixed }
+            conflit:
+              value: { code: PARCEL_IN_CONFLICT, message: Parcelle en litige ou en conflit }
+    NotFound:
+      description: Ressource introuvable
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: NOT_FOUND, message: Parcelle introuvable }
+    Overlap:
+      description: Chevauchement (RG-02, CA-2) ou conflit de cle d'idempotence (creation)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            chevauchement:
+              value:
+                code: PARCEL_OVERLAP
+                message: La parcelle chevauche une parcelle existante
+                details: { conflictingParcelIds: [PRC-2026-000009], overlapAreaM2: 37.5, alertSeq: 1533 }
+            idempotence:
+              value: { code: IDEMPOTENCY_CONFLICT, message: Ce clientId a deja ete utilise avec un contenu different }
+    UpdateConflict:
+      description: Chevauchement (RG-02, CA-2) ou conflit de version (modification)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            chevauchement:
+              value:
+                code: PARCEL_OVERLAP
+                message: La parcelle chevauche une parcelle existante
+                details: { conflictingParcelIds: [PRC-2026-000009], overlapAreaM2: 37.5, alertSeq: 1533 }
+            version:
+              value: { code: VERSION_CONFLICT, message: La parcelle a ete modifiee entre-temps, details: { currentVersion: 3 } }
+
+  examples:
+    ParcelPage:
+      value:
+        total: 1
+        items:
+          - id: PRC-2026-000014
+            label: Lot 14, Agoe
+            legalStatus: COUTUMIER_NON_TITRE
+            certified: true
+            inConflict: false
+            areaM2: 1240.37
+            geometry:
+              type: Polygon
+              coordinates: [[[1.212301, 6.172410], [1.212642, 6.172398], [1.212650, 6.172102], [1.212310, 6.172095], [1.212301, 6.172410]]]
+    AuditPage:
+      value:
+        - seq: 1
+          at: '2026-10-24T09:05:00.000Z'
+          actorId: usr_geo_02
+          action: PARCEL_OVERLAP_REJECTED
+          entityType: parcel
+          entityId: PRC-2026-000009
+          details: { overlapAreaM2: 37.5 }
+          prevHash: '0000000000000000000000000000000000000000000000000000000000000000'
+          hash: 52bd7a0fcb5c6135cdad2f1d894908776ade4d9a58ab7434e25673bb073f977e
+    Parcel:
+      value:
+        id: PRC-2026-000014
+        label: Lot 14, Agoe
+        legalStatus: COUTUMIER_NON_TITRE
+        certified: true
+        inConflict: false
+        areaM2: 1240.37
+        perimeterM: 141.22
+        version: 1
+        geometryHash: d8eb1a24cba4c50b14359bbacb4fc63d6a79b99ffa414014a0db2bf4784b16e6
+        authorId: usr_geo_01
+        projectId: chantier-12
+        geometry:
+          type: Polygon
+          coordinates: [[[1.212301, 6.172410], [1.212642, 6.172398], [1.212650, 6.172102], [1.212310, 6.172095], [1.212301, 6.172410]]]
+        vertices:
+          - { number: B1, lon: 1.212301, lat: 6.172410, source: { instrument: UM982, fixMode: RTK_FIXED, pdop: 1.4, satellites: 21, measuredAt: '2026-10-24T08:12:00Z' } }
+          - { number: B2, lon: 1.212642, lat: 6.172398, source: { instrument: UM982, fixMode: RTK_FIXED, pdop: 1.5, satellites: 20, measuredAt: '2026-10-24T08:15:00Z' } }
+          - { number: B3, lon: 1.21265, lat: 6.172102, source: { instrument: UM982, fixMode: RTK_FIXED, pdop: 1.3, satellites: 22, measuredAt: '2026-10-24T08:19:00Z' } }
+          - { number: B4, lon: 1.21231, lat: 6.172095, source: { instrument: UM982, fixMode: RTK_FIXED, pdop: 1.4, satellites: 21, measuredAt: '2026-10-24T08:23:00Z' } }
+        createdAt: '2026-10-24T09:00:00Z'
+        updatedAt: '2026-10-24T09:00:00Z'
+    Attestation:
+      value:
+        number: ATL-2026-000031
+        parcelId: PRC-2026-000014
+        parcelVersion: 1
+        areaM2: 1240.37
+        perimeterM: 141.22
+        geometryHash: d8eb1a24cba4c50b14359bbacb4fc63d6a79b99ffa414014a0db2bf4784b16e6
+        surveyorId: usr_geo_01
+        surveyorName: Geometre de demonstration
+        issuedAt: '2026-10-24T10:00:00Z'
+        notice: Ne vaut pas titre foncier
+        pdfUrl: /attestations/ATL-2026-000031/pdf
