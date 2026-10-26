@@ -1,0 +1,69 @@
+:root {
+  --fond: #f5f7f6;
+  --surface: #ffffff;
+  --encre: #142321;
+  --encre-2: #4b5b59;
+  --trait: #d6dfdd;
+  --accent: #0f6b66;
+  --ok: #1f7a3a; --ok-fond: #e3f2e6;
+  --info: #255d9e; --info-fond: #e3edf8;
+  --warn: #8a5a00; --warn-fond: #fbefd4;
+  --danger: #b3261e; --danger-fond: #fbe4e2;
+  --neutre: #4f565c; --neutre-fond: #eceef0;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fond: #111716; --surface: #18201f; --encre: #e9efee; --encre-2: #b2bfbd; --trait: #2c3836;
+    --accent: #4fb3aa; --ok: #7fd498; --ok-fond: #1d3324; --info: #8db8ec; --info-fond: #1b2a3c;
+    --warn: #f0c46a; --warn-fond: #3a2f17; --danger: #f2a199; --danger-fond: #3d1f1d;
+    --neutre: #b8bec5; --neutre-fond: #2a2f33;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--fond); color: var(--encre);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+.contenu { max-width: 720px; margin: 0 auto; padding-inline: 16px; }
+.bandeau { background: var(--surface); border-bottom: 1px solid var(--trait); padding-block: 28px 24px; }
+.marque { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { margin: 6px 0 8px; font-size: clamp(24px, 5vw, 32px); line-height: 1.2; }
+.intro { margin: 0; color: var(--encre-2); }
+main { display: grid; gap: 20px; padding-block: 24px 48px; }
+.demo { margin: 0; padding: 10px 14px; border-radius: 6px; background: var(--info-fond); color: var(--info); font-size: 14px; }
+.recherche { display: grid; gap: 8px; }
+.recherche label { font-weight: 600; }
+.ligne { display: flex; flex-wrap: wrap; gap: 8px; }
+input { flex: 1 1 220px; min-width: 0; font: inherit; padding: 11px 12px; border: 1px solid var(--trait);
+  border-radius: 6px; background: var(--surface); color: var(--encre); font-family: ui-monospace, Consolas, monospace; }
+button { font: inherit; font-weight: 600; padding: 11px 20px; border: 0; border-radius: 6px;
+  background: var(--accent); color: #fff; cursor: pointer; }
+button:hover { filter: brightness(1.08); }
+input:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+[aria-busy="true"] button { opacity: .6; cursor: progress; }
+.message { margin: 0; padding: 12px 14px; border-radius: 6px; background: var(--danger-fond); color: var(--danger); }
+.fiche { background: var(--surface); border: 1px solid var(--trait); border-radius: 8px; padding: 20px; display: grid; gap: 16px; }
+.fiche-tete { display: grid; gap: 4px; }
+.surtitre { margin: 0; font-size: 13px; color: var(--encre-2); }
+.fiche-id { margin: 0; font-size: 22px; font-family: ui-monospace, Consolas, monospace; word-break: break-all; }
+.statut { margin: 6px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.statut-libelle { font-size: 14px; color: var(--encre-2); }
+.statut strong { padding: 2px 10px; border-radius: 999px; }
+.alerte { margin: 0; padding: 12px 14px; border-radius: 6px; background: var(--warn-fond); color: var(--warn); font-weight: 500; }
+.badges { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.badge { font-size: 14px; font-weight: 600; padding: 4px 12px; border-radius: 999px; }
+.ton-ok { color: var(--ok); background: var(--ok-fond); }
+.ton-info { color: var(--info); background: var(--info-fond); }
+.ton-warn { color: var(--warn); background: var(--warn-fond); }
+.ton-danger { color: var(--danger); background: var(--danger-fond); }
+.ton-neutral { color: var(--neutre); background: var(--neutre-fond); }
+.faits { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.fait { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--trait); border-radius: 6px; }
+.fait dt { font-size: 13px; color: var(--encre-2); }
+.fait dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.copie { margin: 0; font-size: 14px; color: var(--warn); }
+.mention { margin: 0; padding-top: 12px; border-top: 1px solid var(--trait); font-weight: 700; text-align: center; }
+.avertissement { padding: 16px; border-radius: 8px; border: 1px solid var(--trait); background: var(--surface); }
+.avertissement h2 { margin: 0 0 6px; font-size: 16px; }
+.avertissement p { margin: 0; color: var(--encre-2); font-size: 15px; }

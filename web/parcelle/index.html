@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vérifier une parcelle - GeoSmart Field</title>
+  <meta name="description" content="Consultez le statut d'une parcelle avant achat : statut juridique, levé, attestation et conflits.">
+  <link rel="stylesheet" href="parcelle.css">
+  <script type="module" src="page.mjs"></script>
+</head>
+<body>
+  <header class="bandeau">
+    <div class="contenu">
+      <p class="marque">GeoSmart Field</p>
+      <h1>Vérifier une parcelle avant achat</h1>
+      <p class="intro">Saisissez l'identifiant inscrit sur l'attestation de levé ou communiqué par le vendeur.</p>
+    </div>
+  </header>
+
+  <main class="contenu">
+    <p id="demo" class="demo" hidden>Mode démonstration : données fictives. Essayez PRC-2026-000014 ou PRC-2026-000009.</p>
+
+    <form id="recherche" class="recherche" novalidate>
+      <label for="identifiant">Identifiant de la parcelle</label>
+      <div class="ligne">
+        <input id="identifiant" name="id" type="text" inputmode="text" autocomplete="off"
+               spellcheck="false" placeholder="PRC-2026-000014" maxlength="80" required>
+        <button type="submit">Vérifier</button>
+      </div>
+    </form>
+
+    <p id="message" class="message" role="alert" hidden></p>
+    <section id="resultat" class="fiche" aria-live="polite" hidden></section>
+
+    <aside class="avertissement">
+      <h2>A savoir</h2>
+      <p>GeoSmart Field seconde l'Etat (ANDF) sans le remplacer. L'attestation de levé
+        ne vaut pas titre foncier. Avant tout achat, vérifiez aussi la situation de la
+        parcelle auprès de l'ANDF.</p>
+    </aside>
+  </main>
+</body>
+</html>
