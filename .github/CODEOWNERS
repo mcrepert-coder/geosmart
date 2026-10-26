@@ -1,8 +1,10 @@
 # Proprietaires par dossier. Comptes GitHub :
 # Moruald001 = Romuald, NegusMasseme = Samuel, y6502192-spec = Beni, Gold1705 = Marrich,
 # mcrepert-coder = LGR
+# Sur GitHub, la derniere regle qui correspond l'emporte : les regles generales d'abord, les dossiers precis ensuite.
 
 *                                   @Gold1705 @mcrepert-coder
+/web/                               @Gold1705
 
 /contracts/survey.md                @Moruald001
 /contracts/gnss-channel.md          @Moruald001
@@ -49,7 +51,6 @@
 /contracts/listings.yaml            @Gold1705
 /mobile/lib/features/listings/                              @Gold1705
 /mobile/test/features/listings/                             @Gold1705
-/web/                               @Gold1705
 /docs/                              @Gold1705 @mcrepert-coder
 /.github/                           @Gold1705 @mcrepert-coder
 /api/src/app.module.ts              @Gold1705
