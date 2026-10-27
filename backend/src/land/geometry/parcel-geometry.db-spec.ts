@@ -7,7 +7,8 @@ import {
 } from '@nestjs/common';
 import type { QueryRunner } from 'typeorm';
 import { LandParcels1793102500000 } from '../migrations/1793102500000-land-parcels';
-import { ParcelGeometryService, SqlRunner } from './parcel-geometry.service';
+import type { SqlRunner } from '../../audit/sql-runner';
+import { ParcelGeometryService } from './parcel-geometry.service';
 
 jest.setTimeout(60000);
 

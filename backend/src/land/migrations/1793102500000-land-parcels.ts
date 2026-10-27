@@ -47,6 +47,8 @@ export class LandParcels1793102500000 implements MigrationInterface {
         boundaries jsonb NOT NULL,
         reason text,
         author_id uuid NOT NULL,
+        -- EF-208 : voisins presents et date du bornage contradictoire.
+        bornage jsonb,
         created_at timestamptz NOT NULL DEFAULT now(),
         PRIMARY KEY (parcel_id, version),
         CONSTRAINT parcel_versions_geom_valid CHECK (ST_IsValid(geom)),
