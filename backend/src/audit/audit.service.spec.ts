@@ -1,33 +1,42 @@
-import { DataSource, EntityManager } from 'typeorm';
-import { GENESIS_HASH, computeHash, verifyChain } from './audit-chain';
-import { AuditEntryEntity } from './audit-entry.entity';
+import { DataSource } from 'typeorm';
+import { GENESIS_HASH, computeHash } from './audit-chain';
 import { AUDIT_LOCK_KEY, AuditService } from './audit.service';
+import { SqlRunner } from './sql-runner';
 
-// Faux EntityManager en memoire : suffisant pour tester l'enchainement.
-function fakeManager(rows: AuditEntryEntity[]) {
-  const query = jest.fn().mockResolvedValue([]);
-  const repo = {
-    find: jest.fn(() =>
-      Promise.resolve([...rows].sort((a, b) => b.seq - a.seq).slice(0, 1)),
-    ),
-    create: (data: Partial<AuditEntryEntity>) =>
-      Object.assign(new AuditEntryEntity(), data),
-    save: jest.fn((entry: AuditEntryEntity) => {
-      rows.push(entry);
-      return Promise.resolve(entry);
-    }),
-  };
-  const manager = {
-    query,
-    getRepository: () => repo,
-  } as unknown as EntityManager;
-  return { manager, query, repo };
+// Faux runner en memoire : il comprend les trois requetes du service.
+function fakeRunner() {
+  const rows: Record<string, unknown>[] = [];
+  const query = jest.fn((sql: string, params: unknown[] = []) => {
+    if (sql.startsWith('SELECT pg_advisory_xact_lock')) {
+      return Promise.resolve([]);
+    }
+    if (sql.startsWith('SELECT seq, hash')) {
+      return Promise.resolve(rows.slice(-1));
+    }
+    if (sql.startsWith('SELECT *')) return Promise.resolve([...rows]);
+    const [seq, at, actorId, actorRole, action, type, id, result, details] =
+      params;
+    rows.push({
+      seq,
+      at,
+      actor_id: actorId,
+      actor_role: actorRole,
+      action,
+      resource_type: type,
+      resource_id: id,
+      result,
+      details,
+      prev_hash: params[9],
+      hash: params[10],
+    });
+    return Promise.resolve([]);
+  });
+  return { runner: { query } as SqlRunner, query, rows };
 }
 
 describe('AuditService.log', () => {
   it('chaine chaque ligne sur la precedente et pose le verrou', async () => {
-    const rows: AuditEntryEntity[] = [];
-    const { manager, query } = fakeManager(rows);
+    const { runner, query } = fakeRunner();
     const service = new AuditService({} as DataSource);
 
     const first = await service.log(
@@ -39,7 +48,7 @@ describe('AuditService.log', () => {
         resourceId: 'GS-2026-000001',
         result: 'SUCCESS',
       },
-      manager,
+      runner,
     );
     const second = await service.log(
       {
@@ -47,7 +56,7 @@ describe('AuditService.log', () => {
         resourceType: 'attestation',
         result: 'SUCCESS',
       },
-      manager,
+      runner,
     );
 
     expect(query).toHaveBeenCalledWith('SELECT pg_advisory_xact_lock($1)', [
@@ -59,11 +68,15 @@ describe('AuditService.log', () => {
     expect(second.seq).toBe(2);
     expect(second.prevHash).toBe(first.hash);
     expect(second.actorId).toBeNull();
-    expect(verifyChain(rows).valid).toBe(true);
+    await expect(service.verify(runner)).resolves.toEqual({
+      valid: true,
+      checked: 2,
+      firstBrokenSeq: null,
+    });
   });
 
   it("n'enregistre jamais de secret dans les details", async () => {
-    const { manager } = fakeManager([]);
+    const { runner } = fakeRunner();
     const service = new AuditService({} as DataSource);
 
     const entry = await service.log(
@@ -73,7 +86,7 @@ describe('AuditService.log', () => {
         result: 'DENIED',
         details: { token: 'eyJ...', route: 'PATCH /parcels/GS-2026-000001' },
       },
-      manager,
+      runner,
     );
 
     expect(entry.details).toEqual({
@@ -82,10 +95,10 @@ describe('AuditService.log', () => {
     });
   });
 
-  it('ouvre sa propre transaction sans manager', async () => {
-    const { manager } = fakeManager([]);
-    const transaction = jest.fn(
-      (work: (tx: EntityManager) => Promise<unknown>) => work(manager),
+  it('ouvre sa propre transaction sans runner', async () => {
+    const { runner } = fakeRunner();
+    const transaction = jest.fn((work: (tx: SqlRunner) => Promise<unknown>) =>
+      work(runner),
     );
     const service = new AuditService({ transaction } as unknown as DataSource);
 

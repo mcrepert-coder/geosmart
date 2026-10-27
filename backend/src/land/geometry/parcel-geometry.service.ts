@@ -9,12 +9,7 @@ import {
   geometryHash,
   normalizePolygon,
 } from './parcel-geometry';
-
-// Sous-ensemble d'EntityManager utilise ici : permet de passer le manager
-// de la transaction de creation.
-export interface SqlRunner {
-  query(sql: string, params?: unknown[]): Promise<unknown>;
-}
+import { type SqlRunner, rowsOf } from '../../audit/sql-runner';
 
 export interface CheckedGeometry {
   polygon: Polygon;
@@ -33,11 +28,6 @@ export interface OverlapConflict {
 export function overlapToleranceM2(): number {
   const raw = Number(process.env.LAND_OVERLAP_TOLERANCE_M2 ?? 0);
   return Number.isFinite(raw) && raw >= 0 ? raw : 0;
-}
-
-function rowsOf<T>(result: unknown): T[] {
-  if (Array.isArray(result)) return result as T[];
-  return (result as { rows?: T[] } | null)?.rows ?? [];
 }
 
 const GEOM = 'ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)';
