@@ -27,6 +27,8 @@ export interface LandActor {
   role: string;
   // Geometre inscrit a l'Ordre : seul cas ou une parcelle peut etre certifiee.
   registeredSurveyor?: boolean;
+  // Compte valide et actif (EF-301) : requis pour un agent.
+  accountActive?: boolean;
 }
 
 export interface ParcelCreateInput {
