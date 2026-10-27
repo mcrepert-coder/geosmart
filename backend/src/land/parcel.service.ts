@@ -17,7 +17,7 @@ import {
   OverlapConflict,
   ParcelGeometryService,
 } from './geometry/parcel-geometry.service';
-import { formatParcelId } from './parcel-id';
+import { formatParcelId, isParcelId } from './parcel-id';
 import type { ParcelBoundary } from './parcel-version.entity';
 import type { LegalStatus } from './parcel.entity';
 
@@ -144,6 +144,50 @@ function validateBoundaries(boundaries: ParcelBoundary[]) {
       );
     }
   });
+}
+
+const LEGAL_STATUSES: LegalStatus[] = [
+  'TITRE',
+  'COUTUMIER_NON_TITRE',
+  'EN_LITIGE',
+  'INCONNU',
+];
+
+export interface ParcelFeatureCollection {
+  type: 'FeatureCollection';
+  features: {
+    type: 'Feature';
+    id: string;
+    geometry: Polygon;
+    properties: {
+      legalStatus: LegalStatus;
+      certified: boolean;
+      areaM2: number;
+    };
+  }[];
+}
+
+// bbox = minLon,minLat,maxLon,maxLat en WGS84, limitee a 1 degre de cote
+// pour ne pas renvoyer tout le pays d'un coup.
+function parseBbox(bbox: string): [number, number, number, number] {
+  const parts = (bbox ?? '').split(',').map((p) => Number(p.trim()));
+  const [minLon, minLat, maxLon, maxLat] = parts;
+  if (
+    parts.length !== 4 ||
+    !parts.every(Number.isFinite) ||
+    minLon < -180 ||
+    maxLon > 180 ||
+    minLat < -90 ||
+    maxLat > 90 ||
+    minLon >= maxLon ||
+    minLat >= maxLat
+  ) {
+    throw invalid('Le parametre bbox doit valoir minLon,minLat,maxLon,maxLat.');
+  }
+  if (maxLon - minLon > 1 || maxLat - minLat > 1) {
+    throw invalid('La zone demandee ne doit pas depasser 1 degre de cote.');
+  }
+  return [minLon, minLat, maxLon, maxLat];
 }
 
 export function toParcelView(row: ParcelRow, viewer?: LandActor): ParcelView {
@@ -400,6 +444,70 @@ export class ParcelService {
       });
     }
     return outcome.parcel as ParcelView;
+  }
+
+  // Detail de la version courante. Le geometre n'est visible que par
+  // ADMIN et l'auteur (toParcelView).
+  async findOne(actor: LandActor, parcelId: string): Promise<ParcelView> {
+    if (!isParcelId(parcelId ?? '')) throw this.notFound();
+    const [row] = rowsOf<ParcelRow>(
+      await this.dataSource.query(`${SELECT_PARCEL} WHERE p.id = $1`, [
+        parcelId,
+      ]),
+    );
+    if (!row) throw this.notFound();
+    return toParcelView(row, actor);
+  }
+
+  // Carte (EF-406) : parcelles d'une zone, sans aucune donnee personnelle.
+  async findInBbox(
+    bbox: string,
+    status?: string,
+    limit?: string | number,
+  ): Promise<ParcelFeatureCollection> {
+    const box = parseBbox(bbox);
+    if (
+      status !== undefined &&
+      !LEGAL_STATUSES.includes(status as LegalStatus)
+    ) {
+      throw invalid(
+        `Le filtre status doit etre l'un de : ${LEGAL_STATUSES.join(', ')}.`,
+      );
+    }
+    const max = limit === undefined || limit === '' ? 200 : Number(limit);
+    if (!Number.isInteger(max) || max < 1 || max > 500) {
+      throw invalid('Le parametre limit doit etre un entier entre 1 et 500.');
+    }
+    const rows = rowsOf<{
+      id: string;
+      geojson: string;
+      legal_status: LegalStatus;
+      certified: boolean;
+      area_m2: number | string;
+    }>(
+      await this.dataSource.query(
+        `SELECT id, ST_AsGeoJSON(geom) AS geojson, legal_status, certified, area_m2
+           FROM parcels
+          WHERE geom && ST_MakeEnvelope($1, $2, $3, $4, 4326)
+            AND ($5::text IS NULL OR legal_status = $5)
+          ORDER BY id
+          LIMIT $6`,
+        [...box, status ?? null, max],
+      ),
+    );
+    return {
+      type: 'FeatureCollection',
+      features: rows.map((r) => ({
+        type: 'Feature',
+        id: r.id,
+        geometry: JSON.parse(r.geojson) as Polygon,
+        properties: {
+          legalStatus: r.legal_status,
+          certified: r.certified,
+          areaM2: Number(r.area_m2),
+        },
+      })),
+    };
   }
 
   // Historique, de la plus recente a la plus ancienne (ADMIN, GEOMETRE).

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import {
   AuditResult,
@@ -117,6 +117,48 @@ export class AuditService {
       ],
     );
     return entry;
+  }
+
+  // Consultation (ADMIN, controle fait par le controleur), plus recent d'abord.
+  async list(filters: {
+    resourceType?: string;
+    resourceId?: string;
+    from?: string;
+    limit?: string | number;
+  }): Promise<ChainedAuditEntry[]> {
+    const limit =
+      filters.limit === undefined || filters.limit === ''
+        ? 100
+        : Number(filters.limit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Le parametre limit doit etre un entier entre 1 et 500.',
+      });
+    }
+    if (filters.from !== undefined && Number.isNaN(Date.parse(filters.from))) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Le parametre from doit etre une date ISO 8601.',
+      });
+    }
+    const rows = rowsOf<AuditRow>(
+      await this.dataSource.query(
+        `SELECT * FROM audit_log
+          WHERE ($1::text IS NULL OR resource_type = $1)
+            AND ($2::text IS NULL OR resource_id = $2)
+            AND ($3::timestamptz IS NULL OR at >= $3)
+          ORDER BY seq DESC
+          LIMIT $4`,
+        [
+          filters.resourceType ?? null,
+          filters.resourceId ?? null,
+          filters.from ?? null,
+          limit,
+        ],
+      ),
+    );
+    return rows.map(fromRow);
   }
 
   async verify(runner?: SqlRunner): Promise<ChainCheck> {
