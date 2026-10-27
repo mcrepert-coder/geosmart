@@ -455,6 +455,14 @@ components:
         instrument: { type: string, example: UM982 }
         recordedAt: { type: string, format: date-time }
 
+    Bornage:
+      type: object
+      required: [neighboursPresent, heldAt]
+      description: EF-208, bornage contradictoire. Les photos attendent la decision de LGR sur leur stockage.
+      properties:
+        neighboursPresent: { type: array, maxItems: 20, items: { type: string, maxLength: 120 } }
+        heldAt: { type: string, format: date-time }
+
     ParcelCreate:
       type: object
       required: [geometry, boundaries, surveySessionId]
@@ -466,12 +474,7 @@ components:
           minItems: 3
           items: { $ref: '#/components/schemas/Boundary' }
         locality: { type: string, maxLength: 120, example: "Agoe, Lome" }
-        bornage:
-          type: object
-          description: EF-208, bornage contradictoire. Stockage des photos a decider par LGR.
-          properties:
-            neighboursPresent: { type: array, items: { type: string, maxLength: 120 } }
-            heldAt: { type: string, format: date-time }
+        bornage: { $ref: '#/components/schemas/Bornage' }
 
     ParcelUpdate:
       type: object
@@ -484,6 +487,7 @@ components:
           minItems: 3
           items: { $ref: '#/components/schemas/Boundary' }
         reason: { type: string, maxLength: 500 }
+        bornage: { $ref: '#/components/schemas/Bornage' }
 
     Parcel:
       type: object
@@ -506,6 +510,11 @@ components:
           properties:
             id: { type: string, format: uuid }
             name: { type: string }
+        bornage:
+          type: object
+          allOf: [{ $ref: '#/components/schemas/Bornage' }]
+          nullable: true
+          description: Visible seulement par ADMIN et l'auteur (noms des voisins).
         boundaries:
           type: array
           items: { $ref: '#/components/schemas/Boundary' }

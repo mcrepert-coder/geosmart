@@ -36,6 +36,7 @@ export interface ParcelCreateInput {
   geometry: unknown;
   boundaries: ParcelBoundary[];
   locality?: string;
+  bornage?: BornageInput;
 }
 
 export interface ParcelUpdateInput {
@@ -43,6 +44,19 @@ export interface ParcelUpdateInput {
   geometry: unknown;
   boundaries: ParcelBoundary[];
   reason?: string;
+  bornage?: BornageInput;
+}
+
+// EF-208, bornage contradictoire : voisins presents et date. Les photos
+// attendent la decision de LGR sur leur stockage.
+export interface BornageInput {
+  neighboursPresent: string[];
+  heldAt: string;
+}
+
+export interface BornageRecord {
+  neighboursPresent: string[];
+  heldAt: string;
 }
 
 export interface ParcelVersionView {
@@ -66,6 +80,8 @@ export interface ParcelView {
   certified: boolean;
   geometryHash: string;
   surveyor?: { id: string };
+  // Noms des voisins : visibles seulement par ADMIN et l'auteur.
+  bornage?: BornageRecord | null;
   boundaries: ParcelBoundary[];
   createdAt: string;
   updatedAt: string;
@@ -83,6 +99,7 @@ interface ParcelRow {
   geometry_hash: string;
   surveyor_id: string;
   boundaries: ParcelBoundary[] | string;
+  bornage: BornageRecord | string | null;
   created_at: Date | string;
   updated_at: Date | string;
 }
@@ -112,6 +129,38 @@ function validateInput(input: ParcelCreateInput, idempotencyKey: string) {
     throw invalid('Le champ locality depasse 120 caracteres.');
   }
   validateBoundaries(input.boundaries);
+}
+
+export function normalizeBornage(
+  bornage: BornageInput | undefined,
+): BornageRecord | null {
+  if (bornage === undefined || bornage === null) return null;
+  const names = Array.isArray(bornage.neighboursPresent)
+    ? bornage.neighboursPresent.map((n) =>
+        typeof n === 'string' ? n.trim() : '',
+      )
+    : null;
+  if (
+    !names ||
+    names.length > 20 ||
+    names.some((n) => n.length === 0 || n.length > 120)
+  ) {
+    throw invalid(
+      'Le champ bornage.neighboursPresent doit lister 20 noms au plus (120 caracteres chacun).',
+    );
+  }
+  const heldAt = Date.parse(bornage.heldAt);
+  if (typeof bornage.heldAt !== 'string' || Number.isNaN(heldAt)) {
+    throw invalid('Le champ bornage.heldAt doit etre une date ISO 8601.');
+  }
+  // Petite marge pour l'horloge du telephone.
+  if (heldAt > Date.now() + 5 * 60 * 1000) {
+    throw invalid('Le bornage ne peut pas etre date dans le futur.');
+  }
+  return {
+    neighboursPresent: names,
+    heldAt: new Date(heldAt).toISOString(),
+  };
 }
 
 function validateUpdate(input: ParcelUpdateInput) {
@@ -203,7 +252,15 @@ export function toParcelView(row: ParcelRow, viewer?: LandActor): ParcelView {
     legalStatus: row.legal_status,
     certified: row.certified,
     geometryHash: row.geometry_hash,
-    ...(canSeeSurveyor ? { surveyor: { id: row.surveyor_id } } : {}),
+    ...(canSeeSurveyor
+      ? {
+          surveyor: { id: row.surveyor_id },
+          bornage:
+            typeof row.bornage === 'string'
+              ? (JSON.parse(row.bornage) as BornageRecord)
+              : row.bornage,
+        }
+      : {}),
     boundaries:
       typeof row.boundaries === 'string'
         ? (JSON.parse(row.boundaries) as ParcelBoundary[])
@@ -216,7 +273,8 @@ export function toParcelView(row: ParcelRow, viewer?: LandActor): ParcelView {
 const SELECT_PARCEL = `
   SELECT p.id, p.current_version, ST_AsGeoJSON(p.geom) AS geojson,
          p.area_m2, p.perimeter_m, p.locality, p.legal_status, p.certified,
-         p.geometry_hash, p.surveyor_id, v.boundaries, p.created_at, p.updated_at
+         p.geometry_hash, p.surveyor_id, v.boundaries, v.bornage,
+         p.created_at, p.updated_at
     FROM parcels p
     JOIN parcel_versions v
       ON v.parcel_id = p.id AND v.version = p.current_version`;
@@ -244,6 +302,7 @@ export class ParcelService {
       throw await this.deny(actor, 'PARCEL_CREATE');
     }
     validateInput(input, idempotencyKey);
+    const bornage = normalizeBornage(input.bornage);
 
     const outcome = await this.db.transaction(async (tx) => {
       await tx.query('SELECT pg_advisory_xact_lock($1)', [LAND_WRITE_LOCK_KEY]);
@@ -291,9 +350,9 @@ export class ParcelService {
       );
       await tx.query(
         `INSERT INTO parcel_versions (parcel_id, version, geom, area_m2,
-           perimeter_m, geometry_hash, boundaries, author_id)
+           perimeter_m, geometry_hash, boundaries, author_id, bornage)
          VALUES ($1, 1, ST_SetSRID(ST_GeomFromGeoJSON($2), 4326), $3, $4, $5,
-           $6::jsonb, $7)`,
+           $6::jsonb, $7, $8::jsonb)`,
         [
           id,
           JSON.stringify(checked.polygon),
@@ -302,6 +361,7 @@ export class ParcelService {
           checked.geometryHash,
           JSON.stringify(input.boundaries),
           actor.id,
+          bornage ? JSON.stringify(bornage) : null,
         ],
       );
       await this.audit.log(
@@ -346,6 +406,7 @@ export class ParcelService {
       throw await this.deny(actor, 'PARCEL_UPDATE', parcelId);
     }
     validateUpdate(input);
+    const bornage = normalizeBornage(input.bornage);
 
     const outcome = await this.db.transaction(async (tx) => {
       await tx.query('SELECT pg_advisory_xact_lock($1)', [LAND_WRITE_LOCK_KEY]);
@@ -394,9 +455,9 @@ export class ParcelService {
       );
       await tx.query(
         `INSERT INTO parcel_versions (parcel_id, version, geom, area_m2,
-           perimeter_m, geometry_hash, boundaries, reason, author_id)
+           perimeter_m, geometry_hash, boundaries, reason, author_id, bornage)
          VALUES ($1, $2, ST_SetSRID(ST_GeomFromGeoJSON($3), 4326), $4, $5, $6,
-           $7::jsonb, $8, $9)`,
+           $7::jsonb, $8, $9, $10::jsonb)`,
         [
           parcelId,
           version,
@@ -407,6 +468,7 @@ export class ParcelService {
           JSON.stringify(input.boundaries),
           input.reason ?? null,
           actor.id,
+          bornage ? JSON.stringify(bornage) : null,
         ],
       );
       await this.audit.log(
