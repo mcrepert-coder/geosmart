@@ -46,7 +46,7 @@ GeoSmart seconde l'Etat (ANDF). Il ne le remplace pas : le document produit est 
 
 ## Lancer les services avec Docker
 
-Docker Compose lance le backend NestJS, le site Next.js et PostgreSQL avec PostGIS :
+Docker Compose lance l'API NestJS depuis `api/`, le site Next.js et PostgreSQL avec PostGIS :
 
 ```powershell
 Copy-Item .env.docker.example .env
