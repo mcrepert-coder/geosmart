@@ -39,8 +39,9 @@ dependencies:
   nmea: ^3.3.3
   pdf: ^3.13.1
   qr_flutter: ^4.1.0
+  dio: ^5.4.0
   http: ^1.6.0
-  printing: ^5.15.1
+
 
 dev_dependencies:
   flutter_test:

@@ -111,28 +111,27 @@ class SurveyPoint {
     );
   }
 
-  /// Format d'echange JSON conforme a POST /sync (contracts/survey.md).
-  Map<String, dynamic> toSyncPayload() {
+  /// Champs d'une borne dans la charge utile d'une mission (`POST /sync`).
+  ///
+  /// La borne n'est plus envoyee seule : elle est imbriquee dans
+  /// `SurveySession.toSyncPayload()`.
+  Map<String, dynamic> toPayload() {
     return {
       'clientId': clientId,
-      'entityType': 'survey_point',
-      'action': 'CREATE',
-      'payload': {
-        'projectId': projectId,
-        'pointNumber': pointNumber,
-        'pointName': pointName,
-        'latitude': latitude,
-        'longitude': longitude,
-        'altitude': altitude,
-        'fixQuality': fixQuality.serialized,
-        'satellitesCount': satellitesCount,
-        'pdop': pdop,
-        'hdop': hdop,
-        'vdop': vdop,
-        'instrument': instrument,
-        'recordedAt': recordedAt.toIso8601String(),
-        'isValidated': isValidated,
-      },
+      'pointNumber': pointNumber,
+      'pointName': pointName,
+      'latitude': latitude,
+      'longitude': longitude,
+      'altitude': altitude,
+      'accuracy': accuracy,
+      'fixQuality': fixQuality.serialized,
+      'satellitesCount': satellitesCount,
+      'pdop': pdop,
+      'hdop': hdop,
+      'vdop': vdop,
+      'instrument': instrument,
+      'recordedAt': recordedAt.toIso8601String(),
+      'isValidated': isValidated,
     };
   }
 
