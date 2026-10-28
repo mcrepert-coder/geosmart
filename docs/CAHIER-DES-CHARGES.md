@@ -94,7 +94,7 @@ Etat d'un compte : telephone non verifie -> en attente -> actif / rejete / suspe
 |---|---|---|
 | Serveur | Node.js + NestJS, TypeScript | Proposition des etudiants, ecosysteme large |
 | Base | PostgreSQL + PostGIS | Index spatial et intersections rapides |
-| Application | Android natif Kotlin (Jetpack Compose), base locale Room/SQLite | Bluetooth et hors ligne fiables |
+| Application | Flutter (Dart) pour l'interface et la logique ; Kotlin natif pour le recepteur GNSS (Bluetooth, NMEA, NTRIP) ; base locale SQLite | Le materiel reste en natif, le reste se teste sans telephone |
 | Site web | Pages web servies par le meme depot (`web/`), consommant l'API | Pas de second serveur |
 | Contrat | OpenAPI, un fichier par module dans `contracts/` | Chacun travaille sans attendre l'autre |
 

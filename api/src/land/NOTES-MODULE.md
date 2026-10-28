@@ -1,6 +1,6 @@
 # Module foncier et journal (proprietaire : Samuel)
 
-Dossiers couverts : `api/src/land/`, `api/src/audit/`, leurs tests, `contracts/land.yaml`, `mobile/.../field/land/`, `web/parcelle/`.
+Dossiers couverts : `api/src/land/`, `api/src/audit/`, leurs tests, `contracts/land.yaml`, `mobile/lib/features/land/`, `web/parcelle/`.
 
 ## A faire dans l'ordre
 

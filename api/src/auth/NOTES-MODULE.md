@@ -1,6 +1,6 @@
 # Module comptes, administration, synchronisation (proprietaire : Beni)
 
-Dossiers couverts : `api/src/auth|users|admin|sync/`, `api/test/` correspondants, `contracts/auth.yaml`, `contracts/sync.yaml`, `mobile/.../field/account|sync/`. Le module location (`leasing/`) a son propre fichier NOTES-MODULE.md et vient apres.
+Dossiers couverts : `api/src/auth|users|admin|sync/`, `api/test/` correspondants, `contracts/auth.yaml`, `contracts/sync.yaml`, `mobile/lib/features/account|sync/`. Le module location (`leasing/`) a son propre fichier NOTES-MODULE.md et vient apres.
 
 ## A faire dans l'ordre (priorite : le point 2 debloque tout le monde)
 
