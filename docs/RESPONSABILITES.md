@@ -19,7 +19,9 @@ Charge repartie : Marrich a le moins de code (il integre et il fusionne), les tr
 ## Romuald (SODOU Essodina Romuald) - GNSS, terrain, carte
 
 Dossiers que je possede :
-- `mobile/.../field/gnss/`, `.../survey/`, `.../cogo/`, `.../map/` et leurs tests
+- `mobile/android/app/src/main/kotlin/com/geosmart/field/gnss/` (Kotlin natif : Bluetooth, NMEA, NTRIP)
+- `mobile/lib/features/gnss/`, `survey/`, `cogo/`, `map/` et `mobile/test/features/` correspondants (Dart)
+- `contracts/gnss-channel.md` (les canaux entre le Kotlin et Flutter)
 - `contracts/survey.md`
 
 Mes livrables :
@@ -31,14 +33,14 @@ Mes livrables :
 6. Carte des parcelles coloree par statut, avec filtres (EF-406).
 7. CA-1 : protocole de mesure et compte rendu des 10 passages (des que le materiel est la).
 
-J'expose : l'interface Kotlin `SurveyPoint` / `SurveySession`. Je consomme : `POST /sync` de Beni pour envoyer mes bornes, `GET /parcels` de Samuel pour la carte.
+J'expose : le canal Kotlin vers Flutter (`contracts/gnss-channel.md`) et l'interface Dart `SurveyPoint` / `SurveySession`. Je consomme : `POST /sync` de Beni pour envoyer mes bornes, `GET /parcels` de Samuel pour la carte.
 
 ## Samuel (MASSEME Samuel) - foncier et journal
 
 Dossiers que je possede :
 - `api/src/land/`, `api/src/audit/` et leurs tests
 - `contracts/land.yaml`
-- `mobile/.../field/land/` et ses tests
+- `mobile/lib/features/land/` et `mobile/test/features/land/`
 - `web/parcelle/` (page publique de verification d'une parcelle)
 
 Mes livrables :
@@ -57,7 +59,7 @@ J'expose : `GET /parcels`, `POST /parcels`, `GET /parcels/:id/status`, la foncti
 Dossiers que je possede :
 - `api/src/auth/`, `api/src/users/`, `api/src/admin/`, `api/src/sync/`, `api/src/leasing/` et `api/test/` correspondants
 - `contracts/auth.yaml`, `contracts/sync.yaml`, `contracts/leasing.yaml`
-- `mobile/.../field/account/`, `.../sync/`, `.../leasing/` et leurs tests
+- `mobile/lib/features/account/`, `sync/`, `leasing/` et `mobile/test/features/` correspondants
 
 Mes livrables :
 1. Inscription, code SMS simule, connexion, jetons, blocage apres 5 echecs (EF-401, EF-407).
@@ -75,9 +77,9 @@ J'expose : `@Roles`, `POST /sync`. Je consomme : `audit.log(...)` de Samuel, `GE
 Dossiers que je possede :
 - `api/src/listings/`, `api/test/listings/`
 - `contracts/listings.yaml`
-- `mobile/.../field/listings/` et ses tests
+- `mobile/lib/features/listings/` et `mobile/test/features/listings/`
 - `web/` (sauf `web/parcelle/`)
-- `docs/`, `.github/`, `api/src/app.module.ts`, `api/package.json`, `mobile/build.gradle.kts`, `mobile/settings.gradle.kts`
+- `docs/`, `.github/`, `api/src/app.module.ts`, `api/package.json`, `mobile/pubspec.yaml`, `mobile/lib/main.dart`, `mobile/lib/theme/`, `mobile/android/*.gradle.kts`
 
 Mes livrables :
 1. Squelette du depot, CI, CODEOWNERS (jalon J0).
@@ -101,7 +103,9 @@ Je ne tranche pas seul les decisions de fond : elles vont a LGR.
 |---|---|---|
 | `api/src/app.module.ts` | Marrich | demandent par issue d'ajouter leur module |
 | `api/package.json` | Marrich | demandent par issue une nouvelle dependance |
-| `mobile/build.gradle.kts` | Marrich | idem |
+| `mobile/pubspec.yaml` | Marrich | demandent par issue une nouvelle dependance |
+| `mobile/lib/theme/` | Marrich | utilisent les jetons, ne les copient pas |
+| `mobile/android/*.gradle.kts` | Marrich | demandent par issue |
 | `contracts/<module>.yaml` | proprietaire du module | lisent |
 | `api/migrations/` | chacun ajoute son fichier prefixe par son module | ne modifient jamais celui d'un autre |
 | `docs/` | Marrich | proposent par PR |

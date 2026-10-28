@@ -1,6 +1,6 @@
 # Module annonces, site web, integration (proprietaire : Marrich)
 
-Dossiers couverts : `api/src/listings/`, `api/test/listings/`, `contracts/listings.yaml`, `mobile/.../field/listings/`, `web/` (sauf `web/parcelle/`), `docs/`, `.github/`, et les fichiers de configuration partages.
+Dossiers couverts : `api/src/listings/`, `api/test/listings/`, `contracts/listings.yaml`, `mobile/lib/features/listings/`, `web/` (sauf `web/parcelle/`), `docs/`, `.github/`, et les fichiers de configuration partages.
 
 ## A faire dans l'ordre
 

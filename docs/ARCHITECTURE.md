@@ -9,9 +9,10 @@ Ce document dit comment le projet est construit. Il se lit avant d'ecrire la moi
         |  Bluetooth (NMEA)            Internet (corrections RTK, NTRIP)
         v                                   |
 +---------------------+                     |
-| Application Android | <-------------------+
-| Kotlin + Compose    |
-| base locale (Room)  |
+| Application mobile  | <-------------------+
+| Flutter (Dart)      |
+| + Kotlin natif GNSS |
+| base locale SQLite  |
 +---------+-----------+
           | HTTPS (JSON) : file d'envoi hors ligne, POST /sync
           v
@@ -46,12 +47,16 @@ geosmart/
       common/                           petits outils partages (Marrich)
     migrations/              fichiers SQL, un par changement de base
     test/                    tests du serveur, un sous-dossier par module
-  mobile/                    application Android
-    app/src/main/java/com/geosmart/field/
-      gnss/  survey/  cogo/  map/       recepteur, bornes, calculs, carte (Romuald)
+  mobile/                    application Flutter
+    pubspec.yaml  lib/main.dart  lib/theme/    base et theme (Marrich)
+    lib/features/
+      gnss/  survey/  cogo/  map/       ecrans et calculs du terrain (Romuald)
       land/                             ecrans foncier (Samuel)
       account/  sync/  leasing/         comptes, envoi hors ligne, location (Beni)
       listings/                         ecrans annonces (Marrich)
+    test/features/                      tests Dart, memes sous-dossiers
+    android/app/src/main/kotlin/com/geosmart/field/gnss/
+                                        Kotlin natif : Bluetooth, NMEA, NTRIP (Romuald)
   web/                       site web (annonces : Marrich, web/parcelle : Samuel)
   contracts/                 un fichier OpenAPI par module
   docs/                      documents de pilotage (Marrich)
@@ -111,16 +116,18 @@ Avant de coder une route, son proprietaire ecrit `contracts/<module>.yaml` et ou
 - Mots de passe hashes (BCrypt), jetons signes, fichiers limites a 5 Mo, aucun secret dans le depot (variables d'environnement, voir `.env.example`).
 - Actions sensibles journalisees avec `audit.log(...)` (Samuel).
 
-## 7. Application Android
+## 7. Application mobile (Flutter et Kotlin natif)
 
-- Une seule application, des ecrans differents selon le role.
-- Le telephone garde tout dans Room (SQLite). Le module `sync/` (Beni) envoie les elements en attente avec un identifiant unique `clientId`, pour qu'un renvoi ne cree pas de doublon.
-- Le recepteur GNSS arrive par Bluetooth sous forme de phrases NMEA (module `gnss/` de Romuald). Les corrections RTK viennent d'Internet (client NTRIP) et repartent vers le recepteur.
-- Seul un point en RTK Fixed peut valider une borne (RG-01).
+- Une seule application, des ecrans differents selon le role. L'interface et toute la logique sont en Flutter (Dart).
+- Le Kotlin natif ne fait que le materiel : lien Bluetooth avec le recepteur GNSS, lecture des phrases NMEA, client NTRIP, renvoi des corrections RTCM au recepteur. Il envoie a Flutter un flux de positions avec leur qualite (Fixed, Float, Autonome, satellites, PDOP, sigma H).
+- Le contrat entre le Kotlin et le Dart est ecrit dans `contracts/gnss-channel.md` (MethodChannel pour les commandes, EventChannel pour le flux). Romuald l'ecrit en premier.
+- Le telephone garde tout dans une base SQLite locale. Le module `sync/` (Beni) envoie les elements en attente avec un identifiant unique `clientId`, pour qu'un renvoi ne cree pas de doublon.
+- Seul un point en RTK Fixed peut valider une borne (RG-01). Cette regle est en Dart, donc testee sans telephone ni recepteur.
+- Le theme (couleurs, polices, espacements) vient du document de design et vit dans `mobile/lib/theme/` (Marrich). Personne ne recopie les couleurs dans son ecran.
 
 ## 8. Ordre de construction
 
-1. Etape 0 (Marrich, une PR) : le squelette. Un projet NestJS qui demarre, un projet Android qui compile, une base PostgreSQL + PostGIS locale (Docker), la CI verte, les dossiers vides avec leurs NOTES-MODULE.md, `.env.example`. Les autres lisent ce document pendant ce temps.
+1. Etape 0 (Marrich, une PR) : le squelette. Un projet NestJS qui demarre, un projet Flutter (avec son dossier `android/`) qui compile, une base PostgreSQL + PostGIS locale (Docker), la CI verte, les dossiers vides avec leurs NOTES-MODULE.md, `.env.example`. Les autres lisent ce document pendant ce temps.
 2. Etape 1 (tous) : chacun ecrit son contrat, puis le code de son module avec des donnees simulees pour ses voisins. Beni publie `@Roles` en premier, Samuel publie `audit.log`.
 3. Etape 2 (Marrich et tous) : integration dans `app.module.ts`, recette, correction.
 

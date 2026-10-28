@@ -12,7 +12,7 @@ Aucune exception, meme pour "juste une ligne".
 
 ## Fichiers partages (interdits sauf pour leur proprietaire)
 
-- `api/src/app.module.ts`, `api/package.json`, `mobile/build.gradle.kts`, `mobile/settings.gradle.kts` : Marrich (integrateur) seulement.
+- `api/src/app.module.ts`, `api/package.json`, `mobile/pubspec.yaml`, `mobile/lib/main.dart`, `mobile/lib/theme/`, `mobile/android/*.gradle.kts` : Marrich (integrateur) seulement.
 - `contracts/<module>.yaml` : uniquement le proprietaire du module. Les autres le lisent.
 - `api/migrations/` : on ajoute un fichier nomme `AAAAMMJJHHMM_<module>_<description>.sql` et on ne modifie jamais une migration deja fusionnee.
 - `.github/` et `docs/` : Marrich.
