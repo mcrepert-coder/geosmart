@@ -84,6 +84,7 @@ describe('AttestationService (PostGIS)', () => {
       surveyor,
       {
         surveySessionId: randomUUID(),
+        commune: 'AGO',
         geometry: square(lon, 6.13),
         boundaries: boundaries(fix),
         locality: 'Agoe, Lome',
@@ -183,6 +184,7 @@ describe('AttestationService (PostGIS)', () => {
       unregistered,
       {
         surveySessionId: randomUUID(),
+        commune: 'AGO',
         geometry: square(1.4, 6.13),
         boundaries: boundaries(),
       },

@@ -9,7 +9,7 @@ import { AuditService } from '../audit/audit.service';
 import { type TransactionRunner, rowsOf } from '../audit/sql-runner';
 import { isParcelId } from './parcel-id';
 import type { LegalStatus } from './parcel.entity';
-import type { LandActor } from './parcel.service';
+import type { BornageRecord, LandActor } from './parcel.service';
 
 export const LEGAL_STATUSES: LegalStatus[] = [
   'TITRE',
@@ -29,9 +29,20 @@ export interface ParcelPublicStatus {
   legalStatus: LegalStatus;
   statusSource: string | null;
   statusDate: string | null;
+  titleNumber: string | null;
+  disputeNote: string | null;
   certified: boolean;
   areaM2: number;
   version: number;
+  // Nombre de versions et date du dernier leve (maquette C1).
+  versionsCount: number;
+  lastSurveyAt: string;
+  // Resume du bornage, sans aucun nom ni telephone.
+  bornage: {
+    neighboursTotal: number;
+    neighboursPresent: number;
+    heldAt: string;
+  } | null;
   updatedAt: string;
   warnings: string[];
 }
@@ -40,6 +51,10 @@ export interface LegalStatusInput {
   legalStatus: LegalStatus;
   source?: string;
   documentDate?: string;
+  // Obligatoire pour TITRE (maquette ParcelStatus).
+  titleNumber?: string;
+  // Obligatoire pour EN_LITIGE : courte description du litige.
+  disputeNote?: string;
   note?: string;
 }
 
@@ -48,17 +63,35 @@ interface StatusRow {
   legal_status: LegalStatus;
   status_source: string | null;
   status_date: string | null;
+  title_number: string | null;
+  dispute_note: string | null;
   certified: boolean;
   area_m2: number | string;
   current_version: number;
+  last_survey_at: Date | string;
+  bornage: BornageRecord | string | null;
   updated_at: Date | string;
 }
 
 const SELECT_STATUS = `
-  SELECT id, legal_status, status_source,
-         to_char(status_date, 'YYYY-MM-DD') AS status_date,
-         certified, area_m2, current_version, updated_at
-    FROM parcels`;
+  SELECT p.id, p.legal_status, p.status_source,
+         to_char(p.status_date, 'YYYY-MM-DD') AS status_date,
+         p.title_number, p.dispute_note, p.certified, p.area_m2,
+         p.current_version, v.created_at AS last_survey_at, v.bornage,
+         p.updated_at
+    FROM parcels p
+    JOIN parcel_versions v
+      ON v.parcel_id = p.id AND v.version = p.current_version`;
+
+function optionalText(value: unknown, field: string, max: number) {
+  if (value === undefined) return '';
+  if (typeof value !== 'string' || value.trim().length > max) {
+    throw invalid(
+      `Le champ ${field} doit etre un texte de ${max} caracteres au plus.`,
+    );
+  }
+  return value.trim();
+}
 
 function invalid(message: string): BadRequestException {
   return new BadRequestException({ code: 'VALIDATION_ERROR', message });
@@ -102,6 +135,20 @@ function validateStatus(input: LegalStatusInput) {
   if (input.documentDate > new Date().toISOString().slice(0, 10)) {
     throw invalid('La date du document ne peut pas etre dans le futur.');
   }
+  if (
+    input.legalStatus === 'TITRE' &&
+    !optionalText(input.titleNumber, 'titleNumber', 60)
+  ) {
+    throw invalid(
+      'Le numero de titre est obligatoire pour une parcelle titree.',
+    );
+  }
+  if (
+    input.legalStatus === 'EN_LITIGE' &&
+    !optionalText(input.disputeNote, 'disputeNote', 500)
+  ) {
+    throw invalid('Decrivez brievement le litige.');
+  }
 }
 
 export function toPublicStatus(row: StatusRow): ParcelPublicStatus {
@@ -116,14 +163,29 @@ export function toPublicStatus(row: StatusRow): ParcelPublicStatus {
     warnings.push('Leve non certifie.');
   }
   warnings.push(NOT_A_LAND_TITLE);
+  const bornage =
+    typeof row.bornage === 'string'
+      ? (JSON.parse(row.bornage) as BornageRecord)
+      : row.bornage;
   return {
     id: row.id,
     legalStatus: row.legal_status,
     statusSource: row.status_source,
     statusDate: row.status_date,
+    titleNumber: row.title_number,
+    disputeNote: row.dispute_note,
     certified: row.certified,
     areaM2: Number(row.area_m2),
     version: row.current_version,
+    versionsCount: row.current_version,
+    lastSurveyAt: new Date(row.last_survey_at).toISOString(),
+    bornage: bornage
+      ? {
+          neighboursTotal: bornage.neighbours.length,
+          neighboursPresent: bornage.neighbours.filter((n) => n.present).length,
+          heldAt: bornage.heldAt,
+        }
+      : null,
     updatedAt: new Date(row.updated_at).toISOString(),
     warnings,
   };
@@ -145,7 +207,9 @@ export class ParcelStatusService {
   async getPublicStatus(parcelId: string): Promise<ParcelPublicStatus> {
     if (!isParcelId(parcelId ?? '')) throw this.notFound();
     const [row] = rowsOf<StatusRow>(
-      await this.dataSource.query(`${SELECT_STATUS} WHERE id = $1`, [parcelId]),
+      await this.dataSource.query(`${SELECT_STATUS} WHERE p.id = $1`, [
+        parcelId,
+      ]),
     );
     if (!row) throw this.notFound();
     return toPublicStatus(row);
@@ -177,18 +241,35 @@ export class ParcelStatusService {
     const known = input.legalStatus !== 'INCONNU';
     const source = known ? (input.source as string).trim() : null;
     const documentDate = known ? (input.documentDate as string) : null;
+    const titleNumber =
+      input.legalStatus === 'TITRE'
+        ? (input.titleNumber as string).trim()
+        : null;
+    const disputeNote =
+      input.legalStatus === 'EN_LITIGE'
+        ? (input.disputeNote as string).trim()
+        : null;
 
     return this.db.transaction(async (tx) => {
       const [before] = rowsOf<StatusRow>(
-        await tx.query(`${SELECT_STATUS} WHERE id = $1 FOR UPDATE`, [parcelId]),
+        await tx.query(`${SELECT_STATUS} WHERE p.id = $1 FOR UPDATE OF p`, [
+          parcelId,
+        ]),
       );
       if (!before) throw this.notFound();
       await tx.query(
         `UPDATE parcels
             SET legal_status = $2, status_source = $3, status_date = $4,
-                updated_at = now()
+                title_number = $5, dispute_note = $6, updated_at = now()
           WHERE id = $1`,
-        [parcelId, input.legalStatus, source, documentDate],
+        [
+          parcelId,
+          input.legalStatus,
+          source,
+          documentDate,
+          titleNumber,
+          disputeNote,
+        ],
       );
       await this.audit.log(
         {
@@ -203,17 +284,21 @@ export class ParcelStatusService {
               legalStatus: before.legal_status,
               source: before.status_source,
               documentDate: before.status_date,
+              titleNumber: before.title_number,
+              disputeNote: before.dispute_note,
             },
             legalStatus: input.legalStatus,
             source,
             documentDate,
+            titleNumber,
+            disputeNote,
             note: input.note ?? null,
           },
         },
         tx,
       );
       const [after] = rowsOf<StatusRow>(
-        await tx.query(`${SELECT_STATUS} WHERE id = $1`, [parcelId]),
+        await tx.query(`${SELECT_STATUS} WHERE p.id = $1`, [parcelId]),
       );
       return toPublicStatus(after);
     });

@@ -17,7 +17,12 @@ import {
   OverlapConflict,
   ParcelGeometryService,
 } from './geometry/parcel-geometry.service';
-import { formatParcelId, isParcelId } from './parcel-id';
+import {
+  COMMUNES,
+  formatParcelId,
+  isCommuneCode,
+  isParcelId,
+} from './parcel-id';
 import type { ParcelBoundary } from './parcel-version.entity';
 import type { LegalStatus } from './parcel.entity';
 
@@ -35,6 +40,8 @@ export interface ParcelCreateInput {
   surveySessionId: string;
   geometry: unknown;
   boundaries: ParcelBoundary[];
+  // Code de commune de l'identifiant TG-<commune>-<numero> (ex. AGO).
+  commune: string;
   locality?: string;
   bornage?: BornageInput;
 }
@@ -47,17 +54,31 @@ export interface ParcelUpdateInput {
   bornage?: BornageInput;
 }
 
-// EF-208, bornage contradictoire : voisins presents et date. Les photos
-// attendent la decision de LGR sur leur stockage.
+// EF-208, bornage contradictoire (maquette T6) : voisins avec telephone,
+// cote et presence, et date. Les photos attendent la decision de LGR.
+export type NeighbourSide = 'N' | 'S' | 'E' | 'O';
+
+export interface BornageNeighbour {
+  name: string;
+  phone?: string;
+  side: NeighbourSide;
+  present: boolean;
+  // Nom de la personne qui represente un voisin absent.
+  representedBy?: string;
+}
+
 export interface BornageInput {
-  neighboursPresent: string[];
+  neighbours: BornageNeighbour[];
   heldAt: string;
 }
 
 export interface BornageRecord {
-  neighboursPresent: string[];
+  neighbours: BornageNeighbour[];
   heldAt: string;
 }
+
+const SIDES: NeighbourSide[] = ['N', 'S', 'E', 'O'];
+const TOGO_PHONE = /^\+228 ?\d{2} ?\d{2} ?\d{2} ?\d{2}$/;
 
 export interface ParcelVersionView {
   version: number;
@@ -122,6 +143,11 @@ function validateInput(input: ParcelCreateInput, idempotencyKey: string) {
   if (!UUID.test(input?.surveySessionId ?? '')) {
     throw invalid('Le champ surveySessionId doit etre un UUID.');
   }
+  if (!isCommuneCode(input.commune ?? '')) {
+    throw invalid(
+      `Le champ commune doit etre l'un de : ${Object.keys(COMMUNES).join(', ')}.`,
+    );
+  }
   if (input.locality !== undefined && typeof input.locality !== 'string') {
     throw invalid('Le champ locality doit etre un texte.');
   }
@@ -135,20 +161,42 @@ export function normalizeBornage(
   bornage: BornageInput | undefined,
 ): BornageRecord | null {
   if (bornage === undefined || bornage === null) return null;
-  const names = Array.isArray(bornage.neighboursPresent)
-    ? bornage.neighboursPresent.map((n) =>
-        typeof n === 'string' ? n.trim() : '',
-      )
-    : null;
-  if (
-    !names ||
-    names.length > 20 ||
-    names.some((n) => n.length === 0 || n.length > 120)
-  ) {
+  if (!Array.isArray(bornage.neighbours) || bornage.neighbours.length > 20) {
     throw invalid(
-      'Le champ bornage.neighboursPresent doit lister 20 noms au plus (120 caracteres chacun).',
+      'Le champ bornage.neighbours doit lister 20 voisins au plus.',
     );
   }
+  const neighbours = bornage.neighbours.map((n, i): BornageNeighbour => {
+    const name = typeof n?.name === 'string' ? n.name.trim() : '';
+    const rep =
+      typeof n?.representedBy === 'string' ? n.representedBy.trim() : '';
+    if (name.length === 0 || name.length > 120 || rep.length > 120) {
+      throw invalid(
+        `Le voisin ${i + 1} doit avoir un nom (120 caracteres au plus).`,
+      );
+    }
+    if (!SIDES.includes(n.side)) {
+      throw invalid(`Le cote du voisin ${i + 1} doit etre N, S, E ou O.`);
+    }
+    if (typeof n.present !== 'boolean') {
+      throw invalid(`Indiquez si le voisin ${i + 1} est present.`);
+    }
+    if (
+      n.phone !== undefined &&
+      (typeof n.phone !== 'string' || !TOGO_PHONE.test(n.phone.trim()))
+    ) {
+      throw invalid(
+        `Le telephone du voisin ${i + 1} doit etre au format +228 90 12 34 56.`,
+      );
+    }
+    return {
+      name,
+      side: n.side,
+      present: n.present,
+      ...(n.phone !== undefined ? { phone: n.phone.trim() } : {}),
+      ...(rep ? { representedBy: rep } : {}),
+    };
+  });
   const heldAt = Date.parse(bornage.heldAt);
   if (typeof bornage.heldAt !== 'string' || Number.isNaN(heldAt)) {
     throw invalid('Le champ bornage.heldAt doit etre une date ISO 8601.');
@@ -157,10 +205,7 @@ export function normalizeBornage(
   if (heldAt > Date.now() + 5 * 60 * 1000) {
     throw invalid('Le bornage ne peut pas etre date dans le futur.');
   }
-  return {
-    neighboursPresent: names,
-    heldAt: new Date(heldAt).toISOString(),
-  };
+  return { neighbours, heldAt: new Date(heldAt).toISOString() };
 }
 
 function validateUpdate(input: ParcelUpdateInput) {
@@ -326,15 +371,16 @@ export class ParcelService {
       const conflicts = await this.geometry.findOverlaps(tx, checked.polygon);
       if (conflicts.length > 0) return { conflicts };
 
-      const id = await this.nextParcelId(tx);
+      const id = await this.nextParcelId(tx, input.commune);
       const certified =
         actor.registeredSurveyor === true &&
         input.boundaries.every((b) => b.fixQuality === 'FIXED');
       await tx.query(
         `INSERT INTO parcels (id, geom, area_m2, perimeter_m, geometry_hash,
-           locality, certified, surveyor_id, survey_session_id, idempotency_key)
+           locality, certified, surveyor_id, survey_session_id, idempotency_key,
+           commune)
          VALUES ($1, ST_SetSRID(ST_GeomFromGeoJSON($2), 4326), $3, $4, $5,
-           $6, $7, $8, $9, $10)`,
+           $6, $7, $8, $9, $10, $11)`,
         [
           id,
           JSON.stringify(checked.polygon),
@@ -346,6 +392,7 @@ export class ParcelService {
           actor.id,
           input.surveySessionId,
           idempotencyKey,
+          input.commune,
         ],
       );
       await tx.query(
@@ -656,10 +703,17 @@ export class ParcelService {
     return this.geometry.overlapError(conflicts, entry.seq);
   }
 
-  private async nextParcelId(tx: SqlRunner): Promise<string> {
+  // Compteur par commune, appele sous LAND_WRITE_LOCK_KEY.
+  private async nextParcelId(tx: SqlRunner, commune: string): Promise<string> {
     const [row] = rowsOf<{ n: number | string }>(
-      await tx.query("SELECT nextval('parcel_number_seq') AS n"),
+      await tx.query(
+        `INSERT INTO parcel_counters (commune, last_number) VALUES ($1, 1)
+         ON CONFLICT (commune)
+           DO UPDATE SET last_number = parcel_counters.last_number + 1
+         RETURNING last_number AS n`,
+        [commune],
+      ),
     );
-    return formatParcelId(new Date().getUTCFullYear(), Number(row.n));
+    return formatParcelId(commune, Number(row.n));
   }
 }

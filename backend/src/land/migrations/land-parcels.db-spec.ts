@@ -14,11 +14,17 @@ const SQUARE =
 const BOWTIE =
   "ST_GeomFromText('POLYGON((1.21 6.13,1.211 6.131,1.211 6.13,1.21 6.131,1.21 6.13))', 4326)";
 
-function insertParcel(id: string, geom: string, legalStatus = 'INCONNU') {
+function insertParcel(
+  id: string,
+  geom: string,
+  legalStatus = 'INCONNU',
+  commune = id.slice(3, 6),
+) {
   return `INSERT INTO parcels (id, geom, area_m2, perimeter_m, geometry_hash,
-      surveyor_id, survey_session_id, idempotency_key, legal_status)
+      surveyor_id, survey_session_id, idempotency_key, legal_status, commune)
     VALUES ('${id}', ${geom}, 12000, 440, repeat('a', 64),
-      gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), '${legalStatus}')`;
+      gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), '${legalStatus}',
+      '${commune}')`;
 }
 
 function insertVersion(parcelId: string, boundaries: string) {
@@ -51,29 +57,38 @@ describe('migration des parcelles (PostGIS)', () => {
 
   it('accepte une parcelle valide', async () => {
     await expect(
-      db.query(insertParcel('GS-2026-000001', SQUARE)),
+      db.query(insertParcel('TG-AGO-00001', SQUARE)),
     ).resolves.toBeDefined();
   });
 
   it.each([
-    ['un polygone auto-intersecte', insertParcel('GS-2026-000002', BOWTIE)],
+    ['un polygone auto-intersecte', insertParcel('TG-AGO-00002', BOWTIE)],
     ['un identifiant mal forme', insertParcel('GS-26-1', SQUARE)],
     [
       'un statut juridique sans source',
-      insertParcel('GS-2026-000003', SQUARE, 'TITRE'),
+      insertParcel('TG-AGO-00003', SQUARE, 'TITRE'),
     ],
-    ['un statut hors liste', insertParcel('GS-2026-000004', SQUARE, 'VENDU')],
+    [
+      'une commune differente de l identifiant',
+      insertParcel('TG-AGO-00007', SQUARE, 'INCONNU', 'LOM'),
+    ],
+    [
+      'un titre sans numero de titre',
+      `UPDATE parcels SET legal_status = 'TITRE', status_source = 'ANDF',
+         status_date = '2026-10-01' WHERE id = 'TG-AGO-00001'`,
+    ],
+    ['un statut hors liste', insertParcel('TG-AGO-00004', SQUARE, 'VENDU')],
     [
       'un point au lieu d un polygone',
       insertParcel(
-        'GS-2026-000005',
+        'TG-AGO-00005',
         'ST_SetSRID(ST_MakePoint(1.21, 6.13), 4326)',
       ),
     ],
     [
       'un autre systeme de reference',
       insertParcel(
-        'GS-2026-000006',
+        'TG-AGO-00006',
         "ST_GeomFromText('POLYGON((0 0,1 0,1 1,0 0))', 32631)",
       ),
     ],
@@ -83,20 +98,20 @@ describe('migration des parcelles (PostGIS)', () => {
 
   it('refuse une version avec moins de 3 bornes', async () => {
     await expect(
-      db.query(insertVersion('GS-2026-000001', '[{},{}]')),
+      db.query(insertVersion('TG-AGO-00001', '[{},{}]')),
     ).rejects.toThrow();
   });
 
   it('accepte une version puis refuse son doublon', async () => {
-    await db.query(insertVersion('GS-2026-000001', '[{},{},{},{}]'));
+    await db.query(insertVersion('TG-AGO-00001', '[{},{},{},{}]'));
     await expect(
-      db.query(insertVersion('GS-2026-000001', '[{},{},{}]')),
+      db.query(insertVersion('TG-AGO-00001', '[{},{},{}]')),
     ).rejects.toThrow();
   });
 
   it("refuse la version d'une parcelle inconnue", async () => {
     await expect(
-      db.query(insertVersion('GS-2026-999999', '[{},{},{}]')),
+      db.query(insertVersion('TG-AGO-99999', '[{},{},{}]')),
     ).rejects.toThrow();
   });
 
