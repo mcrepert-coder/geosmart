@@ -16,7 +16,7 @@ Represente une borne physique mesuree sur le terrain par le recepteur GNSS.
 | Champ | Type | Description | Regle associee |
 |---|---|---|---|
 | `id` | String (UUID) | Identifiant local unique du point | Interne mobile |
-| `clientId` | String (UUID) | Identifiant unique pour la file de synchronisation hors ligne | RG-08 |
+| `clientId` | String (UUID) | Identifiant unique de la borne, conserve dans la mission synchronisee | RG-08 |
 | `projectId` | String (UUID) | Identifiant du chantier auquel appartient la borne | EF-109, CA-7 |
 | `surveyorId` | String (UUID) | Identifiant du topographe qui a realise la mesure | CA-7 |
 | `pointNumber` | Integer | Numero d'ordre de la borne dans le tour de la parcelle (ex: 1, 2, 3, ...) | EF-201 |
@@ -54,6 +54,7 @@ Represente un chantier et l'ensemble ordonne des bornes levees.
 | Champ | Type | Description |
 |---|---|---|
 | `id` | String (UUID) | Identifiant local du chantier |
+| `clientId` | String (UUID) | Identifiant unique de la mission pour la synchronisation hors ligne |
 | `projectId` | String (UUID) | Identifiant serveur du chantier assigne |
 | `surveyorId` | String (UUID) | Identifiant du topographe assigne |
 | `title` | String | Nom ou reference du chantier |
@@ -64,44 +65,113 @@ Represente un chantier et l'ensemble ordonne des bornes levees.
 | `createdAt` | String (ISO 8601) | Date de creation locale |
 | `completedAt` | String (ISO 8601) | Date de fin du leve (nullable) |
 
+### Cycle de vie de la mission
+
+- `DRAFT` : mission creee, aucune borne enregistree.
+- `IN_PROGRESS` : leve en cours, des bornes sont ajoutees localement.
+- `COMPLETED` : leve termine, toutes les bornes sont presentes localement, la mission peut etre synchronisee.
+- `SYNCED` : le serveur a accepte la mission complete.
+
+Une mission n'est jamais synchronisee point par point. Toutes ses bornes sont enregistrees localement pendant le leve, puis la mission entiere est envoyee apres son passage a `COMPLETED`.
+
 ---
 
-## 3. Format d’échange pour la synchronisation (`POST /sync`)
+## 3. Format d'echange pour la synchronisation (`POST /sync`)
 
-Consomme par : Beni (`api/src/sync/`).  
-Conformité : RG-08 (file locale avec `clientId` unique, reprise automatique sans doublon).
+Consomme par : Beni (`api/src/sync/`).
+Conformite : RG-08 (file locale avec `clientId` unique, reprise automatique sans doublon).
 
-Chaque borne validee stockee localement est deposee dans la file d'envoi.
+La mission est l'unite de synchronisation. Une entree de la file locale correspond a une `SurveySession` terminee, avec toutes ses bornes. Une borne ne part jamais seule.
 
-### Exemple de charge utile (JSON) pour un point de leve
+La mission n'est envoyee que si :
+
+- son statut local est `COMPLETED` ;
+- elle contient au moins trois bornes ;
+- toutes ses bornes sont en `fixQuality == "FIXED"` pour un leve officiel ;
+- son perimetre et sa surface sont calcules en UTM 31N.
+
+### Exemple de charge utile (JSON) pour une mission
 
 ```json
 {
-  "clientId": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
-  "entityType": "survey_point",
+  "clientId": "b7e4c2a1-3f6d-4e89-9a02-5c1d8e7f6a3b",
+  "entityType": "survey_session",
   "action": "CREATE",
   "payload": {
     "projectId": "8f3b6c2a-9e12-4c56-8a71-3b5e4a2c1d0f",
-    "pointNumber": 1,
-    "pointName": "B1",
-    "latitude": 6.137254,
-    "longitude": 1.212547,
-    "altitude": 24.35,
-    "fixQuality": "FIXED",
-    "satellitesCount": 18,
-    "pdop": 1.2,
-    "hdop": 0.8,
-    "vdop": 0.9,
-    "instrument": "UM982",
-    "recordedAt": "2026-10-25T14:32:00.000Z"
+    "surveyorId": "2d9a4c7e-1b3f-4a8d-9c6e-7f2b5a1d0c8e",
+    "title": "Leve parcelle Adakpame",
+    "status": "COMPLETED",
+    "perimeterMeters": 128.4,
+    "areaSquareMeters": 1024.0,
+    "createdAt": "2026-10-28T08:15:00.000Z",
+    "completedAt": "2026-10-28T09:42:00.000Z",
+    "points": [
+      {
+        "clientId": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+        "pointNumber": 1,
+        "pointName": "B1",
+        "latitude": 6.137254,
+        "longitude": 1.212547,
+        "altitude": 24.35,
+        "accuracy": 0.012,
+        "fixQuality": "FIXED",
+        "satellitesCount": 18,
+        "pdop": 1.2,
+        "hdop": 0.8,
+        "vdop": 0.9,
+        "instrument": "UM982",
+        "recordedAt": "2026-10-28T08:20:00.000Z",
+        "isValidated": true
+      },
+      {
+        "clientId": "c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f",
+        "pointNumber": 2,
+        "pointName": "B2",
+        "latitude": 6.137312,
+        "longitude": 1.212611,
+        "altitude": 24.41,
+        "accuracy": 0.011,
+        "fixQuality": "FIXED",
+        "satellitesCount": 19,
+        "pdop": 1.1,
+        "hdop": 0.7,
+        "vdop": 0.8,
+        "instrument": "UM982",
+        "recordedAt": "2026-10-28T08:32:00.000Z",
+        "isValidated": true
+      },
+      {
+        "clientId": "d3e4f5a6-b7c8-4d9e-8f0a-2b3c4d5e6f7a",
+        "pointNumber": 3,
+        "pointName": "B3",
+        "latitude": 6.137268,
+        "longitude": 1.212689,
+        "altitude": 24.37,
+        "accuracy": 0.013,
+        "fixQuality": "FIXED",
+        "satellitesCount": 18,
+        "pdop": 1.2,
+        "hdop": 0.8,
+        "vdop": 0.9,
+        "instrument": "UM982",
+        "recordedAt": "2026-10-28T08:44:00.000Z",
+        "isValidated": true
+      }
+    ]
   }
 }
 ```
 
-### Regles cote serveur pour `POST /sync` sur les `survey_point`
+### Regles cote serveur pour `POST /sync` sur une `survey_session`
 
-- Si `fixQuality != "FIXED"`, le serveur rejette l'insertion comme borne officielle avec une erreur explicite.
-- Le serveur utilise `clientId` pour garantir l'idempotence : un renvoi de la meme requete suite a une coupure reseau ne cree aucun doublon (CA-3).
+- Le serveur refuse une mission dont le statut n'est pas `COMPLETED`.
+- Le serveur refuse une mission de moins de trois bornes.
+- Si une borne a `fixQuality != "FIXED"`, le serveur rejette la mission entiere avec une erreur explicite. Aucune borne n'est inseree partiellement.
+- Le serveur insere la mission et toutes ses bornes dans une seule transaction.
+- Le serveur utilise le `clientId` de la mission pour garantir l'idempotence : un renvoi de la meme mission apres une coupure reseau ne cree aucun doublon (CA-3).
+- Apres acceptation, le serveur renvoie l'identifiant serveur de la mission et un statut de succes. Le mobile passe alors la mission locale a `SYNCED`.
+- En cas d'echec reseau, le mobile reessaie la mission entiere, pas les bornes separement.
 
 ---
 

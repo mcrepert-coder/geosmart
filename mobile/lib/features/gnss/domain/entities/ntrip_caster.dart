@@ -15,5 +15,12 @@ class NtripCaster {
   final String password;
   final bool useTls;
 
-  Uri get uri => Uri(scheme: useTls ? 'https' : 'http', host: host, port: port);
+  /// Returns the full NTRIP URI including mountpoint and basic‑auth credentials.
+  Uri get uri => Uri(
+    scheme: useTls ? 'https' : 'http',
+    host: host,
+    port: port,
+    path: '/$mountpoint',
+    userInfo: '${Uri.encodeComponent(username)}:${Uri.encodeComponent(password)}',
+  );
 }
