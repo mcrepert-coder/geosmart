@@ -35,6 +35,8 @@ export interface AttestationView {
 export interface AttestationVerification {
   number: string;
   valid: boolean;
+  // Le fichier est bien celui emis, meme si la parcelle a change depuis.
+  authentic: boolean;
   parcelId: string;
   parcelVersion: number;
   issuedAt: string;
@@ -300,6 +302,7 @@ export class AttestationService {
     return {
       number: row.number,
       valid,
+      authentic,
       parcelId: row.parcel_id,
       parcelVersion: row.parcel_version,
       issuedAt: new Date(row.issued_at).toISOString(),

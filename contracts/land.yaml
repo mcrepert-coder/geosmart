@@ -623,10 +623,11 @@ components:
 
     AttestationVerification:
       type: object
-      required: [number, valid]
+      required: [number, valid, authentic]
       properties:
         number: { type: string }
         valid: { type: boolean, description: Vrai si l'empreinte correspond et que la version est encore la version courante }
+        authentic: { type: boolean, description: Vrai si l'empreinte correspond, meme si la parcelle a change depuis }
         parcelId: { type: string }
         parcelVersion: { type: integer }
         issuedAt: { type: string, format: date-time }

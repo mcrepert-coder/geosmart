@@ -1,0 +1,395 @@
+/* Jetons et composants du design system GeoSmart Field v1.0, limites a
+   /parcelle. A deplacer dans le socle commun (globals.css) quand il existera. */
+
+.gs-root {
+  --brand-blue: #115471;
+  --blue-900: #0b3549;
+  --bg: #f5f8fa;
+  --surface: #ffffff;
+  --surface-sunken: #eef5f8;
+  --border: #d5dee3;
+  --border-strong: #8496a1;
+  --text: #1b2a33;
+  --text-muted: #5b6b75;
+  --text-on-primary: #ffffff;
+  --primary: #115471;
+  --primary-hover: #0b3549;
+  --primary-soft: #dcebf2;
+  --success: #17734b;
+  --success-soft: #ddf2e7;
+  --warning: #8f5d12;
+  --warning-soft: #fbefd9;
+  --danger: #a8302a;
+  --danger-soft: #fbe1df;
+  --parcel-titre: #0b6d69;
+  --parcel-titre-fill: #ddf3f1;
+  --parcel-coutumier: #7a5712;
+  --parcel-coutumier-fill: #f6ecd6;
+  --parcel-litige: #a8302a;
+  --parcel-litige-fill: #fbe1df;
+  --cert: #115471;
+  --cert-soft: #dcebf2;
+  --focus-ring: #d36534;
+  --accent-text: #b4512a;
+  --shadow-1: 0 1px 2px rgba(17, 84, 113, 0.08), 0 1px 3px rgba(17, 84, 113, 0.06);
+
+  min-height: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-color-scheme: dark) {
+  .gs-root {
+    --bg: #0e1a21;
+    --surface: #162630;
+    --surface-sunken: #0a141a;
+    --border: #2a3f4c;
+    --border-strong: #5e7684;
+    --text: #e8eef2;
+    --text-muted: #9aaab4;
+    --text-on-primary: #0e1a21;
+    --primary: #7fb8d4;
+    --primary-hover: #a9d0e3;
+    --primary-soft: #173b4d;
+    --success: #3fbf85;
+    --success-soft: #123a2a;
+    --warning: #e7a94a;
+    --warning-soft: #3d2c10;
+    --danger: #f2726a;
+    --danger-soft: #44191a;
+    --parcel-titre: #4cc3bb;
+    --parcel-titre-fill: #123634;
+    --parcel-coutumier: #d9ae5c;
+    --parcel-coutumier-fill: #38290f;
+    --parcel-litige: #f2726a;
+    --parcel-litige-fill: #44191a;
+    --cert: #7fb8d4;
+    --cert-soft: #173b4d;
+    --focus-ring: #f08a5d;
+    --accent-text: #f08a5d;
+  }
+}
+
+.gs-root *:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.gs-display {
+  font-family: var(--font-sora), var(--font-inter), sans-serif;
+}
+
+.gs-mono {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-weight: 500;
+}
+
+/* En-tete et pied */
+.gs-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.gs-container {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding-inline: 16px;
+}
+
+@media (min-width: 900px) {
+  .gs-container {
+    padding-inline: 40px;
+  }
+}
+
+.gs-logotype {
+  font-family: var(--font-sora), sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--text);
+}
+
+.gs-logotype span {
+  color: var(--accent-text);
+}
+
+.gs-nav a {
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 12px 0;
+  border-bottom: 3px solid transparent;
+}
+
+.gs-nav a[aria-current="page"] {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.gs-hero {
+  background: var(--brand-blue);
+  color: #ffffff;
+}
+
+/* Carte */
+.gs-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-1);
+  padding: 24px;
+}
+
+/* Champs */
+.gs-label {
+  display: block;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.gs-input {
+  width: 100%;
+  height: 56px;
+  padding-inline: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-sunken);
+  color: var(--text);
+  font-size: 17px;
+}
+
+.gs-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+  outline: none;
+}
+
+.gs-input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.gs-help {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.gs-error {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--danger);
+  margin-top: 6px;
+}
+
+/* Boutons */
+.gs-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  transition:
+    background-color 150ms cubic-bezier(0.2, 0, 0, 1),
+    transform 80ms;
+}
+
+.gs-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.gs-btn--primary {
+  background: var(--primary);
+  color: var(--text-on-primary);
+}
+
+.gs-btn--primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.gs-btn--secondary {
+  border: 1px solid var(--border-strong);
+  color: var(--primary);
+  background: var(--surface);
+}
+
+.gs-btn:disabled {
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* Badges : toujours un mot, la couleur ne fait que le renforcer */
+.gs-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.gs-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.gs-badge--titre {
+  background: var(--parcel-titre-fill);
+  color: var(--parcel-titre);
+}
+
+.gs-badge--coutumier {
+  background: var(--parcel-coutumier-fill);
+  color: var(--parcel-coutumier);
+}
+
+.gs-badge--litige {
+  color: var(--parcel-litige);
+  border-color: var(--parcel-litige);
+  background: repeating-linear-gradient(
+    45deg,
+    var(--parcel-litige-fill) 0 4px,
+    var(--surface) 4px 8px
+  );
+}
+
+.gs-badge--neutral {
+  background: transparent;
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+}
+
+.gs-badge--success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.gs-badge--danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.gs-badge--warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.gs-badge--cert {
+  background: var(--cert-soft);
+  color: var(--cert);
+}
+
+.gs-badge--cert::before,
+.gs-badge--uncert::before {
+  display: none;
+}
+
+.gs-badge--uncert {
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+}
+
+/* Mention obligatoire (RG-09) */
+.gs-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--text);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Alertes */
+.gs-alert {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid;
+}
+
+.gs-alert--danger {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+
+.gs-alert--warning {
+  background: var(--warning-soft);
+  border-color: var(--warning);
+}
+
+.gs-alert--success {
+  background: var(--success-soft);
+  border-color: var(--success);
+}
+
+.gs-alert--info {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+}
+
+/* Lignes cle / valeur du resultat */
+.gs-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.gs-rows > div:first-child {
+  border-top: 0;
+}
+
+.gs-rows dt {
+  color: var(--text-muted);
+}
+
+.gs-rows dd {
+  font-weight: 600;
+  text-align: right;
+}
+
+.gs-skeleton {
+  background: var(--surface-sunken);
+  border-radius: 10px;
+}
+
+.gs-demo {
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-root * {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

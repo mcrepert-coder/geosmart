@@ -238,6 +238,7 @@ describe('AttestationService (PostGIS)', () => {
       expect(result).toEqual({
         number: attestation.number,
         valid: true,
+        authentic: true,
         parcelId: parcel.id,
         parcelVersion: 1,
         issuedAt: attestation.issuedAt,
@@ -255,7 +256,7 @@ describe('AttestationService (PostGIS)', () => {
     it('refuse un document modifie', async () => {
       const { number } = await service.issue(surveyor, parcel.id);
       const result = await service.verify(number, 'f'.repeat(64));
-      expect(result.valid).toBe(false);
+      expect(result).toMatchObject({ valid: false, authentic: false });
     });
 
     it("n'est plus valide apres une modification de la parcelle", async () => {
@@ -269,7 +270,13 @@ describe('AttestationService (PostGIS)', () => {
         attestation.number,
         attestation.documentHash,
       );
-      expect(result).toMatchObject({ valid: false, superseded: true });
+      expect(result).toMatchObject({
+        valid: false,
+        authentic: true,
+        superseded: true,
+      });
+      const forged = await service.verify(attestation.number, '0'.repeat(64));
+      expect(forged).toMatchObject({ authentic: false, superseded: true });
 
       const renewed = await service.issue(surveyor, parcel.id);
       expect(renewed.parcelVersion).toBe(2);
