@@ -1,3 +1,7 @@
+// Fonctions pures (aucun import a l'execution) : testees par
+// node --test src/app/parcelle/_lib/parcelle.test.mjs.
+import type { LegalStatus, ParcelPublicStatus } from "./api";
+
 // Formats locaux du design system : 24/10/2026, 09:42, 452,18 m2, hectares
 // au-dela de 10 000 m2. Espace insecable entre milliers et avant l'unite.
 
@@ -43,4 +47,31 @@ export function formatPlainDate(value: string): string {
 // Empreinte : 8 premiers + 8 derniers caracteres.
 export function shortHash(hash: string): string {
   return hash.length <= 16 ? hash : `${hash.slice(0, 8)}…${hash.slice(-8)}`;
+}
+
+// Libelles des statuts juridiques, toujours ecrits en toutes lettres.
+const LEGAL_STATUS_LABELS: Record<LegalStatus, string> = {
+  TITRE: "Titré",
+  COUTUMIER_NON_TITRE: "Coutumier non titré",
+  EN_LITIGE: "En litige",
+  INCONNU: "Statut non renseigné",
+};
+
+export function legalStatusLabel(status: LegalStatus): string {
+  return LEGAL_STATUS_LABELS[status];
+}
+
+export function shareUrl(origin: string, id: string): string {
+  return `${origin}/parcelle?id=${encodeURIComponent(id)}`;
+}
+
+// Message pre-rempli (EF-308, RG-07) : ce que la page affiche deja
+// publiquement, le lien, et la mention obligatoire.
+export function shareMessage(p: ParcelPublicStatus, url: string): string {
+  return [
+    `Parcelle ${p.id} sur GeoSmart Field`,
+    `${legalStatusLabel(p.legalStatus)} · ${formatArea(p.areaM2)} · ${p.certified ? "parcelle certifiée" : "parcelle non certifiée"}`,
+    url,
+    "Ne vaut pas titre foncier.",
+  ].join("\n");
 }

@@ -1,22 +1,20 @@
 import { BadgeCheck } from "lucide-react";
 import type { LegalStatus } from "../_lib/api";
+import { legalStatusLabel } from "../_lib/format";
 
-const STATUS: Record<LegalStatus, { label: string; className: string }> = {
-  TITRE: { label: "Titré", className: "gs-badge--titre" },
-  COUTUMIER_NON_TITRE: { label: "Coutumier non titré", className: "gs-badge--coutumier" },
-  EN_LITIGE: { label: "En litige", className: "gs-badge--litige" },
-  INCONNU: { label: "Statut non renseigné", className: "gs-badge--neutral" },
+const STATUS_CLASS: Record<LegalStatus, string> = {
+  TITRE: "gs-badge--titre",
+  COUTUMIER_NON_TITRE: "gs-badge--coutumier",
+  EN_LITIGE: "gs-badge--litige",
+  INCONNU: "gs-badge--neutral",
 };
-
-export function legalStatusLabel(status: LegalStatus): string {
-  return STATUS[status].label;
-}
 
 // ParcelStatus (EF-203) : le statut est toujours ecrit, la couleur et les
 // hachures ne font que le renforcer.
 export function ParcelStatusBadge({ status }: { status: LegalStatus }) {
-  const { label, className } = STATUS[status];
-  return <span className={`gs-badge ${className}`}>{label}</span>;
+  return (
+    <span className={`gs-badge ${STATUS_CLASS[status]}`}>{legalStatusLabel(status)}</span>
+  );
 }
 
 // CertBadge (EF-302) : affiche seulement ce que le serveur confirme ; une
