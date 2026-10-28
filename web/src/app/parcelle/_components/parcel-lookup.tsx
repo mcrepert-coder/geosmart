@@ -12,6 +12,7 @@ import {
 import { formatArea, formatDate, formatPlainDate } from "../_lib/format";
 import { CertBadge, ParcelStatusBadge } from "./badges";
 import { Notice } from "./notice";
+import { ShareParcel } from "./share-parcel";
 
 interface Done {
   id: string;
@@ -234,6 +235,7 @@ function Result({ id, result }: { id: string; result: ApiResult<ParcelPublicStat
         ))}
 
       <Notice>Ne vaut pas titre foncier · consultez l&apos;ANDF</Notice>
+      <ShareParcel parcel={p} />
     </article>
   );
 }
