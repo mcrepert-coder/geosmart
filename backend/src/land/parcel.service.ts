@@ -369,7 +369,7 @@ export class ParcelService {
 
       const checked = await this.geometry.check(tx, input.geometry);
       const conflicts = await this.geometry.findOverlaps(tx, checked.polygon);
-      if (conflicts.length > 0) return { conflicts };
+      if (conflicts.length > 0) return { conflicts, polygon: checked.polygon };
 
       const id = await this.nextParcelId(tx, input.commune);
       const certified =
@@ -437,6 +437,7 @@ export class ParcelService {
     if (outcome.conflicts) {
       throw await this.rejectOverlap(actor, outcome.conflicts, {
         surveySessionId: input.surveySessionId,
+        submittedGeometry: outcome.polygon,
       });
     }
     return outcome.parcel;
@@ -478,7 +479,7 @@ export class ParcelService {
         checked.polygon,
         parcelId,
       );
-      if (conflicts.length > 0) return { conflicts };
+      if (conflicts.length > 0) return { conflicts, polygon: checked.polygon };
 
       const version = current.current_version + 1;
       const certified =
@@ -550,6 +551,7 @@ export class ParcelService {
       throw await this.rejectOverlap(actor, outcome.conflicts, {
         parcelId,
         expectedVersion: input.expectedVersion,
+        submittedGeometry: outcome.polygon,
       });
     }
     return outcome.parcel as ParcelView;

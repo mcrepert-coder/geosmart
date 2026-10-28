@@ -3,8 +3,10 @@ import { AuditModule } from '../audit/audit.module';
 import { AttestationService } from './attestation/attestation.service';
 import { ParcelGeometryService } from './geometry/parcel-geometry.service';
 import { AttestationController } from './http/attestation.controller';
+import { OverlapAlertController } from './http/overlap-alert.controller';
 import { ParcelController } from './http/parcel.controller';
 import { SurveyRequestController } from './http/survey-request.controller';
+import { OverlapAlertService } from './overlap-alert.service';
 import { ParcelStatusService } from './parcel-status.service';
 import { ParcelService } from './parcel.service';
 import { SurveyRequestService } from './survey-request/survey-request.service';
@@ -17,6 +19,7 @@ import { SurveyRequestService } from './survey-request/survey-request.service';
     ParcelController,
     AttestationController,
     SurveyRequestController,
+    OverlapAlertController,
   ],
   providers: [
     ParcelGeometryService,
@@ -24,6 +27,7 @@ import { SurveyRequestService } from './survey-request/survey-request.service';
     ParcelStatusService,
     AttestationService,
     SurveyRequestService,
+    OverlapAlertService,
   ],
   exports: [
     ParcelService,
