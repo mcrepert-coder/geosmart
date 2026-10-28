@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../domain/entities/bornage.dart';
 import '../domain/entities/parcel_draft.dart';
+import 'bornage_page.dart';
 import 'land_style.dart';
 import 'widgets/polygon_preview.dart';
 
@@ -14,14 +16,10 @@ class CreateParcelPage extends StatefulWidget {
     super.key,
     required this.initialDraft,
     required this.onQueue,
-    this.onBornage,
   });
 
   final ParcelDraft initialDraft;
   final Future<void> Function(ParcelDraft draft) onQueue;
-
-  /// Ouvre le bornage contradictoire (maquette T6), si disponible.
-  final VoidCallback? onBornage;
 
   @override
   State<CreateParcelPage> createState() => _CreateParcelPageState();
@@ -39,6 +37,17 @@ class _CreateParcelPageState extends State<CreateParcelPage> {
   }
 
   void _update(ParcelDraft next) => setState(() => _draft = next);
+
+  // Bornage contradictoire (maquette T6).
+  Future<void> _openBornage() async {
+    final bornage = await Navigator.of(context).push<Bornage>(
+      MaterialPageRoute(
+        builder: (_) =>
+            BornagePage(initial: _draft.bornage, locality: _draft.locality),
+      ),
+    );
+    if (bornage != null) _update(_draft.copyWith(bornage: bornage));
+  }
 
   Future<void> _queue() async {
     setState(() => _sending = true);
@@ -195,7 +204,7 @@ class _CreateParcelPageState extends State<CreateParcelPage> {
       bottomNavigationBar: _BottomActions(
         draft: _draft,
         sending: _sending,
-        onBornage: widget.onBornage,
+        onBornage: _openBornage,
         onQueue: _queue,
       ),
     );
@@ -466,7 +475,11 @@ class _BottomActions extends StatelessWidget {
                   child: OutlinedButton(
                     style: buttonStyle,
                     onPressed: onBornage,
-                    child: const Text('Bornage'),
+                    child: Text(
+                      draft.bornage == null
+                          ? 'Bornage'
+                          : 'Bornage (${draft.bornage!.presentCount}/${draft.bornage!.neighbours.length})',
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),

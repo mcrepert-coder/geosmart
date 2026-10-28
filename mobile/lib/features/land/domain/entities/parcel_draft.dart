@@ -1,6 +1,7 @@
 import '../../../gnss/domain/entities/gnss_fix_quality.dart';
 import '../../../gnss/domain/entities/survey_point.dart';
 import '../geometry/polygon_metrics.dart';
+import 'bornage.dart';
 
 /// Communes de l'identifiant `TG-<commune>-<numero>`. Liste PROVISOIRE, la
 /// meme que le serveur, en attendant la liste officielle (issue #24).
@@ -38,6 +39,7 @@ class ParcelDraft {
     this.locality,
     this.declaredStatus,
     this.titleNumber,
+    this.bornage,
   }) : points = List.unmodifiable(points),
        metrics = PolygonMetrics.fromWgs84([
          for (final p in points) (latitude: p.latitude, longitude: p.longitude),
@@ -51,6 +53,9 @@ class ParcelDraft {
   final String? locality;
   final DeclaredStatus? declaredStatus;
   final String? titleNumber;
+
+  /// Bornage contradictoire, facultatif (EF-208).
+  final Bornage? bornage;
   final PolygonMetrics metrics;
 
   int get fixedCount => points.where((p) => p.fixQuality.canRecordPoint).length;
@@ -79,6 +84,7 @@ class ParcelDraft {
     String? locality,
     DeclaredStatus? declaredStatus,
     String? titleNumber,
+    Bornage? bornage,
   }) {
     return ParcelDraft(
       surveySessionId: surveySessionId,
@@ -87,6 +93,7 @@ class ParcelDraft {
       locality: locality ?? this.locality,
       declaredStatus: declaredStatus ?? this.declaredStatus,
       titleNumber: titleNumber ?? this.titleNumber,
+      bornage: bornage ?? this.bornage,
     );
   }
 
@@ -138,6 +145,7 @@ class ParcelDraft {
             'recordedAt': p.recordedAt.toUtc().toIso8601String(),
           },
       ],
+      if (bornage != null) 'bornage': bornage!.toJson(),
     };
   }
 }
