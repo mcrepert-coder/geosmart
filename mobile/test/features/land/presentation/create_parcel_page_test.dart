@@ -57,10 +57,7 @@ void main() {
     );
 
     // Au-dela de 10 000 m2, la surface est aussi donnee en ha, a, ca.
-    expect(
-      find.text('12 242,64 m² (1 ha 22 a 43 ca)'),
-      findsOneWidget,
-    );
+    expect(find.text('12 242,64 m² (1 ha 22 a 43 ca)'), findsOneWidget);
     expect(find.text('4 Fixed'), findsOneWidget);
     expect(
       find.text('Polygone fermé, aucune auto-intersection.'),

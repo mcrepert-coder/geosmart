@@ -103,3 +103,23 @@ String formatMeters(double m) => '${_frNumber(m, 2)}${_nbsp}m';
 /// Coordonnees UTM 31N, 2 decimales.
 String formatUtm(double easting, double northing) =>
     '${_frNumber(easting, 2)} · ${_frNumber(northing, 2)}';
+
+String _two(int n) => n.toString().padLeft(2, '0');
+
+/// 24/10/2026, heure de Lome (UTC+0).
+String formatDate(DateTime d) {
+  final u = d.toUtc();
+  return '${_two(u.day)}/${_two(u.month)}/${u.year}';
+}
+
+/// 24/10/2026 a 09:42.
+String formatDateTime(DateTime d) {
+  final u = d.toUtc();
+  return '${formatDate(u)} à ${_two(u.hour)}:${_two(u.minute)}';
+}
+
+/// Date seule du contrat (AAAA-MM-JJ) vers JJ/MM/AAAA.
+String formatPlainDate(String value) {
+  final p = value.split('-');
+  return p.length == 3 ? '${p[2]}/${p[1]}/${p[0]}' : value;
+}
