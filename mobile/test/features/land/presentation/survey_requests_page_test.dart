@@ -47,6 +47,14 @@ class FakeServer {
         requests[0] = request('1', 'PRISE', surveyor: 'g-1');
         return json(requests[0], 200);
       }
+      if (r.url.path.endsWith('/complete')) {
+        requests[1] = request('2', 'TERMINEE', surveyor: 'g-1');
+        return json(requests[1], 200);
+      }
+      if (r.url.path.endsWith('/cancel')) {
+        requests[0] = request('1', 'ANNULEE');
+        return json(requests[0], 200);
+      }
       final body = jsonDecode(r.body) as Map<String, dynamic>;
       final created = {
         ...request('3', 'OUVERTE'),
@@ -160,5 +168,38 @@ void main() {
     );
     expect(find.textContaining('en attente de validation'), findsOneWidget);
     expect(find.text('Nouvelle demande'), findsNothing);
+  });
+  testWidgets('le geometre termine la demande qu il a prise', (tester) async {
+    final server = await pump(
+      tester,
+      const LandViewer(id: 'g-1', role: 'GEOMETRE'),
+    );
+    expect(find.text('Marquer comme terminée'), findsOneWidget);
+    await tester.tap(find.text('Marquer comme terminée'));
+    await tester.pumpAndSettle();
+    expect(server.calls, contains('POST /survey-requests/2/complete'));
+    expect(find.text('Terminée'), findsOneWidget);
+    expect(find.text('Marquer comme terminée'), findsNothing);
+  });
+
+  testWidgets('un autre geometre ne peut pas terminer la demande', (
+    tester,
+  ) async {
+    await pump(tester, const LandViewer(id: 'g-2', role: 'GEOMETRE'));
+    expect(find.text('Marquer comme terminée'), findsNothing);
+  });
+
+  testWidgets('l agent annule sa demande ouverte', (tester) async {
+    final server = await pump(
+      tester,
+      const LandViewer(id: 'a-1', role: 'AGENT'),
+    );
+    // Seule la demande ouverte peut etre annulee, pas celle deja prise.
+    expect(find.text('Annuler la demande'), findsOneWidget);
+    await tester.tap(find.text('Annuler la demande'));
+    await tester.pumpAndSettle();
+    expect(server.calls, contains('POST /survey-requests/1/cancel'));
+    expect(find.text('Annulée'), findsOneWidget);
+    expect(find.text('Annuler la demande'), findsNothing);
   });
 }

@@ -335,6 +335,69 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: REQUEST_ALREADY_TAKEN, message: "Cette demande a deja ete prise." }
 
+  /survey-requests/{requestId}/complete:
+    parameters:
+      - name: requestId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [demandes-de-leve]
+      summary: Terminer une demande (decision 5 de #24)
+      description: Role GEOMETRE qui a pris la demande. Passe de PRISE a TERMINEE. Journalise.
+      security: [{ bearer: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                parcelId: { type: string, example: TG-AGO-00457, description: Parcelle levee pour cette demande }
+      responses:
+        '200':
+          description: Demande terminee
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SurveyRequest' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: La demande n'est pas dans l'etat PRISE
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: REQUEST_STATE_CONFLICT, message: "Seule une demande prise peut etre terminee.", details: { state: TERMINEE } }
+
+  /survey-requests/{requestId}/cancel:
+    parameters:
+      - name: requestId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [demandes-de-leve]
+      summary: Annuler une demande (decision 5 de #24)
+      description: Role AGENT auteur de la demande, tant qu'elle est OUVERTE. Journalise.
+      security: [{ bearer: [] }]
+      responses:
+        '200':
+          description: Demande annulee
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SurveyRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: La demande a deja ete prise
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: REQUEST_STATE_CONFLICT, message: "Une demande deja prise ne peut plus etre annulee : contactez le geometre." }
+
   /overlap-alerts:
     get:
       tags: [journal]

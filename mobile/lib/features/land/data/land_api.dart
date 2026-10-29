@@ -119,6 +119,29 @@ class LandApi {
             as Map<String, dynamic>,
       );
 
+  /// Le geometre qui a pris la demande la termine (decision 5 de #24).
+  Future<SurveyRequestInfo> completeSurveyRequest(
+    String requestId, {
+    String? parcelId,
+  }) async => SurveyRequestInfo.fromJson(
+    await _send(
+          'POST',
+          '/survey-requests/${Uri.encodeComponent(requestId)}/complete',
+          body: {'parcelId': ?parcelId},
+        )
+        as Map<String, dynamic>,
+  );
+
+  /// L'agent annule sa demande tant qu'elle est ouverte (decision 5 de #24).
+  Future<SurveyRequestInfo> cancelSurveyRequest(String requestId) async =>
+      SurveyRequestInfo.fromJson(
+        await _send(
+              'POST',
+              '/survey-requests/${Uri.encodeComponent(requestId)}/cancel',
+            )
+            as Map<String, dynamic>,
+      );
+
   Future<Object?> _send(
     String method,
     String path, {

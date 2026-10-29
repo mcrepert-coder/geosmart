@@ -12,6 +12,7 @@ import { LandModule } from '../land.module';
 import { LandAttestations1793102600000 } from '../migrations/1793102600000-land-attestations';
 import { LandParcels1793102500000 } from '../migrations/1793102500000-land-parcels';
 import { LandSurveyRequests1793102700000 } from '../migrations/1793102700000-land-survey-requests';
+import { LandSurveyRequestClose1793102800000 } from '../migrations/1793102800000-land-survey-request-close';
 
 jest.setTimeout(60000);
 
@@ -64,6 +65,7 @@ describe('Routes du module foncier (HTTP + PostGIS)', () => {
     await new LandParcels1793102500000().up(qr);
     await new LandAttestations1793102600000().up(qr);
     await new LandSurveyRequests1793102700000().up(qr);
+    await new LandSurveyRequestClose1793102800000().up(qr);
 
     const moduleRef = await Test.createTestingModule({ imports: [LandModule] })
       .useMocker((token) => {

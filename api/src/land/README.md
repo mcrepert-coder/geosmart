@@ -38,6 +38,8 @@ Le role est verifie et journalise par les services, jamais par l'interface seule
 | `GET /attestations/:n/verify?hash=` | public | EF-204 |
 | `GET /survey-requests`, `POST /survey-requests` | AGENT actif (creation), AGENT, GEOMETRE, ADMIN (lecture) | EF-207 |
 | `POST /survey-requests/:id/take` | GEOMETRE | EF-207 |
+| `POST /survey-requests/:id/complete` (corps facultatif `{ parcelId }`) | GEOMETRE qui a pris la demande | decision 5 de #24 |
+| `POST /survey-requests/:id/cancel` | AGENT auteur, demande encore ouverte | decision 5 de #24 |
 | `GET /overlap-alerts` | ADMIN | RG-02, ecran W3 |
 | `GET /audit`, `GET /audit/verify` | ADMIN | RG-10 |
 
@@ -75,7 +77,7 @@ Apercu des ecrans mobiles avec des donnees d'exemple : `flutter run -t lib/featu
 1. Fait par Marrich (PR #25, #26) : `api/src/app.module.ts` branche TypeORM sur `DATABASE_URL`, puis `AuditModule` et `LandModule`. Les services n'utilisent que `DataSource.query()` et `DataSource.transaction()` : aucune entite n'a besoin d'etre declaree.
 
 2. Les migrations tournent au demarrage (`migrationsRun: true`, fichiers `**/migrations/*`), dans l'ordre des horodatages :
-   `1793102400000-audit-log`, `1793102500000-land-parcels`, `1793102600000-land-attestations`, `1793102700000-land-survey-requests`. La base doit avoir l'extension PostGIS (image `postgis/postgis:16-3.4` du `compose.yaml`). Ne rien mettre d'autre que des migrations dans les dossiers `migrations/` : tout fichier qui s'y trouve est charge comme migration.
+   `1793102400000-audit-log`, `1793102500000-land-parcels`, `1793102600000-land-attestations`, `1793102700000-land-survey-requests`, `1793102800000-land-survey-request-close`. La base doit avoir l'extension PostGIS (image `postgis/postgis:16-3.4` du `compose.yaml`). Ne rien mettre d'autre que des migrations dans les dossiers `migrations/` : tout fichier qui s'y trouve est charge comme migration.
 
 3. Variables d'environnement : `DATABASE_URL`, et facultatif `LAND_OVERLAP_TOLERANCE_M2=0`.
 
@@ -85,14 +87,14 @@ Apercu des ecrans mobiles avec des donnees d'exemple : `flutter run -t lib/featu
    `audit.log({ actorId, actorRole, action, resourceType, resourceId, result, details }, tx)`.
    Passer `tx` (le runner de la transaction en cours) pour que la ligne soit annulee avec l'action. Les champs `password`, `token`, `secret` et `authorization` sont retires des details.
 
-## Decisions en attente (issue #24)
+## Decisions de LGR (issue #24)
 
-| Sujet | Hypothese appliquee |
-|---|---|
-| QR code sur l'attestation | pas de QR code (EF-204, maquettes) ; verification par numero et empreinte |
-| Tolerance de chevauchement | 0 m2, limite commune acceptee |
-| Qui renseigne le statut juridique | ADMIN seul (`STATUS_EDITOR_ROLES`) |
-| Photos du bornage | non enregistrees ; voisins et date seulement |
-| Demandes de leve TERMINEE et ANNULEE | etats prevus, transitions non codees |
-| Nom du geometre sur l'attestation | identifiant du compte, en attendant le module comptes |
-| Liste officielle des communes | liste provisoire `AGO`, `LOM` |
+| Sujet | Decision | Etat |
+|---|---|---|
+| QR code sur l'attestation | non, verification par numero et empreinte | fait |
+| Tolerance de chevauchement | 0 m2, limite commune acceptee | fait |
+| Qui renseigne le statut juridique | l'administrateur seul, source et date obligatoires | fait (`STATUS_EDITOR_ROLES`) |
+| Photos du bornage | sur le serveur, plus tard | a faire ; voisins et date seulement pour l'instant |
+| Demandes de leve TERMINEE et ANNULEE | le geometre termine, l'agent annule tant que la demande est ouverte | fait (`complete`, `cancel`) |
+| Attestation | nom du geometre et numero d'inscription a l'Ordre | en attente du module comptes (#23) ; identifiant du compte pour l'instant |
+| Liste officielle des communes | sans reponse | liste provisoire `AGO`, `LOM` |
