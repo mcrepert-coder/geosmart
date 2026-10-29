@@ -19,6 +19,28 @@ export interface AttestationPdfData {
   vertices: [number, number][];
 }
 
+// Texte de la ligne "Geometre" (decision 6 de LGR, #24) : nom et numero
+// d'inscription a l'Ordre quand le module comptes les fournit, sinon
+// l'identifiant du compte. Le texte est nettoye et borne avant impression.
+export function surveyorLabel(surveyor: {
+  id: string;
+  fullName?: string;
+  ordreNumber?: string;
+}): string {
+  const clean = (value: string | undefined, max: number) =>
+    (value ?? '')
+      .replace(/\p{Cc}/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, max);
+  const name = clean(surveyor.fullName, 120);
+  const ordre = clean(surveyor.ordreNumber, 40);
+  if (!name) return `inscrit a l'Ordre, compte ${surveyor.id}`;
+  return ordre
+    ? `${name}, inscrit a l'Ordre sous le numero ${ordre}`
+    : `${name}, inscrit a l'Ordre`;
+}
+
 function frenchNumber(value: number, decimals = 2): string {
   const [whole, fraction] = value.toFixed(decimals).split('.');
   return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')},${fraction}`;

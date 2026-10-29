@@ -16,7 +16,11 @@ import {
 import { ParcelGeometryService } from '../geometry/parcel-geometry.service';
 import type { ParcelBoundary } from '../parcel-version.entity';
 import { LAND_WRITE_LOCK_KEY, type LandActor } from '../parcel.service';
-import { ATTESTATION_MENTION, buildAttestationPdf } from './attestation-pdf';
+import {
+  ATTESTATION_MENTION,
+  buildAttestationPdf,
+  surveyorLabel,
+} from './attestation-pdf';
 
 export type AttestationRefusal =
   'SURVEYOR_NOT_REGISTERED' | 'POINT_NOT_FIXED' | 'PARCEL_IN_CONFLICT';
@@ -114,7 +118,7 @@ export class AttestationService {
   // EF-204, RG-03 : geometre inscrit, auteur, toutes bornes en RTK Fixed,
   // parcelle sans conflit. Une seule attestation par version de parcelle.
   async issue(actor: LandActor, parcelId: string): Promise<AttestationView> {
-    if (actor.role !== 'GEOMETRE') {
+    if (actor.role !== 'GEOMETRE' || actor.accountActive !== true) {
       throw await this.deny(actor, 'ATTESTATION_ISSUE', parcelId);
     }
 
@@ -174,8 +178,7 @@ export class AttestationService {
         areaM2: Number(parcel.area_m2),
         perimeterM: Number(parcel.perimeter_m),
         locality: parcel.locality,
-        // Le nom viendra du module comptes (Beni) ; l'identifiant suffit d'ici la.
-        surveyorLabel: `inscrit a l'Ordre, compte ${actor.id}`,
+        surveyorLabel: surveyorLabel(actor),
         geometryHash: parcel.geometry_hash,
         boundaries,
         vertices: polygon.coordinates[0].slice(0, -1) as [number, number][],

@@ -8,6 +8,7 @@ export type GeometryErrorReason =
   | 'OUT_OF_RANGE'
   | 'RING_NOT_CLOSED'
   | 'TOO_FEW_VERTICES'
+  | 'TOO_MANY_VERTICES'
   | 'SELF_INTERSECTION'
   | 'INVALID_GEOMETRY';
 
@@ -21,6 +22,11 @@ export class GeometryError extends Error {
 }
 
 type Position = [number, number];
+
+// Plafond de sommets d'une parcelle. Une parcelle reelle en a rarement plus
+// d'une vingtaine ; au-dela, l'envoi est une erreur ou une tentative de
+// surcharger le calcul geometrique.
+export const MAX_VERTICES = 500;
 
 // Precision de comparaison des sommets : 1e-9 degre, soit environ 0,1 mm.
 const DECIMALS = 9;
@@ -51,6 +57,13 @@ function readRing(input: unknown): Position[] {
   const ring = rings[0];
   if (!Array.isArray(ring)) {
     throw new GeometryError('NOT_A_POLYGON', 'Le contour est mal forme.');
+  }
+  // Le contour ferme repete son premier sommet a la fin.
+  if (ring.length > MAX_VERTICES + 1) {
+    throw new GeometryError(
+      'TOO_MANY_VERTICES',
+      `Une parcelle a au plus ${MAX_VERTICES} sommets.`,
+    );
   }
   return ring.map((position: unknown, index) => {
     if (

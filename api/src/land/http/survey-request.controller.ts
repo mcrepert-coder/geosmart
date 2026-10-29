@@ -45,4 +45,23 @@ export class SurveyRequestController {
   ) {
     return this.requests.take(actor, requestId);
   }
+
+  @Post(':requestId/complete')
+  @HttpCode(200)
+  complete(
+    @CurrentActor() actor: CurrentActorValue,
+    @Param('requestId') requestId: string,
+    @Body() body: { parcelId?: string } = {},
+  ) {
+    return this.requests.complete(actor, requestId, body?.parcelId);
+  }
+
+  @Post(':requestId/cancel')
+  @HttpCode(200)
+  cancel(
+    @CurrentActor() actor: CurrentActorValue,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.requests.cancel(actor, requestId);
+  }
 }

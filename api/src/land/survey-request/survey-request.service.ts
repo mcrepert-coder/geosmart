@@ -8,6 +8,7 @@ import {
 import { DataSource } from 'typeorm';
 import { AuditService } from '../../audit/audit.service';
 import { type TransactionRunner, rowsOf } from '../../audit/sql-runner';
+import { isParcelId } from '../parcel-id';
 import type { LandActor } from '../parcel.service';
 
 export type SurveyRequestState = 'OUVERTE' | 'PRISE' | 'TERMINEE' | 'ANNULEE';
@@ -204,7 +205,7 @@ export class SurveyRequestService {
   // Une demande ouverte ne peut etre prise qu'une fois, meme si deux
   // geometres cliquent en meme temps.
   async take(actor: LandActor, requestId: string): Promise<SurveyRequestView> {
-    if (actor.role !== 'GEOMETRE') {
+    if (actor.role !== 'GEOMETRE' || actor.accountActive !== true) {
       throw await this.deny(actor, 'SURVEY_REQUEST_TAKE', requestId);
     }
     if (!UUID.test(requestId ?? '')) throw this.notFound();
@@ -247,6 +248,134 @@ export class SurveyRequestService {
       );
       return toView(row);
     });
+  }
+
+  // Decision 5 de LGR (#24) : le geometre qui a pris la demande la passe a
+  // TERMINEE, en indiquant si possible la parcelle levee.
+  async complete(
+    actor: LandActor,
+    requestId: string,
+    parcelId?: string,
+  ): Promise<SurveyRequestView> {
+    if (actor.role !== 'GEOMETRE' || actor.accountActive !== true) {
+      throw await this.deny(actor, 'SURVEY_REQUEST_COMPLETE', requestId);
+    }
+    if (parcelId !== undefined && !isParcelId(parcelId)) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Le champ parcelId doit etre un identifiant TG-XXX-00000.',
+      });
+    }
+    return this.transition(actor, requestId, {
+      operation: 'SURVEY_REQUEST_COMPLETE',
+      allowed: (r) => r.surveyor_id === actor.id,
+      from: 'PRISE',
+      to: 'TERMINEE',
+      conflictMessage: 'Seule une demande prise peut etre terminee.',
+      action: 'SURVEY_REQUEST_COMPLETED',
+      parcelId,
+    });
+  }
+
+  // Decision 5 de LGR (#24) : l'agent annule sa demande tant qu'elle est
+  // ouverte ; une fois prise, il doit voir avec le geometre.
+  async cancel(
+    actor: LandActor,
+    requestId: string,
+  ): Promise<SurveyRequestView> {
+    if (actor.role !== 'AGENT' || actor.accountActive !== true) {
+      throw await this.deny(actor, 'SURVEY_REQUEST_CANCEL', requestId);
+    }
+    return this.transition(actor, requestId, {
+      operation: 'SURVEY_REQUEST_CANCEL',
+      allowed: (r) => r.agent_id === actor.id,
+      from: 'OUVERTE',
+      to: 'ANNULEE',
+      conflictMessage:
+        'Une demande deja prise ne peut plus etre annulee : contactez le geometre.',
+      action: 'SURVEY_REQUEST_CANCELLED',
+    });
+  }
+
+  private async transition(
+    actor: LandActor,
+    requestId: string,
+    rule: {
+      operation: string;
+      allowed: (row: {
+        agent_id: string;
+        surveyor_id: string | null;
+      }) => boolean;
+      from: SurveyRequestState;
+      to: SurveyRequestState;
+      conflictMessage: string;
+      action: string;
+      parcelId?: string;
+    },
+  ): Promise<SurveyRequestView> {
+    if (!UUID.test(requestId ?? '')) throw this.notFound();
+    const outcome = await this.db.transaction<
+      { denied: true } | { view: SurveyRequestView }
+    >(async (tx) => {
+      const [current] = rowsOf<{
+        state: SurveyRequestState;
+        agent_id: string;
+        surveyor_id: string | null;
+      }>(
+        await tx.query(
+          'SELECT state, agent_id, surveyor_id FROM survey_requests WHERE id = $1 FOR UPDATE',
+          [requestId],
+        ),
+      );
+      if (!current) throw this.notFound();
+      if (!rule.allowed(current)) return { denied: true };
+      if (current.state !== rule.from) {
+        throw new ConflictException({
+          code: 'REQUEST_STATE_CONFLICT',
+          message: rule.conflictMessage,
+          details: { state: current.state },
+        });
+      }
+      if (rule.parcelId) {
+        const [parcel] = rowsOf<{ id: string }>(
+          await tx.query('SELECT id FROM parcels WHERE id = $1', [
+            rule.parcelId,
+          ]),
+        );
+        if (!parcel) {
+          throw new BadRequestException({
+            code: 'VALIDATION_ERROR',
+            message: 'Parcelle inconnue.',
+          });
+        }
+      }
+      await tx.query(
+        `UPDATE survey_requests
+            SET state = $2, closed_at = now(), parcel_id = COALESCE($3, parcel_id)
+          WHERE id = $1`,
+        [requestId, rule.to, rule.parcelId ?? null],
+      );
+      await this.audit.log(
+        {
+          actorId: actor.id,
+          actorRole: actor.role,
+          action: rule.action,
+          resourceType: 'survey_request',
+          resourceId: requestId,
+          result: 'SUCCESS',
+          details: rule.parcelId ? { parcelId: rule.parcelId } : {},
+        },
+        tx,
+      );
+      const [row] = rowsOf<SurveyRequestRow>(
+        await tx.query(`${SELECT_REQUEST} WHERE id = $1`, [requestId]),
+      );
+      return { view: toView(row) };
+    });
+    if ('denied' in outcome) {
+      throw await this.deny(actor, rule.operation, requestId);
+    }
+    return outcome.view;
   }
 
   private async deny(

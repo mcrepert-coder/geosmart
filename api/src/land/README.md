@@ -32,24 +32,27 @@ Le role est verifie et journalise par les services, jamais par l'interface seule
 | `PATCH /parcels/:id` | GEOMETRE auteur | EF-205, CA-4 |
 | `GET /parcels/:id/versions` | ADMIN, GEOMETRE | EF-205 |
 | `GET /parcels/:id/status` | public | EF-206 |
-| `PUT /parcels/:id/status` | ADMIN (hypothese, voir plus bas) | EF-203 |
+| `PUT /parcels/:id/status` | ADMIN (decision 3 de LGR) | EF-203 |
 | `POST /parcels/:id/attestations` | GEOMETRE auteur et inscrit | EF-204, RG-03 |
 | `GET /attestations/:n/pdf` | ADMIN, geometre auteur | |
 | `GET /attestations/:n/verify?hash=` | public | EF-204 |
 | `GET /survey-requests`, `POST /survey-requests` | AGENT actif (creation), AGENT, GEOMETRE, ADMIN (lecture) | EF-207 |
 | `POST /survey-requests/:id/take` | GEOMETRE | EF-207 |
-| `GET /overlap-alerts` | ADMIN | RG-02, ecran W3 |
+| `POST /survey-requests/:id/complete` (corps facultatif `{ parcelId }`) | GEOMETRE qui a pris la demande | decision 5 de #24 |
+| `POST /survey-requests/:id/cancel` | AGENT auteur, demande encore ouverte | decision 5 de #24 |
+| `GET /overlap-alerts` (filtre `state` : `open` ou `reviewed`) | ADMIN | RG-02, ecran W3 |
+| `POST /overlap-alerts/:seq/review` (corps facultatif `{ note }`) | ADMIN | "Marquer comme examinee" (W3) |
 | `GET /audit`, `GET /audit/verify` | ADMIN | RG-10 |
 
 ## Regles importantes
 
 - **Identifiant** : `TG-<commune>-<numero>` (ex. `TG-AGO-00457`), compteur par commune. Liste des communes provisoire dans `parcel-id.ts` (`AGO`, `LOM`).
-- **Geometrie** : GeoJSON en WGS84 (EPSG:4326), ordre `[longitude, latitude]`. Surface et perimetre calcules en UTM 31N (EPSG:32631). L'application mobile fait le meme calcul (`mobile/lib/features/land/domain/geometry/utm.dart`), verifie contre PostGIS au millimetre.
+- **Geometrie** : GeoJSON en WGS84 (EPSG:4326), ordre `[longitude, latitude]`, de 3 a 500 sommets. Surface et perimetre calcules en UTM 31N (EPSG:32631). L'application mobile fait le meme calcul (`mobile/lib/features/land/domain/geometry/utm.dart`), verifie contre PostGIS au millimetre.
 - **Chevauchement** : refus 409 si l'interieur de deux parcelles se recoupe ; une limite ou un sommet commun est accepte. Tolerance reglable par `LAND_OVERLAP_TOLERANCE_M2` (0 par defaut). Le refus est journalise avec la geometrie proposee, pour l'ecran W3.
 - **Certification** : une parcelle est certifiee seulement si le geometre est inscrit a l'Ordre et si toutes les bornes sont en RTK Fixed (RG-03).
 - **Doublons** : la cle `Idempotency-Key` (clientId de la file d'envoi) empeche de creer deux fois la meme parcelle (RG-08).
 - **Statut juridique** : jamais invente. Tout statut autre que `INCONNU` exige une source et une date ; `TITRE` exige un numero de titre, `EN_LITIGE` une description.
-- **Journal** : chaque ligne contient l'empreinte de la precedente. `GET /audit/verify` detecte une ligne modifiee, supprimee ou inseree ; la chaine ne protege pas contre une reecriture complete par un administrateur de la base.
+- **Journal** : chaque ligne contient l'empreinte de la precedente. `GET /audit/verify` detecte une ligne modifiee, supprimee ou inseree. La base refuse UPDATE, DELETE et TRUNCATE sur `audit_log` (migration `1793103000000-audit-log-append-only`) ; un administrateur de la base peut encore retirer ce declencheur.
 
 ## Tests
 
@@ -64,6 +67,8 @@ npx eslint "src/{land,audit}/**/*.ts"
 
 `test:db` lance les fichiers `*.db-spec.ts`. Sur une machine lente, ajouter `--runInBand` pour les lancer un par un.
 
+`http/land-contract.spec.ts` (dans `npm test`) echoue si une route est ajoutee, retiree ou change de code de succes sans que `contracts/land.yaml` soit mis a jour.
+
 Dans `web/` : `node --test src/app/parcelle/_lib/parcelle.test.mjs`.
 
 Dans `mobile/` : `flutter test test/features/land` et `flutter analyze lib/features/land`.
@@ -75,24 +80,24 @@ Apercu des ecrans mobiles avec des donnees d'exemple : `flutter run -t lib/featu
 1. Fait par Marrich (PR #25, #26) : `api/src/app.module.ts` branche TypeORM sur `DATABASE_URL`, puis `AuditModule` et `LandModule`. Les services n'utilisent que `DataSource.query()` et `DataSource.transaction()` : aucune entite n'a besoin d'etre declaree.
 
 2. Les migrations tournent au demarrage (`migrationsRun: true`, fichiers `**/migrations/*`), dans l'ordre des horodatages :
-   `1793102400000-audit-log`, `1793102500000-land-parcels`, `1793102600000-land-attestations`, `1793102700000-land-survey-requests`. La base doit avoir l'extension PostGIS (image `postgis/postgis:16-3.4` du `compose.yaml`). Ne rien mettre d'autre que des migrations dans les dossiers `migrations/` : tout fichier qui s'y trouve est charge comme migration.
+   `1793102400000-audit-log`, `1793102500000-land-parcels`, `1793102600000-land-attestations`, `1793102700000-land-survey-requests`, `1793102800000-land-survey-request-close`, `1793102900000-land-overlap-alert-reviews`. La base doit avoir l'extension PostGIS (image `postgis/postgis:16-3.4` du `compose.yaml`). Ne rien mettre d'autre que des migrations dans les dossiers `migrations/` : tout fichier qui s'y trouve est charge comme migration.
 
 3. Variables d'environnement : `DATABASE_URL`, et facultatif `LAND_OVERLAP_TOLERANCE_M2=0`.
 
-4. Utilisateur connecte (issue #23) : le module comptes place dans `request.user` l'objet `{ id, role, registeredSurveyor, accountActive }`, relu en base a chaque requete (RG-06). `@CurrentActor` le transmet aux services.
+4. Utilisateur connecte (issue #23) : le module comptes place dans `request.user` l'objet `{ id, role, registeredSurveyor, accountActive }`, relu en base a chaque requete (RG-06), avec pour un geometre `fullName` et `ordreNumber` (facultatifs, imprimes sur l'attestation). `@CurrentActor` le transmet aux services. Toute ecriture exige `accountActive = true`, quel que soit le role.
 
 5. Autres modules : pour journaliser une action, injecter `AuditService` et appeler
    `audit.log({ actorId, actorRole, action, resourceType, resourceId, result, details }, tx)`.
    Passer `tx` (le runner de la transaction en cours) pour que la ligne soit annulee avec l'action. Les champs `password`, `token`, `secret` et `authorization` sont retires des details.
 
-## Decisions en attente (issue #24)
+## Decisions de LGR (issue #24)
 
-| Sujet | Hypothese appliquee |
-|---|---|
-| QR code sur l'attestation | pas de QR code (EF-204, maquettes) ; verification par numero et empreinte |
-| Tolerance de chevauchement | 0 m2, limite commune acceptee |
-| Qui renseigne le statut juridique | ADMIN seul (`STATUS_EDITOR_ROLES`) |
-| Photos du bornage | non enregistrees ; voisins et date seulement |
-| Demandes de leve TERMINEE et ANNULEE | etats prevus, transitions non codees |
-| Nom du geometre sur l'attestation | identifiant du compte, en attendant le module comptes |
-| Liste officielle des communes | liste provisoire `AGO`, `LOM` |
+| Sujet | Decision | Etat |
+|---|---|---|
+| QR code sur l'attestation | non, verification par numero et empreinte | fait |
+| Tolerance de chevauchement | 0 m2, limite commune acceptee | fait |
+| Qui renseigne le statut juridique | l'administrateur seul, source et date obligatoires | fait (`STATUS_EDITOR_ROLES`) |
+| Photos du bornage | sur le serveur, plus tard | a faire ; voisins et date seulement pour l'instant |
+| Demandes de leve TERMINEE et ANNULEE | le geometre termine, l'agent annule tant que la demande est ouverte | fait (`complete`, `cancel`) |
+| Attestation | nom du geometre et numero d'inscription a l'Ordre | fait : imprimes des que `request.user` porte `fullName` et `ordreNumber` (#23) ; sinon identifiant du compte |
+| Liste officielle des communes | sans reponse | liste provisoire `AGO`, `LOM` |

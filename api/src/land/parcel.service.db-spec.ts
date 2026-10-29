@@ -59,6 +59,7 @@ const surveyor: LandActor = {
   id: randomUUID(),
   role: 'GEOMETRE',
   registeredSurveyor: true,
+  accountActive: true,
 };
 
 describe('ParcelService.create (PostGIS)', () => {
@@ -253,6 +254,17 @@ describe('ParcelService.create (PostGIS)', () => {
       (b: ParcelCreateInput) => ({
         ...b,
         boundaries: b.boundaries.slice(0, 2),
+      }),
+      randomUUID(),
+    ],
+    [
+      'plus de 500 bornes',
+      (b: ParcelCreateInput) => ({
+        ...b,
+        boundaries: Array.from({ length: 501 }, (_, i) => ({
+          ...b.boundaries[0],
+          pointNumber: i + 1,
+        })),
       }),
       randomUUID(),
     ],

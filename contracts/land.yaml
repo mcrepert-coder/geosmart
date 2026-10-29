@@ -14,16 +14,19 @@ info:
 
     Chevauchement (RG-02, CA-2) : une parcelle dont l'interieur recouvre l'interieur d'une parcelle
     active est refusee (409). Une limite commune ou un sommet commun est accepte. Tolerance de
-    surface commune : a fixer par LGR (hypothese de depart : 0 m2, aucun recouvrement accepte).
+    surface commune : 0 m2, aucun recouvrement accepte (decision 2 de LGR, #24).
     Un refus signale un conflit geometrique, pas une fraude ni un litige juridique.
 
     Attestation : le document s'appelle "attestation de leve" et porte la mention exacte
-    "Ne vaut pas titre foncier" (RG-09). Pas de QR code (EF-204) ; la verification se fait par
-    numero d'attestation et empreinte. Le texte de consignes de Samuel demande un QR code :
-    decision a obtenir de LGR avant de coder ce point.
+    "Ne vaut pas titre foncier" (RG-09). Pas de QR code (EF-204, decision 1 de LGR, #24) ; la
+    verification se fait par numero d'attestation et empreinte.
 
     Roles (RG-06, relus en base a chaque requete) : ADMIN, GEOMETRE, TOPOGRAPHE, AGENT, CLIENT.
     Toute route sans role autorise renvoie 403, sans jeton 401. Refus par defaut.
+    Toute ecriture (POST, PUT, PATCH) exige en plus un compte actif (accountActive = true dans
+    request.user) : un compte suspendu recoit 403 FORBIDDEN, mais peut encore lire.
+    Pour un geometre, request.user peut porter fullName et ordreNumber (texte) : ils sont imprimes
+    sur l'attestation (decision 6 de LGR, #24). Sans eux, l'attestation montre l'identifiant du compte.
 
 servers:
   - url: http://localhost:3001
@@ -182,7 +185,7 @@ paths:
       tags: [parcelles]
       summary: Renseigner le statut juridique (EF-203)
       description: |
-        Role a confirmer par LGR (hypothese : ADMIN). La source et la date du document sont obligatoires ;
+        Role ADMIN uniquement (decision 3 de LGR, #24). La source et la date du document sont obligatoires ;
         GeoSmart ne fixe jamais lui-meme un statut juridique. Journalise.
       security: [{ bearer: [] }]
       requestBody:
@@ -209,7 +212,8 @@ paths:
       summary: Emettre l'attestation de leve en PDF (EF-204, RG-03)
       description: |
         Role GEOMETRE, auteur de la parcelle et inscrit a l'Ordre. Refuse (422) si une borne n'est pas
-        en RTK Fixed ou si la parcelle est en conflit. Journalise.
+        en RTK Fixed ou si la parcelle est en conflit. Le PDF porte le nom du geometre et son numero
+        d'inscription a l'Ordre (decision 6 de LGR, #24). Journalise.
       security: [{ bearer: [] }]
       responses:
         '201':
@@ -335,6 +339,69 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: REQUEST_ALREADY_TAKEN, message: "Cette demande a deja ete prise." }
 
+  /survey-requests/{requestId}/complete:
+    parameters:
+      - name: requestId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [demandes-de-leve]
+      summary: Terminer une demande (decision 5 de #24)
+      description: Role GEOMETRE qui a pris la demande. Passe de PRISE a TERMINEE. Journalise.
+      security: [{ bearer: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                parcelId: { type: string, example: TG-AGO-00457, description: Parcelle levee pour cette demande }
+      responses:
+        '200':
+          description: Demande terminee
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SurveyRequest' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: La demande n'est pas dans l'etat PRISE
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: REQUEST_STATE_CONFLICT, message: "Seule une demande prise peut etre terminee.", details: { state: TERMINEE } }
+
+  /survey-requests/{requestId}/cancel:
+    parameters:
+      - name: requestId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [demandes-de-leve]
+      summary: Annuler une demande (decision 5 de #24)
+      description: Role AGENT auteur de la demande, tant qu'elle est OUVERTE. Journalise.
+      security: [{ bearer: [] }]
+      responses:
+        '200':
+          description: Demande annulee
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SurveyRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: La demande a deja ete prise
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: REQUEST_STATE_CONFLICT, message: "Une demande deja prise ne peut plus etre annulee : contactez le geometre." }
+
   /overlap-alerts:
     get:
       tags: [journal]
@@ -348,6 +415,10 @@ paths:
         - name: limit
           in: query
           schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: state
+          in: query
+          description: open (non examinees) ou reviewed (examinees) ; toutes si absent
+          schema: { type: string, enum: [open, reviewed] }
       responses:
         '200':
           description: Alertes
@@ -359,6 +430,42 @@ paths:
         '400': { $ref: '#/components/responses/Validation' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+
+  /overlap-alerts/{auditSeq}/review:
+    parameters:
+      - name: auditSeq
+        in: path
+        required: true
+        schema: { type: integer, example: 4812 }
+    post:
+      tags: [journal]
+      summary: Marquer une alerte comme examinee (ecran W3)
+      description: Role ADMIN. Une seule fois par alerte. Journalise (OVERLAP_ALERT_REVIEWED).
+      security: [{ bearer: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string, maxLength: 500, example: Geometre contacte. }
+      responses:
+        '200':
+          description: Alerte examinee
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OverlapAlert' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Deja examinee
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: ALERT_ALREADY_REVIEWED, message: "Cette alerte a deja ete examinee." }
 
   /audit:
     get:
@@ -447,7 +554,7 @@ components:
     Polygon:
       type: object
       required: [type, coordinates]
-      description: Anneau exterieur ferme, sans trou, au moins 3 sommets distincts.
+      description: Anneau exterieur ferme, sans trou, de 3 a 500 sommets distincts.
       properties:
         type: { type: string, enum: [Polygon] }
         coordinates:
@@ -457,6 +564,7 @@ components:
           items:
             type: array
             minItems: 4
+            maxItems: 501
             items:
               type: array
               minItems: 2
@@ -483,7 +591,7 @@ components:
     Bornage:
       type: object
       required: [neighbours, heldAt]
-      description: EF-208, bornage contradictoire (maquette T6). Les photos attendent la decision de LGR sur leur stockage.
+      description: EF-208, bornage contradictoire (maquette T6). Les photos seront stockees sur le serveur dans une version ulterieure (decision 4 de LGR, #24).
       properties:
         neighbours:
           type: array
@@ -512,6 +620,7 @@ components:
         boundaries:
           type: array
           minItems: 3
+          maxItems: 500
           items: { $ref: '#/components/schemas/Boundary' }
         locality: { type: string, maxLength: 120, example: "Agoe, Lome" }
         bornage: { $ref: '#/components/schemas/Bornage' }
@@ -525,6 +634,7 @@ components:
         boundaries:
           type: array
           minItems: 3
+          maxItems: 500
           items: { $ref: '#/components/schemas/Boundary' }
         reason: { type: string, maxLength: 500 }
         bornage: { $ref: '#/components/schemas/Bornage' }
@@ -721,6 +831,14 @@ components:
                 nullable: true
                 description: Zone commune, recalculee avec la geometrie actuelle de la parcelle
                 allOf: [{ $ref: '#/components/schemas/Polygon' }]
+        review:
+          type: object
+          nullable: true
+          description: Examen par l'administrateur ; null tant que l'alerte est ouverte
+          properties:
+            reviewedBy: { type: string, format: uuid }
+            reviewedAt: { type: string, format: date-time }
+            note: { type: string, nullable: true }
         prevHash: { type: string }
         hash: { type: string }
 

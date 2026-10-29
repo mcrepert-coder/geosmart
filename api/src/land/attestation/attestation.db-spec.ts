@@ -59,6 +59,7 @@ const surveyor: LandActor = {
   id: randomUUID(),
   role: 'GEOMETRE',
   registeredSurveyor: true,
+  accountActive: true,
 };
 
 describe('AttestationService (PostGIS)', () => {
@@ -152,6 +153,21 @@ describe('AttestationService (PostGIS)', () => {
       action: 'ATTESTATION_ISSUED',
       result: 'SUCCESS',
     });
+  });
+
+  it("imprime le nom et le numero d'Ordre du geometre (decision 6, #24)", async () => {
+    const own = await create(1.5);
+    const attestation = await service.issue(
+      { ...surveyor, fullName: 'Kossi Agbeko', ordreNumber: 'OGT-0142' },
+      own.id,
+    );
+    const text = await pdfText(
+      await service.getPdf(surveyor, attestation.number),
+    );
+    expect(text).toContain(
+      "Kossi Agbeko, inscrit a l'Ordre sous le numero OGT-0142",
+    );
+    expect(text).not.toContain(surveyor.id);
   });
 
   it('renvoie la meme attestation pour la meme version', async () => {

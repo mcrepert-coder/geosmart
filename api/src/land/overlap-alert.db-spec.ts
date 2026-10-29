@@ -1,7 +1,12 @@
 import type { PGlite } from '@electric-sql/pglite' with {
   'resolution-mode': 'import',
 };
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { DataSource, QueryRunner } from 'typeorm';
 import { AuditLog1793102400000 } from '../audit/migrations/1793102400000-audit-log';
@@ -9,6 +14,7 @@ import { AuditService } from '../audit/audit.service';
 import type { SqlRunner } from '../audit/sql-runner';
 import { ParcelGeometryService } from './geometry/parcel-geometry.service';
 import { LandParcels1793102500000 } from './migrations/1793102500000-land-parcels';
+import { LandOverlapAlertReviews1793102900000 } from './migrations/1793102900000-land-overlap-alert-reviews';
 import { OverlapAlertService } from './overlap-alert.service';
 import { LandActor, ParcelService, ParcelView } from './parcel.service';
 
@@ -39,8 +45,13 @@ const surveyor: LandActor = {
   id: randomUUID(),
   role: 'GEOMETRE',
   registeredSurveyor: true,
+  accountActive: true,
 };
-const admin: LandActor = { id: randomUUID(), role: 'ADMIN' };
+const admin: LandActor = {
+  id: randomUUID(),
+  role: 'ADMIN',
+  accountActive: true,
+};
 
 describe('OverlapAlertService (PostGIS)', () => {
   let db: PGlite;
@@ -69,6 +80,7 @@ describe('OverlapAlertService (PostGIS)', () => {
     const qr = runner as unknown as QueryRunner;
     await new AuditLog1793102400000().up(qr);
     await new LandParcels1793102500000().up(qr);
+    await new LandOverlapAlertReviews1793102900000().up(qr);
     const dataSource = {
       query: (sql: string, params?: unknown[]) => runner.query(sql, params),
       transaction: <T>(work: (tx: SqlRunner) => Promise<T>) =>
@@ -141,4 +153,57 @@ describe('OverlapAlertService (PostGIS)', () => {
       ).rejects.toBeInstanceOf(ForbiddenException);
     },
   );
+
+  describe('examen par l administrateur (bouton W3)', () => {
+    it('marque une alerte comme examinee, une seule fois', async () => {
+      const [open] = await alerts.list(admin);
+      expect(open.review).toBeNull();
+
+      const reviewed = await alerts.review(
+        admin,
+        String(open.auditSeq),
+        '  Geometre contacte.  ',
+      );
+      expect(reviewed.review).toMatchObject({
+        reviewedBy: admin.id,
+        note: 'Geometre contacte.',
+      });
+
+      const again: unknown = await alerts
+        .review(admin, open.auditSeq)
+        .catch((e: unknown) => e);
+      expect(again).toBeInstanceOf(ConflictException);
+      expect((again as ConflictException).getResponse()).toMatchObject({
+        code: 'ALERT_ALREADY_REVIEWED',
+      });
+    });
+
+    it('filtre les alertes ouvertes et examinees', async () => {
+      const open = await alerts.list(admin, 50, 'open');
+      const reviewed = await alerts.list(admin, 50, 'reviewed');
+      expect(open).toHaveLength(1);
+      expect(reviewed).toHaveLength(1);
+      expect(reviewed[0].review).not.toBeNull();
+      await expect(alerts.list(admin, 50, 'toutes')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('repond 404 pour une ligne qui n est pas une alerte', async () => {
+      // La ligne 1 du journal est la creation de la premiere parcelle.
+      await expect(alerts.review(admin, 1)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      await expect(alerts.review(admin, 'abc')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('refuse un geometre (403)', async () => {
+      const [open] = await alerts.list(admin, 50, 'open');
+      await expect(
+        alerts.review(surveyor, open.auditSeq),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
 });

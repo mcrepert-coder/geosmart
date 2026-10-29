@@ -7,6 +7,10 @@ import 'bornage.dart';
 /// meme que le serveur, en attendant la liste officielle (issue #24).
 const Map<String, String> communes = {'AGO': 'Agoe-Nyive', 'LOM': 'Lome'};
 
+/// Plafond de bornes d'une parcelle, le meme que le serveur (MAX_VERTICES) :
+/// au-dela, POST et PATCH /parcels repondent 400.
+const int maxParcelPoints = 500;
+
 /// Statut juridique declare lors du leve (maquette T5).
 enum DeclaredStatus {
   titre('Titré', 'TITRE'),
@@ -22,6 +26,7 @@ enum DeclaredStatus {
 /// Ce qui empeche de mettre la parcelle en file d'envoi.
 enum DraftBlocker {
   tooFewPoints,
+  tooManyPoints,
   flatPolygon,
   selfIntersection,
   noCommune,
@@ -64,11 +69,18 @@ class ParcelDraft {
   /// ne sera pas certifiee et ne donnera pas d'attestation.
   bool get allPointsFixed => points.isNotEmpty && fixedCount == points.length;
 
-  List<DraftBlocker> get blockers => [
+  /// Ce qui empeche d'envoyer la geometrie, seul critere pour une
+  /// modification (la commune et le statut ne changent pas).
+  List<DraftBlocker> get geometryBlockers => [
     if (points.length < 3) DraftBlocker.tooFewPoints,
+    if (points.length > maxParcelPoints) DraftBlocker.tooManyPoints,
     if (metrics.selfIntersects) DraftBlocker.selfIntersection,
     if (points.length >= 3 && !metrics.selfIntersects && !metrics.isValid)
       DraftBlocker.flatPolygon,
+  ];
+
+  List<DraftBlocker> get blockers => [
+    ...geometryBlockers,
     if (commune == null) DraftBlocker.noCommune,
     if (declaredStatus == null) DraftBlocker.noStatus,
     if (declaredStatus == DeclaredStatus.titre &&
@@ -119,15 +131,35 @@ class ParcelDraft {
   /// l'administrateur avec sa source (question 3 de l'issue #24).
   Map<String, dynamic> toCreatePayload() {
     assert(canQueue, 'Brouillon incomplet : $blockers');
-    final ring = [
-      for (final p in points) [p.longitude, p.latitude],
-      [points.first.longitude, points.first.latitude],
-    ];
     return {
       'surveySessionId': surveySessionId,
       'commune': commune,
       if (locality != null && locality!.trim().isNotEmpty)
         'locality': locality!.trim(),
+      ..._geometryPayload(),
+    };
+  }
+
+  /// Corps de PATCH /parcels/:id (ParcelUpdate, EF-205) : nouvelle limite,
+  /// avec la version que le geometre a sous les yeux pour ne rien ecraser.
+  Map<String, dynamic> toUpdatePayload({
+    required int expectedVersion,
+    String? reason,
+  }) {
+    assert(geometryBlockers.isEmpty, 'Geometrie invalide : $geometryBlockers');
+    return {
+      'expectedVersion': expectedVersion,
+      if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      ..._geometryPayload(),
+    };
+  }
+
+  Map<String, dynamic> _geometryPayload() {
+    final ring = [
+      for (final p in points) [p.longitude, p.latitude],
+      [points.first.longitude, points.first.latitude],
+    ];
+    return {
       'geometry': {
         'type': 'Polygon',
         'coordinates': [ring],

@@ -45,6 +45,7 @@ const author: LandActor = {
   id: randomUUID(),
   role: 'GEOMETRE',
   registeredSurveyor: true,
+  accountActive: true,
 };
 
 // Voisins de la maquette T6.

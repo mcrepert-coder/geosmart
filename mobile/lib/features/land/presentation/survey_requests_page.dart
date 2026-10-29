@@ -58,11 +58,16 @@ class _SurveyRequestsPageState extends State<SurveyRequestsPage> {
   void _toast(String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
-  Future<void> _take(SurveyRequestInfo r) async {
+  // Prendre, terminer ou annuler : une action a la fois, puis on recharge.
+  Future<void> _act(
+    SurveyRequestInfo r,
+    Future<SurveyRequestInfo> Function() call,
+    String success,
+  ) async {
     setState(() => _takingId = r.id);
     try {
-      await widget.api.takeSurveyRequest(r.id);
-      _toast('Demande prise. Prévenez l\'agent pour fixer le rendez-vous.');
+      await call();
+      _toast(success);
     } on LandApiException catch (e) {
       _toast(
         e.code == 'REQUEST_ALREADY_TAKEN'
@@ -73,6 +78,47 @@ class _SurveyRequestsPageState extends State<SurveyRequestsPage> {
       if (mounted) setState(() => _takingId = null);
       await _load();
     }
+  }
+
+  // Decision 5 de #24 : prendre une demande ouverte, terminer celle qu'on a
+  // prise (geometre) ; annuler la sienne tant qu'elle est ouverte (agent).
+  ({String label, bool destructive, VoidCallback onPressed})? _actionFor(
+    SurveyRequestInfo r,
+  ) {
+    if (_isSurveyor && r.state == 'OUVERTE') {
+      return (
+        label: 'Prendre la demande',
+        destructive: false,
+        onPressed: () => _act(
+          r,
+          () => widget.api.takeSurveyRequest(r.id),
+          'Demande prise. Prévenez l\'agent pour fixer le rendez-vous.',
+        ),
+      );
+    }
+    if (_isSurveyor && r.state == 'PRISE' && r.surveyorId == widget.viewer.id) {
+      return (
+        label: 'Marquer comme terminée',
+        destructive: false,
+        onPressed: () => _act(
+          r,
+          () => widget.api.completeSurveyRequest(r.id),
+          'Demande terminée.',
+        ),
+      );
+    }
+    if (_isAgent && r.state == 'OUVERTE' && r.agentId == widget.viewer.id) {
+      return (
+        label: 'Annuler la demande',
+        destructive: true,
+        onPressed: () => _act(
+          r,
+          () => widget.api.cancelSurveyRequest(r.id),
+          'Demande annulée.',
+        ),
+      );
+    }
+    return null;
   }
 
   Future<void> _create() async {
@@ -140,9 +186,8 @@ class _SurveyRequestsPageState extends State<SurveyRequestsPage> {
               _RequestCard(
                 request: r,
                 mine: r.surveyorId == widget.viewer.id,
-                canTake: _isSurveyor && r.state == 'OUVERTE',
-                taking: _takingId == r.id,
-                onTake: () => _take(r),
+                action: _actionFor(r),
+                busy: _takingId == r.id,
               ),
           ],
         ),
@@ -174,16 +219,14 @@ class _RequestCard extends StatelessWidget {
   const _RequestCard({
     required this.request,
     required this.mine,
-    required this.canTake,
-    required this.taking,
-    required this.onTake,
+    required this.action,
+    required this.busy,
   });
 
   final SurveyRequestInfo request;
   final bool mine;
-  final bool canTake;
-  final bool taking;
-  final VoidCallback onTake;
+  final ({String label, bool destructive, VoidCallback onPressed})? action;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -248,19 +291,28 @@ class _RequestCard extends StatelessWidget {
             'Demandée le ${formatDateTime(request.createdAt)}',
             style: TextStyle(fontSize: 12, color: colors.textMuted),
           ),
-          if (canTake) ...[
+          if (action != null) ...[
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               height: 48,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: colors.primary,
-                  foregroundColor: colors.onPrimary,
-                ),
-                onPressed: taking ? null : onTake,
-                child: Text(taking ? 'Envoi…' : 'Prendre la demande'),
-              ),
+              child: action!.destructive
+                  ? OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: colors.danger,
+                        side: BorderSide(color: colors.danger),
+                      ),
+                      onPressed: busy ? null : action!.onPressed,
+                      child: Text(busy ? 'Envoi…' : action!.label),
+                    )
+                  : FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: colors.primary,
+                        foregroundColor: colors.onPrimary,
+                      ),
+                      onPressed: busy ? null : action!.onPressed,
+                      child: Text(busy ? 'Envoi…' : action!.label),
+                    ),
             ),
           ],
         ],
