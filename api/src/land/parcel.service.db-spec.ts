@@ -258,6 +258,17 @@ describe('ParcelService.create (PostGIS)', () => {
       randomUUID(),
     ],
     [
+      'plus de 500 bornes',
+      (b: ParcelCreateInput) => ({
+        ...b,
+        boundaries: Array.from({ length: 501 }, (_, i) => ({
+          ...b.boundaries[0],
+          pointNumber: i + 1,
+        })),
+      }),
+      randomUUID(),
+    ],
+    [
       'un chantier sans identifiant',
       (b: ParcelCreateInput) => ({ ...b, surveySessionId: 'chantier-1' }),
       randomUUID(),

@@ -1,5 +1,6 @@
 import {
   GeometryError,
+  MAX_VERTICES,
   geometryHash,
   normalizePolygon,
 } from './parcel-geometry';
@@ -17,6 +18,15 @@ const square = {
   ],
 };
 
+// Polygone ferme de n sommets distincts, poses sur un petit cercle.
+function ring(n: number) {
+  const points = Array.from({ length: n }, (_, i) => {
+    const a = (2 * Math.PI * i) / n;
+    return [1.21 + 0.001 * Math.cos(a), 6.13 + 0.001 * Math.sin(a)];
+  });
+  return { type: 'Polygon', coordinates: [[...points, points[0]]] };
+}
+
 function reasonOf(input: unknown): string | undefined {
   try {
     normalizePolygon(input);
@@ -29,6 +39,10 @@ function reasonOf(input: unknown): string | undefined {
 describe('normalizePolygon', () => {
   it('accepte un polygone valide', () => {
     expect(normalizePolygon(square)).toEqual(square);
+  });
+
+  it('accepte une parcelle de 500 sommets', () => {
+    expect(reasonOf(ring(MAX_VERTICES))).toBeUndefined();
   });
 
   it('retire une borne saisie deux fois de suite', () => {
@@ -108,6 +122,7 @@ describe('normalizePolygon', () => {
       },
       'TOO_FEW_VERTICES',
     ],
+    ['plus de 500 sommets', ring(MAX_VERTICES + 1), 'TOO_MANY_VERTICES'],
   ])('refuse %s', (_label, input, reason) => {
     expect(reasonOf(input)).toBe(reason);
   });

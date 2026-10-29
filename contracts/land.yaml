@@ -554,7 +554,7 @@ components:
     Polygon:
       type: object
       required: [type, coordinates]
-      description: Anneau exterieur ferme, sans trou, au moins 3 sommets distincts.
+      description: Anneau exterieur ferme, sans trou, de 3 a 500 sommets distincts.
       properties:
         type: { type: string, enum: [Polygon] }
         coordinates:
@@ -564,6 +564,7 @@ components:
           items:
             type: array
             minItems: 4
+            maxItems: 501
             items:
               type: array
               minItems: 2
@@ -619,6 +620,7 @@ components:
         boundaries:
           type: array
           minItems: 3
+          maxItems: 500
           items: { $ref: '#/components/schemas/Boundary' }
         locality: { type: string, maxLength: 120, example: "Agoe, Lome" }
         bornage: { $ref: '#/components/schemas/Bornage' }
@@ -632,6 +634,7 @@ components:
         boundaries:
           type: array
           minItems: 3
+          maxItems: 500
           items: { $ref: '#/components/schemas/Boundary' }
         reason: { type: string, maxLength: 500 }
         bornage: { $ref: '#/components/schemas/Bornage' }

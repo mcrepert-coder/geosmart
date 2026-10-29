@@ -13,6 +13,7 @@ import {
   type TransactionRunner,
   rowsOf,
 } from '../audit/sql-runner';
+import { MAX_VERTICES } from './geometry/parcel-geometry';
 import {
   OverlapConflict,
   ParcelGeometryService,
@@ -35,11 +36,11 @@ export interface LandActor {
   // Compte valide et non suspendu (EF-301) : requis pour toute ecriture,
   // quel que soit le role. Les lectures restent ouvertes.
   accountActive?: boolean;
-}
   // Nom et numero d'inscription a l'Ordre du geometre, imprimes sur
   // l'attestation (decision 6 de LGR, #24). Fournis par le module comptes.
   fullName?: string;
   ordreNumber?: string;
+}
 
 export interface ParcelCreateInput {
   surveySessionId: string;
@@ -231,6 +232,11 @@ function validateUpdate(input: ParcelUpdateInput) {
 function validateBoundaries(boundaries: ParcelBoundary[]) {
   if (!Array.isArray(boundaries) || boundaries.length < 3) {
     throw invalid('Le champ boundaries doit contenir au moins 3 bornes.');
+  }
+  if (boundaries.length > MAX_VERTICES) {
+    throw invalid(
+      `Le champ boundaries contient au plus ${MAX_VERTICES} bornes.`,
+    );
   }
   boundaries.forEach((b, i) => {
     if (
