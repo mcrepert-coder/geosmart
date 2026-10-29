@@ -13,6 +13,7 @@ import { LandAttestations1793102600000 } from '../migrations/1793102600000-land-
 import { LandParcels1793102500000 } from '../migrations/1793102500000-land-parcels';
 import { LandSurveyRequests1793102700000 } from '../migrations/1793102700000-land-survey-requests';
 import { LandSurveyRequestClose1793102800000 } from '../migrations/1793102800000-land-survey-request-close';
+import { LandOverlapAlertReviews1793102900000 } from '../migrations/1793102900000-land-overlap-alert-reviews';
 
 jest.setTimeout(60000);
 
@@ -66,6 +67,7 @@ describe('Routes du module foncier (HTTP + PostGIS)', () => {
     await new LandAttestations1793102600000().up(qr);
     await new LandSurveyRequests1793102700000().up(qr);
     await new LandSurveyRequestClose1793102800000().up(qr);
+    await new LandOverlapAlertReviews1793102900000().up(qr);
 
     const moduleRef = await Test.createTestingModule({ imports: [LandModule] })
       .useMocker((token) => {
@@ -287,6 +289,84 @@ describe('Routes du module foncier (HTTP + PostGIS)', () => {
 
     const list = await request(server()).get('/survey-requests').set(as(agent));
     expect(list.status).toBe(200);
+  });
+
+  it('demandes de leve : terminee par le geometre, annulee par l agent', async () => {
+    const create = async () => {
+      const res = await request(server())
+        .post('/survey-requests')
+        .set(as(agent))
+        .send({ locality: 'Avedji', description: 'Terrain a borner.' });
+      return (res.body as { id: string }).id;
+    };
+
+    const taken = await create();
+    await request(server())
+      .post(`/survey-requests/${taken}/take`)
+      .set(as(surveyor));
+    const refused = await request(server())
+      .post(`/survey-requests/${taken}/cancel`)
+      .set(as(agent));
+    expect(refused.status).toBe(409);
+    expect(refused.body).toMatchObject({ code: 'REQUEST_STATE_CONFLICT' });
+    const done = await request(server())
+      .post(`/survey-requests/${taken}/complete`)
+      .set(as(surveyor))
+      .send({ parcelId });
+    expect(done.status).toBe(200);
+    expect(done.body).toMatchObject({ state: 'TERMINEE' });
+
+    const open = await create();
+    const notTaken = await request(server())
+      .post(`/survey-requests/${open}/complete`)
+      .set(as(surveyor));
+    // Personne ne l a prise : aucun geometre ne peut la terminer.
+    expect(notTaken.status).toBe(403);
+    const cancelled = await request(server())
+      .post(`/survey-requests/${open}/cancel`)
+      .set(as(agent));
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body).toMatchObject({ state: 'ANNULEE' });
+  });
+
+  it('alertes de chevauchement : liste et examen par l administrateur', async () => {
+    const denied = await request(server())
+      .get('/overlap-alerts')
+      .set(as(surveyor));
+    expect(denied.status).toBe(403);
+
+    // Le refus de POST /parcels plus haut a laisse une alerte.
+    const open = await request(server())
+      .get('/overlap-alerts')
+      .query({ state: 'open' })
+      .set(as(admin));
+    expect(open.status).toBe(200);
+    const [alert] = open.body as {
+      auditSeq: number;
+      conflicts: { parcelId: string }[];
+    }[];
+    expect(alert.conflicts.map((c) => c.parcelId)).toEqual([parcelId]);
+
+    const reviewed = await request(server())
+      .post(`/overlap-alerts/${alert.auditSeq}/review`)
+      .set(as(admin))
+      .send({ note: 'Geometre contacte.' });
+    expect(reviewed.status).toBe(200);
+    expect(reviewed.body).toMatchObject({
+      review: { reviewedBy: admin.id, note: 'Geometre contacte.' },
+    });
+
+    const twice = await request(server())
+      .post(`/overlap-alerts/${alert.auditSeq}/review`)
+      .set(as(admin));
+    expect(twice.status).toBe(409);
+    expect(twice.body).toMatchObject({ code: 'ALERT_ALREADY_REVIEWED' });
+
+    const invalid = await request(server())
+      .get('/overlap-alerts')
+      .query({ state: 'toutes' })
+      .set(as(admin));
+    expect(invalid.status).toBe(400);
   });
 
   it('GET /audit est reserve a l administrateur', async () => {
