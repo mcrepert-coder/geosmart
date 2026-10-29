@@ -14,13 +14,12 @@ info:
 
     Chevauchement (RG-02, CA-2) : une parcelle dont l'interieur recouvre l'interieur d'une parcelle
     active est refusee (409). Une limite commune ou un sommet commun est accepte. Tolerance de
-    surface commune : a fixer par LGR (hypothese de depart : 0 m2, aucun recouvrement accepte).
+    surface commune : 0 m2, aucun recouvrement accepte (decision 2 de LGR, #24).
     Un refus signale un conflit geometrique, pas une fraude ni un litige juridique.
 
     Attestation : le document s'appelle "attestation de leve" et porte la mention exacte
-    "Ne vaut pas titre foncier" (RG-09). Pas de QR code (EF-204) ; la verification se fait par
-    numero d'attestation et empreinte. Le texte de consignes de Samuel demande un QR code :
-    decision a obtenir de LGR avant de coder ce point.
+    "Ne vaut pas titre foncier" (RG-09). Pas de QR code (EF-204, decision 1 de LGR, #24) ; la
+    verification se fait par numero d'attestation et empreinte.
 
     Roles (RG-06, relus en base a chaque requete) : ADMIN, GEOMETRE, TOPOGRAPHE, AGENT, CLIENT.
     Toute route sans role autorise renvoie 403, sans jeton 401. Refus par defaut.
@@ -184,7 +183,7 @@ paths:
       tags: [parcelles]
       summary: Renseigner le statut juridique (EF-203)
       description: |
-        Role a confirmer par LGR (hypothese : ADMIN). La source et la date du document sont obligatoires ;
+        Role ADMIN uniquement (decision 3 de LGR, #24). La source et la date du document sont obligatoires ;
         GeoSmart ne fixe jamais lui-meme un statut juridique. Journalise.
       security: [{ bearer: [] }]
       requestBody:
@@ -588,7 +587,7 @@ components:
     Bornage:
       type: object
       required: [neighbours, heldAt]
-      description: EF-208, bornage contradictoire (maquette T6). Les photos attendent la decision de LGR sur leur stockage.
+      description: EF-208, bornage contradictoire (maquette T6). Les photos seront stockees sur le serveur dans une version ulterieure (decision 4 de LGR, #24).
       properties:
         neighbours:
           type: array
