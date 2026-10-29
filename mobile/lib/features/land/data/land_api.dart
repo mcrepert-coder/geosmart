@@ -58,6 +58,26 @@ class LandApi {
         as Map<String, dynamic>,
   );
 
+  /// PATCH /parcels/:id : nouvelle version de la limite (EF-205). Reponses a
+  /// prevoir : 409 VERSION_CONFLICT (parcelle modifiee entre-temps) ou
+  /// PARCEL_OVERLAP, 403 si l'utilisateur n'est pas le geometre auteur.
+  Future<ParcelInfo> updateParcel(
+    String parcelId,
+    ParcelDraft draft, {
+    required int expectedVersion,
+    String? reason,
+  }) async => ParcelInfo.fromJson(
+    await _send(
+          'PATCH',
+          '/parcels/${Uri.encodeComponent(parcelId)}',
+          body: draft.toUpdatePayload(
+            expectedVersion: expectedVersion,
+            reason: reason,
+          ),
+        )
+        as Map<String, dynamic>,
+  );
+
   Future<ParcelInfo> getParcel(String parcelId) async => ParcelInfo.fromJson(
     await _send('GET', '/parcels/${Uri.encodeComponent(parcelId)}')
         as Map<String, dynamic>,
