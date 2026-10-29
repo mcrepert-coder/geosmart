@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
 import { AuditModule } from './audit/audit.module';
 import { LandModule } from './land/land.module';
 
@@ -23,6 +24,7 @@ import { LandModule } from './land/land.module';
         };
       },
     }),
+    AuthModule,
     AuditModule,
     LandModule,
   ],

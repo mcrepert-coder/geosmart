@@ -1,0 +1,66 @@
+openapi: 3.0.3
+info:
+  title: GeoSmart Field - comptes et roles
+  version: 0.1.0
+  description: >
+    Socle minimal pose par LGR pour debloquer les autres modules. La connexion
+    reelle (inscription, mot de passe BCrypt, jetons, validation par l'admin)
+    reste a ecrire par Beni (api/src/auth/NOTES-MODULE.md). En attendant, avec
+    AUTH_DEV_MODE=true hors production, l'en-tete "Authorization: Bearer
+    dev:<ROLE>[:<id>]" donne un utilisateur de test.
+paths:
+  /auth/login:
+    post:
+      summary: Connexion par telephone et mot de passe (a coder par Beni)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, password]
+              properties:
+                phone: { type: string, example: '+22890000000' }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Jetons d'acces (1 h) et de renouvellement (30 jours)
+          content:
+            application/json:
+              example:
+                accessToken: eyJ...
+                refreshToken: eyJ...
+                user:
+                  id: b6f1c0de-0000-4000-8000-000000000001
+                  role: GEOMETRE
+                  registeredSurveyor: true
+                  accountActive: true
+        '401': { description: Telephone ou mot de passe incorrect }
+        '403': { description: Compte en attente de validation ou suspendu }
+  /auth/me:
+    get:
+      summary: Utilisateur connecte, role relu en base (RG-06)
+      security: [{ bearer: [] }]
+      responses:
+        '200':
+          description: Utilisateur connecte
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CurrentUser' }
+        '401': { description: Connexion requise }
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer }
+  schemas:
+    Role:
+      type: string
+      enum: [ADMIN, GEOMETRE, TOPOGRAPHE, AGENT, CLIENT]
+    CurrentUser:
+      description: Forme de request.user lue par @CurrentActor et @Roles
+      type: object
+      required: [id, role, registeredSurveyor, accountActive]
+      properties:
+        id: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        registeredSurveyor: { type: boolean, description: "geometre inscrit a l'Ordre" }
+        accountActive: { type: boolean, description: compte valide et actif }
