@@ -1,4 +1,12 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   CurrentActor,
   type CurrentActorValue,
@@ -14,7 +22,18 @@ export class OverlapAlertController {
   list(
     @CurrentActor() actor: CurrentActorValue,
     @Query('limit') limit?: string,
+    @Query('state') state?: string,
   ) {
-    return this.alerts.list(actor, limit ?? 50);
+    return this.alerts.list(actor, limit ?? 50, state);
+  }
+
+  @Post(':auditSeq/review')
+  @HttpCode(200)
+  review(
+    @CurrentActor() actor: CurrentActorValue,
+    @Param('auditSeq') auditSeq: string,
+    @Body() body: { note?: string } = {},
+  ) {
+    return this.alerts.review(actor, auditSeq, body?.note);
   }
 }

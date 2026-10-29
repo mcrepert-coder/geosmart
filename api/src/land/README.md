@@ -40,7 +40,8 @@ Le role est verifie et journalise par les services, jamais par l'interface seule
 | `POST /survey-requests/:id/take` | GEOMETRE | EF-207 |
 | `POST /survey-requests/:id/complete` (corps facultatif `{ parcelId }`) | GEOMETRE qui a pris la demande | decision 5 de #24 |
 | `POST /survey-requests/:id/cancel` | AGENT auteur, demande encore ouverte | decision 5 de #24 |
-| `GET /overlap-alerts` | ADMIN | RG-02, ecran W3 |
+| `GET /overlap-alerts` (filtre `state` : `open` ou `reviewed`) | ADMIN | RG-02, ecran W3 |
+| `POST /overlap-alerts/:seq/review` (corps facultatif `{ note }`) | ADMIN | "Marquer comme examinee" (W3) |
 | `GET /audit`, `GET /audit/verify` | ADMIN | RG-10 |
 
 ## Regles importantes
@@ -77,7 +78,7 @@ Apercu des ecrans mobiles avec des donnees d'exemple : `flutter run -t lib/featu
 1. Fait par Marrich (PR #25, #26) : `api/src/app.module.ts` branche TypeORM sur `DATABASE_URL`, puis `AuditModule` et `LandModule`. Les services n'utilisent que `DataSource.query()` et `DataSource.transaction()` : aucune entite n'a besoin d'etre declaree.
 
 2. Les migrations tournent au demarrage (`migrationsRun: true`, fichiers `**/migrations/*`), dans l'ordre des horodatages :
-   `1793102400000-audit-log`, `1793102500000-land-parcels`, `1793102600000-land-attestations`, `1793102700000-land-survey-requests`, `1793102800000-land-survey-request-close`. La base doit avoir l'extension PostGIS (image `postgis/postgis:16-3.4` du `compose.yaml`). Ne rien mettre d'autre que des migrations dans les dossiers `migrations/` : tout fichier qui s'y trouve est charge comme migration.
+   `1793102400000-audit-log`, `1793102500000-land-parcels`, `1793102600000-land-attestations`, `1793102700000-land-survey-requests`, `1793102800000-land-survey-request-close`, `1793102900000-land-overlap-alert-reviews`. La base doit avoir l'extension PostGIS (image `postgis/postgis:16-3.4` du `compose.yaml`). Ne rien mettre d'autre que des migrations dans les dossiers `migrations/` : tout fichier qui s'y trouve est charge comme migration.
 
 3. Variables d'environnement : `DATABASE_URL`, et facultatif `LAND_OVERLAP_TOLERANCE_M2=0`.
 

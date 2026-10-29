@@ -411,6 +411,10 @@ paths:
         - name: limit
           in: query
           schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: state
+          in: query
+          description: open (non examinees) ou reviewed (examinees) ; toutes si absent
+          schema: { type: string, enum: [open, reviewed] }
       responses:
         '200':
           description: Alertes
@@ -422,6 +426,42 @@ paths:
         '400': { $ref: '#/components/responses/Validation' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+
+  /overlap-alerts/{auditSeq}/review:
+    parameters:
+      - name: auditSeq
+        in: path
+        required: true
+        schema: { type: integer, example: 4812 }
+    post:
+      tags: [journal]
+      summary: Marquer une alerte comme examinee (ecran W3)
+      description: Role ADMIN. Une seule fois par alerte. Journalise (OVERLAP_ALERT_REVIEWED).
+      security: [{ bearer: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string, maxLength: 500, example: Geometre contacte. }
+      responses:
+        '200':
+          description: Alerte examinee
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OverlapAlert' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Deja examinee
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: ALERT_ALREADY_REVIEWED, message: "Cette alerte a deja ete examinee." }
 
   /audit:
     get:
@@ -784,6 +824,14 @@ components:
                 nullable: true
                 description: Zone commune, recalculee avec la geometrie actuelle de la parcelle
                 allOf: [{ $ref: '#/components/schemas/Polygon' }]
+        review:
+          type: object
+          nullable: true
+          description: Examen par l'administrateur ; null tant que l'alerte est ouverte
+          properties:
+            reviewedBy: { type: string, format: uuid }
+            reviewedAt: { type: string, format: date-time }
+            note: { type: string, nullable: true }
         prevHash: { type: string }
         hash: { type: string }
 
