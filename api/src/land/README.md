@@ -2,7 +2,7 @@
 
 Proprietaire : Samuel (MASSEME Samuel). Contrat : [`contracts/land.yaml`](../../../contracts/land.yaml).
 
-Ce module enregistre les parcelles levees, refuse les chevauchements, garde l'historique des versions, renseigne le statut juridique avec sa source, emet l'attestation de leve en PDF et gere les demandes de leve des agents. Le journal d'audit (`backend/src/audit/`) trace chaque action sensible avec une chaine d'empreintes SHA-256.
+Ce module enregistre les parcelles levees, refuse les chevauchements, garde l'historique des versions, renseigne le statut juridique avec sa source, emet l'attestation de leve en PDF et gere les demandes de leve des agents. Le journal d'audit (`api/src/audit/`) trace chaque action sensible avec une chaine d'empreintes SHA-256.
 
 GeoSmart ne delivre pas de titre foncier : chaque attestation et chaque page publique porte la mention "Ne vaut pas titre foncier" (RG-09).
 
@@ -10,13 +10,13 @@ GeoSmart ne delivre pas de titre foncier : chaque attestation et chaque page pub
 
 | Dossier | Contenu |
 |---|---|
-| `backend/src/audit/` | Journal chaine (`audit.log(...)`, `verify()`), routes `/audit`, decorateur `@CurrentActor`, `sql-runner.ts` |
-| `backend/src/land/` | Parcelles, versions, statut, bornage, alertes de chevauchement |
-| `backend/src/land/geometry/` | Validation du polygone et controle de chevauchement (PostGIS) |
-| `backend/src/land/attestation/` | PDF de l'attestation de leve et verification publique |
-| `backend/src/land/survey-request/` | Demandes de leve des agents |
-| `backend/src/land/http/` | Controleurs NestJS (routes du contrat) |
-| `backend/src/*/migrations/` | Migrations TypeORM |
+| `api/src/audit/` | Journal chaine (`audit.log(...)`, `verify()`), routes `/audit`, decorateur `@CurrentActor`, `sql-runner.ts` |
+| `api/src/land/` | Parcelles, versions, statut, bornage, alertes de chevauchement |
+| `api/src/land/geometry/` | Validation du polygone et controle de chevauchement (PostGIS) |
+| `api/src/land/attestation/` | PDF de l'attestation de leve et verification publique |
+| `api/src/land/survey-request/` | Demandes de leve des agents |
+| `api/src/land/http/` | Controleurs NestJS (routes du contrat) |
+| `api/src/*/migrations/` | Migrations TypeORM |
 | `web/src/app/parcelle/` | Pages publiques : verifier une parcelle, verifier une attestation |
 | `mobile/lib/features/land/` | Ecrans mobiles : creer la parcelle, bornage, attestation, verifier, fiche, demandes de leve |
 
@@ -53,7 +53,7 @@ Le role est verifie et journalise par les services, jamais par l'interface seule
 
 ## Tests
 
-Dans `backend/` :
+Dans `api/` :
 
 ```
 npm test              # tests unitaires (Jest)
@@ -70,25 +70,12 @@ Dans `mobile/` : `flutter test test/features/land` et `flutter analyze lib/featu
 
 Apercu des ecrans mobiles avec des donnees d'exemple : `flutter run -t lib/features/land/preview_main.dart` (ou `flutter build web --release -t lib/features/land/preview_main.dart`).
 
-## Brancher le module (issue #22)
+## Branchement dans l'API (issue #22)
 
-1. Dans `backend/src/app.module.ts` :
+1. Fait par Marrich (PR #25, #26) : `api/src/app.module.ts` branche TypeORM sur `DATABASE_URL`, puis `AuditModule` et `LandModule`. Les services n'utilisent que `DataSource.query()` et `DataSource.transaction()` : aucune entite n'a besoin d'etre declaree.
 
-   ```ts
-   TypeOrmModule.forRoot({
-     type: 'postgres',
-     url: process.env.DATABASE_URL,
-     migrations: [__dirname + '/**/migrations/*.js'],
-     migrationsRun: false,
-   }),
-   AuditModule,
-   LandModule,
-   ```
-
-   Les services n'utilisent que `DataSource.query()` et `DataSource.transaction()` : aucune entite n'a besoin d'etre declaree.
-
-2. Lancer les migrations dans cet ordre (ordre des horodatages) :
-   `1793102400000-audit-log`, `1793102500000-land-parcels`, `1793102600000-land-attestations`, `1793102700000-land-survey-requests`. La base doit avoir l'extension PostGIS (image `postgis/postgis:16-3.4` du `compose.yaml`).
+2. Les migrations tournent au demarrage (`migrationsRun: true`, fichiers `**/migrations/*`), dans l'ordre des horodatages :
+   `1793102400000-audit-log`, `1793102500000-land-parcels`, `1793102600000-land-attestations`, `1793102700000-land-survey-requests`. La base doit avoir l'extension PostGIS (image `postgis/postgis:16-3.4` du `compose.yaml`). Ne rien mettre d'autre que des migrations dans les dossiers `migrations/` : tout fichier qui s'y trouve est charge comme migration.
 
 3. Variables d'environnement : `DATABASE_URL`, et facultatif `LAND_OVERLAP_TOLERANCE_M2=0`.
 

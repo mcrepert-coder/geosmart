@@ -2,8 +2,8 @@ import type { PGlite } from '@electric-sql/pglite' with {
   'resolution-mode': 'import',
 };
 import type { QueryRunner } from 'typeorm';
-import { AuditLog1793102400000 } from '../../audit/migrations/1793102400000-audit-log';
-import { LandParcels1793102500000 } from './1793102500000-land-parcels';
+import { AuditLog1793102400000 } from '../audit/migrations/1793102400000-audit-log';
+import { LandParcels1793102500000 } from './migrations/1793102500000-land-parcels';
 
 // Lance avec `npm run test:db` : PGlite (PostgreSQL + PostGIS en WebAssembly)
 // est un module ESM, charge par import() dynamique.
