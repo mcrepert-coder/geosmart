@@ -67,6 +67,8 @@ npx eslint "src/{land,audit}/**/*.ts"
 
 `test:db` lance les fichiers `*.db-spec.ts`. Sur une machine lente, ajouter `--runInBand` pour les lancer un par un.
 
+`http/land-contract.spec.ts` (dans `npm test`) echoue si une route est ajoutee, retiree ou change de code de succes sans que `contracts/land.yaml` soit mis a jour.
+
 Dans `web/` : `node --test src/app/parcelle/_lib/parcelle.test.mjs`.
 
 Dans `mobile/` : `flutter test test/features/land` et `flutter analyze lib/features/land`.
