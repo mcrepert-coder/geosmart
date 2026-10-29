@@ -25,6 +25,8 @@ info:
     Toute route sans role autorise renvoie 403, sans jeton 401. Refus par defaut.
     Toute ecriture (POST, PUT, PATCH) exige en plus un compte actif (accountActive = true dans
     request.user) : un compte suspendu recoit 403 FORBIDDEN, mais peut encore lire.
+    Pour un geometre, request.user peut porter fullName et ordreNumber (texte) : ils sont imprimes
+    sur l'attestation (decision 6 de LGR, #24). Sans eux, l'attestation montre l'identifiant du compte.
 
 servers:
   - url: http://localhost:3001
@@ -210,7 +212,8 @@ paths:
       summary: Emettre l'attestation de leve en PDF (EF-204, RG-03)
       description: |
         Role GEOMETRE, auteur de la parcelle et inscrit a l'Ordre. Refuse (422) si une borne n'est pas
-        en RTK Fixed ou si la parcelle est en conflit. Journalise.
+        en RTK Fixed ou si la parcelle est en conflit. Le PDF porte le nom du geometre et son numero
+        d'inscription a l'Ordre (decision 6 de LGR, #24). Journalise.
       security: [{ bearer: [] }]
       responses:
         '201':

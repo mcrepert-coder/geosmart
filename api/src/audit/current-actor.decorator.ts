@@ -12,6 +12,15 @@ export interface CurrentActorValue {
   role: string;
   registeredSurveyor: boolean;
   accountActive: boolean;
+  // Facultatifs : imprimes sur l'attestation de leve quand ils sont fournis.
+  fullName?: string;
+  ordreNumber?: string;
+}
+
+function optionalText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== ''
+    ? value.trim()
+    : undefined;
 }
 
 export function actorFromRequest(request: {
@@ -29,6 +38,8 @@ export function actorFromRequest(request: {
     role: user.role,
     registeredSurveyor: user.registeredSurveyor === true,
     accountActive: user.accountActive === true,
+    fullName: optionalText(user.fullName),
+    ordreNumber: optionalText(user.ordreNumber),
   };
 }
 

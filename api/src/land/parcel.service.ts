@@ -36,6 +36,10 @@ export interface LandActor {
   // quel que soit le role. Les lectures restent ouvertes.
   accountActive?: boolean;
 }
+  // Nom et numero d'inscription a l'Ordre du geometre, imprimes sur
+  // l'attestation (decision 6 de LGR, #24). Fournis par le module comptes.
+  fullName?: string;
+  ordreNumber?: string;
 
 export interface ParcelCreateInput {
   surveySessionId: string;
