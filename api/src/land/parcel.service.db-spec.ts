@@ -48,6 +48,7 @@ function boundaries(fix: ParcelBoundary['fixQuality'] = 'FIXED') {
 function input(geometry: unknown, fix?: ParcelBoundary['fixQuality']) {
   return {
     surveySessionId: randomUUID(),
+    commune: 'AGO',
     geometry,
     boundaries: boundaries(fix),
     locality: 'Agoe, Lome',
@@ -113,7 +114,7 @@ describe('ParcelService.create (PostGIS)', () => {
       randomUUID(),
     );
 
-    expect(parcel.id).toMatch(/^GS-\d{4}-000001$/);
+    expect(parcel.id).toBe('TG-AGO-00001');
     expect(parcel.version).toBe(1);
     expect(parcel.certified).toBe(true);
     expect(parcel.legalStatus).toBe('INCONNU');
@@ -135,7 +136,7 @@ describe('ParcelService.create (PostGIS)', () => {
       input(square(1.211, 6.13)),
       randomUUID(),
     );
-    expect(parcel.id).toMatch(/000002$/);
+    expect(parcel.id).toMatch(/00002$/);
   });
 
   it('refuse un chevauchement avec les deux voisines, ne cree rien et journalise l alerte (CA-2)', async () => {
@@ -151,8 +152,8 @@ describe('ParcelService.create (PostGIS)', () => {
     };
     expect(body.code).toBe('PARCEL_OVERLAP');
     expect(body.details.conflicts.map((c) => c.parcelId)).toEqual([
-      expect.stringMatching(/000001$/),
-      expect.stringMatching(/000002$/),
+      expect.stringMatching(/00001$/),
+      expect.stringMatching(/00002$/),
     ]);
     expect(await count('parcels')).toBe(before);
     expect(await lastAudit()).toMatchObject({
@@ -263,6 +264,25 @@ describe('ParcelService.create (PostGIS)', () => {
   ])('refuse %s (400)', async (_label, change, key) => {
     await expect(
       service.create(surveyor, change(input(square(2, 6.3))), key),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('numerote chaque commune separement', async () => {
+    const lome = await service.create(
+      surveyor,
+      { ...input(square(2.1, 6.4)), commune: 'LOM' },
+      randomUUID(),
+    );
+    expect(lome.id).toBe('TG-LOM-00001');
+  });
+
+  it('refuse une commune hors de la liste (400)', async () => {
+    await expect(
+      service.create(
+        surveyor,
+        { ...input(square(2.2, 6.4)), commune: 'XYZ' },
+        randomUUID(),
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 

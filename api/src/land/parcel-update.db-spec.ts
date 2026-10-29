@@ -97,6 +97,7 @@ describe('ParcelService.update et listVersions (PostGIS)', () => {
         author,
         {
           surveySessionId: randomUUID(),
+          commune: 'AGO',
           geometry: square(lon, 6.13),
           boundaries: boundaries(),
         },
@@ -223,14 +224,14 @@ describe('ParcelService.update et listVersions (PostGIS)', () => {
 
   it('repond 404 pour une parcelle inconnue', async () => {
     await expect(
-      service.update(author, 'GS-2026-999999', {
+      service.update(author, 'TG-AGO-99999', {
         expectedVersion: 1,
         geometry: square(1.21, 6.13),
         boundaries: boundaries(),
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
     await expect(
-      service.listVersions(author, 'GS-2026-999999'),
+      service.listVersions(author, 'TG-AGO-99999'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 

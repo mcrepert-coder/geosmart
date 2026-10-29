@@ -43,9 +43,9 @@ describe('ParcelGeometryService (PostGIS)', () => {
     const checked = await service.check(runner, base);
     await db.query(
       `INSERT INTO parcels (id, geom, area_m2, perimeter_m, geometry_hash,
-         surveyor_id, survey_session_id, idempotency_key)
-       VALUES ('GS-2026-000001', ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
-         $2, $3, $4, gen_random_uuid(), gen_random_uuid(), gen_random_uuid())`,
+         surveyor_id, survey_session_id, idempotency_key, commune)
+       VALUES ('TG-AGO-00001', ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
+         $2, $3, $4, gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'AGO')`,
       [
         JSON.stringify(checked.polygon),
         checked.areaM2,
@@ -119,7 +119,7 @@ describe('ParcelGeometryService (PostGIS)', () => {
         (await service.check(runner, shifted)).polygon,
       );
       expect(conflicts).toHaveLength(1);
-      expect(conflicts[0].parcelId).toBe('GS-2026-000001');
+      expect(conflicts[0].parcelId).toBe('TG-AGO-00001');
       // Un quart du carre recouvert : environ 3 060 m2.
       expect(conflicts[0].overlapAreaM2).toBeGreaterThan(2900);
       expect(conflicts[0].overlapAreaM2).toBeLessThan(3200);
@@ -171,7 +171,7 @@ describe('ParcelGeometryService (PostGIS)', () => {
         await service.findOverlaps(
           runner,
           (await service.check(runner, moved)).polygon,
-          'GS-2026-000001',
+          'TG-AGO-00001',
         ),
       ).toEqual([]);
     });
@@ -191,14 +191,14 @@ describe('ParcelGeometryService (PostGIS)', () => {
 
   it('formate le 409 du contrat', () => {
     const error = service.overlapError(
-      [{ parcelId: 'GS-2026-000001', overlapAreaM2: 42.7 }],
+      [{ parcelId: 'TG-AGO-00001', overlapAreaM2: 42.7 }],
       1205,
     );
     expect(error).toBeInstanceOf(ConflictException);
     expect(error.getResponse()).toMatchObject({
       code: 'PARCEL_OVERLAP',
       details: {
-        conflicts: [{ parcelId: 'GS-2026-000001', overlapAreaM2: 42.7 }],
+        conflicts: [{ parcelId: 'TG-AGO-00001', overlapAreaM2: 42.7 }],
         auditSeq: 1205,
       },
     });

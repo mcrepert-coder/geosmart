@@ -335,6 +335,31 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { code: REQUEST_ALREADY_TAKEN, message: "Cette demande a deja ete prise." }
 
+  /overlap-alerts:
+    get:
+      tags: [journal]
+      summary: Alertes de chevauchement (RG-02, ecran W3)
+      description: |
+        Role ADMIN uniquement. Lues dans le journal (PARCEL_OVERLAP_REJECTED), de la plus recente a la
+        plus ancienne, avec la geometrie refusee, celle des parcelles en conflit et la zone commune.
+        Lecture seule : l'administrateur ne modifie aucune limite.
+      security: [{ bearer: [] }]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Alertes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/OverlapAlert' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
   /audit:
     get:
       tags: [journal]
@@ -400,8 +425,8 @@ components:
       name: parcelId
       in: path
       required: true
-      description: Identifiant public, format GS-AAAA-NNNNNN
-      schema: { type: string, pattern: '^GS-\d{4}-\d{6}$', example: GS-2026-000142 }
+      description: Identifiant public TG-<commune>-<numero> (maquettes v1.0), ex. TG-AGO-00457
+      schema: { type: string, pattern: '^TG-[A-Z]{3}-\d{5,6}$', example: TG-AGO-00457 }
     AttestationNumber:
       name: number
       in: path
@@ -457,17 +482,32 @@ components:
 
     Bornage:
       type: object
-      required: [neighboursPresent, heldAt]
-      description: EF-208, bornage contradictoire. Les photos attendent la decision de LGR sur leur stockage.
+      required: [neighbours, heldAt]
+      description: EF-208, bornage contradictoire (maquette T6). Les photos attendent la decision de LGR sur leur stockage.
       properties:
-        neighboursPresent: { type: array, maxItems: 20, items: { type: string, maxLength: 120 } }
+        neighbours:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [name, side, present]
+            properties:
+              name: { type: string, maxLength: 120, example: Komlan Adjete }
+              phone: { type: string, pattern: '^\+228 ?\d{2} ?\d{2} ?\d{2} ?\d{2}$', example: '+228 90 44 21 08' }
+              side: { type: string, enum: [N, S, E, O] }
+              present: { type: boolean }
+              representedBy: { type: string, maxLength: 120, description: Representant d'un voisin absent }
         heldAt: { type: string, format: date-time }
 
     ParcelCreate:
       type: object
-      required: [geometry, boundaries, surveySessionId]
+      required: [geometry, boundaries, surveySessionId, commune]
       properties:
         surveySessionId: { type: string, format: uuid }
+        commune:
+          type: string
+          enum: [AGO, LOM]
+          description: Code de commune de l'identifiant TG-<commune>-<numero>. Liste provisoire en attendant la liste officielle (#24).
         geometry: { $ref: '#/components/schemas/Polygon' }
         boundaries:
           type: array
@@ -493,7 +533,7 @@ components:
       type: object
       required: [id, version, geometry, areaM2, perimeterM, legalStatus, certified, createdAt]
       properties:
-        id: { type: string, example: GS-2026-000142 }
+        id: { type: string, example: TG-AGO-00457 }
         version: { type: integer, example: 1 }
         geometry: { $ref: '#/components/schemas/Polygon' }
         areaM2: { type: number, example: 9912.4 }
@@ -544,7 +584,7 @@ components:
             type: object
             properties:
               type: { type: string, enum: [Feature] }
-              id: { type: string, example: GS-2026-000142 }
+              id: { type: string, example: TG-AGO-00457 }
               geometry: { $ref: '#/components/schemas/Polygon' }
               properties:
                 type: object
@@ -557,13 +597,25 @@ components:
       type: object
       required: [id, legalStatus, certified, warnings]
       properties:
-        id: { type: string, example: GS-2026-000142 }
+        id: { type: string, example: TG-AGO-00457 }
         legalStatus: { $ref: '#/components/schemas/LegalStatus' }
         statusSource: { type: string, nullable: true, example: "Releve ANDF n. 2026/1187" }
         statusDate: { type: string, format: date, nullable: true }
+        titleNumber: { type: string, nullable: true, example: TF 12345/RT }
+        disputeNote: { type: string, nullable: true, example: Un voisin conteste la limite est. }
         certified: { type: boolean }
         areaM2: { type: number }
         version: { type: integer }
+        versionsCount: { type: integer, example: 3 }
+        lastSurveyAt: { type: string, format: date-time, description: Date de la version courante }
+        bornage:
+          type: object
+          nullable: true
+          description: Resume du bornage de la version courante, sans nom ni telephone.
+          properties:
+            neighboursTotal: { type: integer, example: 3 }
+            neighboursPresent: { type: integer, example: 2 }
+            heldAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         warnings:
           type: array
@@ -577,6 +629,8 @@ components:
         legalStatus: { $ref: '#/components/schemas/LegalStatus' }
         source: { type: string, maxLength: 200 }
         documentDate: { type: string, format: date }
+        titleNumber: { type: string, maxLength: 60, description: Obligatoire pour TITRE }
+        disputeNote: { type: string, maxLength: 500, description: Obligatoire pour EN_LITIGE }
         note: { type: string, maxLength: 500 }
 
     Attestation:
@@ -584,7 +638,7 @@ components:
       required: [number, parcelId, parcelVersion, geometryHash, documentHash, issuedAt, mention]
       properties:
         number: { type: string, example: AT-2026-000037 }
-        parcelId: { type: string, example: GS-2026-000142 }
+        parcelId: { type: string, example: TG-AGO-00457 }
         parcelVersion: { type: integer, example: 1 }
         geometryHash: { type: string }
         documentHash: { type: string, description: SHA-256 du PDF }
@@ -594,10 +648,11 @@ components:
 
     AttestationVerification:
       type: object
-      required: [number, valid]
+      required: [number, valid, authentic]
       properties:
         number: { type: string }
         valid: { type: boolean, description: Vrai si l'empreinte correspond et que la version est encore la version courante }
+        authentic: { type: boolean, description: "Vrai si l'empreinte correspond, meme si la parcelle a change depuis" }
         parcelId: { type: string }
         parcelVersion: { type: integer }
         issuedAt: { type: string, format: date-time }
@@ -632,6 +687,42 @@ components:
             surveyorId: { type: string, format: uuid, nullable: true }
             parcelId: { type: string, nullable: true }
             createdAt: { type: string, format: date-time }
+
+    OverlapAlert:
+      type: object
+      required: [auditSeq, at, conflicts, prevHash, hash]
+      properties:
+        auditSeq: { type: integer, example: 4812 }
+        at: { type: string, format: date-time }
+        actorId: { type: string, format: uuid, nullable: true }
+        submittedParcelId: { type: string, nullable: true, description: Parcelle modifiee ; absente pour une creation refusee }
+        surveySessionId: { type: string, nullable: true }
+        submittedGeometry:
+          type: object
+          nullable: true
+          allOf: [{ $ref: '#/components/schemas/Polygon' }]
+        conflicts:
+          type: array
+          items:
+            type: object
+            required: [parcelId, overlapAreaM2]
+            properties:
+              parcelId: { type: string, example: TG-AGO-00412 }
+              overlapAreaM2: { type: number, example: 18.4 }
+              version: { type: integer, nullable: true }
+              legalStatus: { type: string, nullable: true, description: "TITRE, COUTUMIER_NON_TITRE, EN_LITIGE ou INCONNU" }
+              certified: { type: boolean, nullable: true }
+              geometry:
+                type: object
+                nullable: true
+                allOf: [{ $ref: '#/components/schemas/Polygon' }]
+              overlap:
+                type: object
+                nullable: true
+                description: Zone commune, recalculee avec la geometrie actuelle de la parcelle
+                allOf: [{ $ref: '#/components/schemas/Polygon' }]
+        prevHash: { type: string }
+        hash: { type: string }
 
     AuditEntry:
       type: object
@@ -670,7 +761,7 @@ components:
         message: "Cette parcelle recouvre une parcelle deja enregistree. Verifiez les bornes avec le geometre."
         details:
           conflicts:
-            - parcelId: GS-2026-000098
+            - parcelId: TG-AGO-00412
               overlapAreaM2: 42.7
           auditSeq: 1205
 

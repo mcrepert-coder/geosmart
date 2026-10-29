@@ -70,6 +70,7 @@ describe('ParcelStatusService (PostGIS)', () => {
       surveyor,
       {
         surveySessionId: randomUUID(),
+        commune: 'AGO',
         geometry: {
           type: 'Polygon',
           coordinates: [
@@ -105,9 +106,14 @@ describe('ParcelStatusService (PostGIS)', () => {
         legalStatus: 'INCONNU',
         statusSource: null,
         statusDate: null,
+        titleNumber: null,
+        disputeNote: null,
         certified: true,
         areaM2: parcel.areaM2,
         version: 1,
+        versionsCount: 1,
+        lastSurveyAt: expect.any(String) as unknown,
+        bornage: null,
         updatedAt: expect.any(String) as unknown,
         warnings: [
           'Statut juridique non renseigne par une source autorisee.',
@@ -119,7 +125,7 @@ describe('ParcelStatusService (PostGIS)', () => {
       expect(text).not.toContain('coordinates');
     });
 
-    it.each(['GS-2026-999999', 'pas-un-identifiant', ''])(
+    it.each(['TG-AGO-99999', 'pas-un-identifiant', ''])(
       'repond 404 pour %p',
       async (id) => {
         await expect(status.getPublicStatus(id)).rejects.toBeInstanceOf(
@@ -135,6 +141,7 @@ describe('ParcelStatusService (PostGIS)', () => {
         legalStatus: 'TITRE',
         source: '  Releve ANDF n. 2026/1187  ',
         documentDate: '2026-10-01',
+        titleNumber: ' TF 12345/RT ',
         note: 'Copie certifiee recue au guichet',
       });
 
@@ -142,6 +149,8 @@ describe('ParcelStatusService (PostGIS)', () => {
         legalStatus: 'TITRE',
         statusSource: 'Releve ANDF n. 2026/1187',
         statusDate: '2026-10-01',
+        titleNumber: 'TF 12345/RT',
+        disputeNote: null,
         warnings: [NOT_A_LAND_TITLE],
       });
       expect(await lastAudit()).toMatchObject({
@@ -156,6 +165,7 @@ describe('ParcelStatusService (PostGIS)', () => {
           legalStatus: 'TITRE',
           source: 'Releve ANDF n. 2026/1187',
           documentDate: '2026-10-01',
+          titleNumber: 'TF 12345/RT',
           note: 'Copie certifiee recue au guichet',
         },
       });
@@ -166,10 +176,15 @@ describe('ParcelStatusService (PostGIS)', () => {
         legalStatus: 'EN_LITIGE',
         source: 'Tribunal de Lome, ordonnance 2026/88',
         documentDate: '2026-10-20',
+        disputeNote: 'Un voisin conteste la limite est.',
       });
       expect(result.warnings).toContain(
         'Parcelle signalee en litige par la source indiquee.',
       );
+      expect(result).toMatchObject({
+        titleNumber: null,
+        disputeNote: 'Un voisin conteste la limite est.',
+      });
     });
 
     it('efface source et date quand le statut redevient INCONNU', async () => {
@@ -183,6 +198,18 @@ describe('ParcelStatusService (PostGIS)', () => {
 
     it.each<[string, LegalStatusInput]>([
       ['un statut hors liste', { legalStatus: 'VENDU' as never }],
+      [
+        'un titre sans numero de titre',
+        { legalStatus: 'TITRE', source: 'ANDF', documentDate: '2026-10-01' },
+      ],
+      [
+        'un litige sans description',
+        {
+          legalStatus: 'EN_LITIGE',
+          source: 'ANDF',
+          documentDate: '2026-10-01',
+        },
+      ],
       [
         'un statut sans source',
         { legalStatus: 'TITRE', documentDate: '2026-10-01' },
@@ -231,7 +258,7 @@ describe('ParcelStatusService (PostGIS)', () => {
 
     it('repond 404 pour une parcelle inconnue', async () => {
       await expect(
-        status.setLegalStatus(admin, 'GS-2026-999999', {
+        status.setLegalStatus(admin, 'TG-AGO-99999', {
           legalStatus: 'INCONNU',
         }),
       ).rejects.toBeInstanceOf(NotFoundException);

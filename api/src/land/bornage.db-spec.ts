@@ -12,6 +12,7 @@ import { LandParcels1793102500000 } from './migrations/1793102500000-land-parcel
 import { ParcelStatusService } from './parcel-status.service';
 import {
   BornageInput,
+  BornageNeighbour,
   LandActor,
   ParcelService,
   normalizeBornage,
@@ -46,15 +47,38 @@ const author: LandActor = {
   registeredSurveyor: true,
 };
 
+// Voisins de la maquette T6.
+const neighbours: BornageNeighbour[] = [
+  {
+    name: 'Komlan Adjete',
+    phone: '+228 90 44 21 08',
+    side: 'N',
+    present: true,
+  },
+  { name: 'Abla Mensah', phone: '+228 91 07 66 34', side: 'E', present: true },
+  {
+    name: 'Famille Tchalla',
+    side: 'S',
+    present: false,
+    representedBy: 'Essowe T.',
+  },
+];
+
+function bornage(list: unknown[], heldAt = '2026-10-20'): BornageInput {
+  return { neighbours: list as BornageNeighbour[], heldAt };
+}
+
 describe('normalizeBornage', () => {
-  it('nettoie les noms et la date', () => {
+  it('nettoie les voisins et la date', () => {
     expect(
-      normalizeBornage({
-        neighboursPresent: ['  Kossi A. ', 'Ama B.'],
-        heldAt: '2026-10-20T09:30:00+00:00',
-      }),
+      normalizeBornage(
+        bornage(
+          [{ ...neighbours[0], name: '  Komlan Adjete ' }, neighbours[2]],
+          '2026-10-20T09:30:00+00:00',
+        ),
+      ),
     ).toEqual({
-      neighboursPresent: ['Kossi A.', 'Ama B.'],
+      neighbours: [neighbours[0], neighbours[2]],
       heldAt: '2026-10-20T09:30:00.000Z',
     });
   });
@@ -64,19 +88,19 @@ describe('normalizeBornage', () => {
   });
 
   it.each<[string, BornageInput]>([
-    ['un nom vide', { neighboursPresent: ['  '], heldAt: '2026-10-20' }],
+    ['un nom vide', bornage([{ ...neighbours[0], name: '  ' }])],
+    ['un cote inconnu', bornage([{ ...neighbours[0], side: 'NE' }])],
+    ['une presence absente', bornage([{ name: 'X', side: 'N' }])],
     [
-      'trop de voisins',
-      {
-        neighboursPresent: Array(21).fill('X') as string[],
-        heldAt: '2026-10-20',
-      },
+      'un telephone hors Togo',
+      bornage([{ ...neighbours[0], phone: '+33 6 12 34 56 78' }]),
     ],
-    ['une date illisible', { neighboursPresent: [], heldAt: 'hier' }],
-    ['une date future', { neighboursPresent: [], heldAt: '2999-01-01' }],
+    ['trop de voisins', bornage(Array(21).fill(neighbours[0]) as unknown[])],
+    ['une date illisible', bornage([], 'hier')],
+    ['une date future', bornage([], '2999-01-01')],
     [
       'une liste absente',
-      { neighboursPresent: 'Kossi' as never, heldAt: '2026-10-20' },
+      { neighbours: 'Kossi' as never, heldAt: '2026-10-20' },
     ],
   ])('refuse %s', (_label, input) => {
     expect(() => normalizeBornage(input)).toThrow(BadRequestException);
@@ -117,17 +141,15 @@ describe('bornage enregistre avec la version (PostGIS)', () => {
       author,
       {
         surveySessionId: randomUUID(),
+        commune: 'AGO',
         geometry: square(1.21),
         boundaries,
-        bornage: {
-          neighboursPresent: ['Kossi A.', 'Ama B.'],
-          heldAt: '2026-10-20T09:30:00Z',
-        },
+        bornage: bornage(neighbours, '2026-10-20T09:30:00Z'),
       },
       randomUUID(),
     );
     expect(created.bornage).toEqual({
-      neighboursPresent: ['Kossi A.', 'Ama B.'],
+      neighbours,
       heldAt: '2026-10-20T09:30:00.000Z',
     });
 
@@ -140,10 +162,18 @@ describe('bornage enregistre avec la version (PostGIS)', () => {
       { id: randomUUID(), role: 'ADMIN' },
       created.id,
     );
-    expect(forAdmin.bornage?.neighboursPresent).toEqual(['Kossi A.', 'Ama B.']);
-    expect(
-      JSON.stringify(await status.getPublicStatus(created.id)),
-    ).not.toContain('Kossi');
+    expect(forAdmin.bornage?.neighbours).toHaveLength(3);
+
+    // La page publique ne donne qu'un resume chiffre (maquette C1).
+    const publicStatus = await status.getPublicStatus(created.id);
+    expect(publicStatus.bornage).toEqual({
+      neighboursTotal: 3,
+      neighboursPresent: 2,
+      heldAt: '2026-10-20T09:30:00.000Z',
+    });
+    const text = JSON.stringify(publicStatus);
+    expect(text).not.toContain('Komlan');
+    expect(text).not.toContain('+228');
 
     const updated = await parcels.update(author, created.id, {
       expectedVersion: 1,
@@ -156,5 +186,6 @@ describe('bornage enregistre avec la version (PostGIS)', () => {
       [created.id],
     );
     expect(rows.map((r) => r.bornage === null)).toEqual([false, true]);
+    expect((await status.getPublicStatus(created.id)).versionsCount).toBe(2);
   });
 });

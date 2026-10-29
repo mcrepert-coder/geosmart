@@ -113,7 +113,12 @@ describe('Routes du module foncier (HTTP + PostGIS)', () => {
       .post('/parcels')
       .set(as(surveyor))
       .set('Idempotency-Key', randomUUID())
-      .send({ surveySessionId: randomUUID(), geometry: square, boundaries });
+      .send({
+        surveySessionId: randomUUID(),
+        commune: 'AGO',
+        geometry: square,
+        boundaries,
+      });
 
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ version: 1, certified: true });
@@ -125,7 +130,12 @@ describe('Routes du module foncier (HTTP + PostGIS)', () => {
       .post('/parcels')
       .set(as(surveyor))
       .set('Idempotency-Key', randomUUID())
-      .send({ surveySessionId: randomUUID(), geometry: square, boundaries });
+      .send({
+        surveySessionId: randomUUID(),
+        commune: 'AGO',
+        geometry: square,
+        boundaries,
+      });
     expect(res.status).toBe(409);
     expect(res.body).toMatchObject({ code: 'PARCEL_OVERLAP' });
   });
@@ -135,7 +145,12 @@ describe('Routes du module foncier (HTTP + PostGIS)', () => {
       .post('/parcels')
       .set(as(agent))
       .set('Idempotency-Key', randomUUID())
-      .send({ surveySessionId: randomUUID(), geometry: square, boundaries });
+      .send({
+        surveySessionId: randomUUID(),
+        commune: 'AGO',
+        geometry: square,
+        boundaries,
+      });
     expect(res.status).toBe(403);
   });
 
@@ -211,6 +226,7 @@ describe('Routes du module foncier (HTTP + PostGIS)', () => {
         legalStatus: 'TITRE',
         source: 'Releve ANDF n. 2026/1187',
         documentDate: '2026-10-01',
+        titleNumber: 'TF 12345/RT',
       });
     expect(put.status).toBe(200);
     expect(put.body).toMatchObject({ legalStatus: 'TITRE' });
