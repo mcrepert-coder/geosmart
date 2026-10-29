@@ -114,7 +114,7 @@ export class AttestationService {
   // EF-204, RG-03 : geometre inscrit, auteur, toutes bornes en RTK Fixed,
   // parcelle sans conflit. Une seule attestation par version de parcelle.
   async issue(actor: LandActor, parcelId: string): Promise<AttestationView> {
-    if (actor.role !== 'GEOMETRE') {
+    if (actor.role !== 'GEOMETRE' || actor.accountActive !== true) {
       throw await this.deny(actor, 'ATTESTATION_ISSUE', parcelId);
     }
 

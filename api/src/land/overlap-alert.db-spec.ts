@@ -45,8 +45,13 @@ const surveyor: LandActor = {
   id: randomUUID(),
   role: 'GEOMETRE',
   registeredSurveyor: true,
+  accountActive: true,
 };
-const admin: LandActor = { id: randomUUID(), role: 'ADMIN' };
+const admin: LandActor = {
+  id: randomUUID(),
+  role: 'ADMIN',
+  accountActive: true,
+};
 
 describe('OverlapAlertService (PostGIS)', () => {
   let db: PGlite;

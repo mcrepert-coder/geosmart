@@ -59,6 +59,7 @@ const surveyor: LandActor = {
   id: randomUUID(),
   role: 'GEOMETRE',
   registeredSurveyor: true,
+  accountActive: true,
 };
 
 describe('AttestationService (PostGIS)', () => {

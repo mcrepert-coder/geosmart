@@ -7,6 +7,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { DataSource, type QueryRunner } from 'typeorm';
 import { AuditLog1793102400000 } from '../../audit/migrations/1793102400000-audit-log';
+import { AuditLogAppendOnly1793103000000 } from '../../audit/migrations/1793103000000-audit-log-append-only';
 import type { SqlRunner } from '../../audit/sql-runner';
 import { LandModule } from '../land.module';
 import { LandAttestations1793102600000 } from '../migrations/1793102600000-land-attestations';
@@ -27,8 +28,9 @@ const surveyor = {
   id: randomUUID(),
   role: 'GEOMETRE',
   registeredSurveyor: true,
+  accountActive: true,
 };
-const admin = { id: randomUUID(), role: 'ADMIN' };
+const admin = { id: randomUUID(), role: 'ADMIN', accountActive: true };
 const agent = { id: randomUUID(), role: 'AGENT', accountActive: true };
 
 const square = {
@@ -68,6 +70,7 @@ describe('Routes du module foncier (HTTP + PostGIS)', () => {
     await new LandSurveyRequests1793102700000().up(qr);
     await new LandSurveyRequestClose1793102800000().up(qr);
     await new LandOverlapAlertReviews1793102900000().up(qr);
+    await new AuditLogAppendOnly1793103000000().up(qr);
 
     const moduleRef = await Test.createTestingModule({ imports: [LandModule] })
       .useMocker((token) => {
@@ -382,5 +385,51 @@ describe('Routes du module foncier (HTTP + PostGIS)', () => {
 
     const verify = await request(server()).get('/audit/verify').set(as(admin));
     expect(verify.body).toMatchObject({ valid: true });
+  });
+
+  it('un compte suspendu ne modifie rien mais peut encore lire', async () => {
+    const suspended = (user: Record<string, unknown>) =>
+      as({ ...user, accountActive: false });
+    const writes = [
+      request(server())
+        .post('/parcels')
+        .set(suspended(surveyor))
+        .set('Idempotency-Key', randomUUID())
+        .send({ commune: 'AGO', geometry: square, boundaries }),
+      request(server())
+        .patch(`/parcels/${parcelId}`)
+        .set(suspended(surveyor))
+        .send({ geometry: square, boundaries }),
+      request(server())
+        .post(`/parcels/${parcelId}/attestations`)
+        .set(suspended(surveyor)),
+      request(server())
+        .put(`/parcels/${parcelId}/status`)
+        .set(suspended(admin))
+        .send({ legalStatus: 'TITRE' }),
+      request(server())
+        .post(`/survey-requests/${randomUUID()}/take`)
+        .set(suspended(surveyor)),
+      request(server())
+        .post(`/survey-requests/${randomUUID()}/complete`)
+        .set(suspended(surveyor))
+        .send({}),
+      request(server())
+        .post(`/survey-requests/${randomUUID()}/cancel`)
+        .set(suspended(agent)),
+      request(server())
+        .post('/overlap-alerts/1/review')
+        .set(suspended(admin))
+        .send({}),
+    ];
+    for (const res of await Promise.all(writes)) {
+      expect(res.status).toBe(403);
+      expect(res.body).toMatchObject({ code: 'FORBIDDEN' });
+    }
+
+    const read = await request(server())
+      .get(`/parcels/${parcelId}`)
+      .set(suspended(surveyor));
+    expect(read.status).toBe(200);
   });
 });

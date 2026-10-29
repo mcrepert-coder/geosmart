@@ -205,7 +205,7 @@ export class SurveyRequestService {
   // Une demande ouverte ne peut etre prise qu'une fois, meme si deux
   // geometres cliquent en meme temps.
   async take(actor: LandActor, requestId: string): Promise<SurveyRequestView> {
-    if (actor.role !== 'GEOMETRE') {
+    if (actor.role !== 'GEOMETRE' || actor.accountActive !== true) {
       throw await this.deny(actor, 'SURVEY_REQUEST_TAKE', requestId);
     }
     if (!UUID.test(requestId ?? '')) throw this.notFound();
@@ -257,7 +257,7 @@ export class SurveyRequestService {
     requestId: string,
     parcelId?: string,
   ): Promise<SurveyRequestView> {
-    if (actor.role !== 'GEOMETRE') {
+    if (actor.role !== 'GEOMETRE' || actor.accountActive !== true) {
       throw await this.deny(actor, 'SURVEY_REQUEST_COMPLETE', requestId);
     }
     if (parcelId !== undefined && !isParcelId(parcelId)) {
@@ -283,7 +283,7 @@ export class SurveyRequestService {
     actor: LandActor,
     requestId: string,
   ): Promise<SurveyRequestView> {
-    if (actor.role !== 'AGENT') {
+    if (actor.role !== 'AGENT' || actor.accountActive !== true) {
       throw await this.deny(actor, 'SURVEY_REQUEST_CANCEL', requestId);
     }
     return this.transition(actor, requestId, {

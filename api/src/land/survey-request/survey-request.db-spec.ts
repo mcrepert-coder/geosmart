@@ -33,9 +33,21 @@ const otherAgent: LandActor = {
   role: 'AGENT',
   accountActive: true,
 };
-const surveyorA: LandActor = { id: randomUUID(), role: 'GEOMETRE' };
-const surveyorB: LandActor = { id: randomUUID(), role: 'GEOMETRE' };
-const admin: LandActor = { id: randomUUID(), role: 'ADMIN' };
+const surveyorA: LandActor = {
+  id: randomUUID(),
+  role: 'GEOMETRE',
+  accountActive: true,
+};
+const surveyorB: LandActor = {
+  id: randomUUID(),
+  role: 'GEOMETRE',
+  accountActive: true,
+};
+const admin: LandActor = {
+  id: randomUUID(),
+  role: 'ADMIN',
+  accountActive: true,
+};
 
 const request: SurveyRequestInput = {
   locality: ' Agoe, Lome ',

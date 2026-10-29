@@ -32,7 +32,8 @@ export interface LandActor {
   role: string;
   // Geometre inscrit a l'Ordre : seul cas ou une parcelle peut etre certifiee.
   registeredSurveyor?: boolean;
-  // Compte valide et actif (EF-301) : requis pour un agent.
+  // Compte valide et non suspendu (EF-301) : requis pour toute ecriture,
+  // quel que soit le role. Les lectures restent ouvertes.
   accountActive?: boolean;
 }
 
@@ -343,7 +344,7 @@ export class ParcelService {
     input: ParcelCreateInput,
     idempotencyKey: string,
   ): Promise<ParcelView> {
-    if (actor.role !== 'GEOMETRE') {
+    if (actor.role !== 'GEOMETRE' || actor.accountActive !== true) {
       throw await this.deny(actor, 'PARCEL_CREATE');
     }
     validateInput(input, idempotencyKey);
@@ -450,7 +451,7 @@ export class ParcelService {
     parcelId: string,
     input: ParcelUpdateInput,
   ): Promise<ParcelView> {
-    if (actor.role !== 'GEOMETRE') {
+    if (actor.role !== 'GEOMETRE' || actor.accountActive !== true) {
       throw await this.deny(actor, 'PARCEL_UPDATE', parcelId);
     }
     validateUpdate(input);

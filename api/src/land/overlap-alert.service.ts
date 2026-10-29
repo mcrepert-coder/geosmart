@@ -128,7 +128,7 @@ export class OverlapAlertService {
     auditSeq: string | number,
     note?: string,
   ): Promise<OverlapAlert> {
-    await this.requireAdmin(actor, 'OVERLAP_ALERT_REVIEW');
+    await this.requireAdmin(actor, 'OVERLAP_ALERT_REVIEW', true);
     const seq = Number(auditSeq);
     if (!Number.isInteger(seq) || seq < 1) throw this.notFound();
     if (note !== undefined && (typeof note !== 'string' || note.length > 500)) {
@@ -228,8 +228,15 @@ export class OverlapAlertService {
     };
   }
 
-  private async requireAdmin(actor: LandActor, operation: string) {
-    if (actor.role === 'ADMIN') return;
+  // Une ecriture exige en plus un compte actif (compte suspendu : 403).
+  private async requireAdmin(
+    actor: LandActor,
+    operation: string,
+    write = false,
+  ) {
+    if (actor.role === 'ADMIN' && (!write || actor.accountActive === true)) {
+      return;
+    }
     await this.audit.log({
       actorId: actor.id,
       actorRole: actor.role,

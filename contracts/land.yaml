@@ -24,6 +24,8 @@ info:
 
     Roles (RG-06, relus en base a chaque requete) : ADMIN, GEOMETRE, TOPOGRAPHE, AGENT, CLIENT.
     Toute route sans role autorise renvoie 403, sans jeton 401. Refus par defaut.
+    Toute ecriture (POST, PUT, PATCH) exige en plus un compte actif (accountActive = true dans
+    request.user) : un compte suspendu recoit 403 FORBIDDEN, mais peut encore lire.
 
 servers:
   - url: http://localhost:3001

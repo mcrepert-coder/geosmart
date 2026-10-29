@@ -46,6 +46,7 @@ const author: LandActor = {
   id: randomUUID(),
   role: 'GEOMETRE',
   registeredSurveyor: true,
+  accountActive: true,
 };
 
 describe('ParcelService.update et listVersions (PostGIS)', () => {

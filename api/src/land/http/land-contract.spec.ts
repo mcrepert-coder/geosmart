@@ -39,7 +39,7 @@ function codedRoutes(): Map<Route, string> {
   const routes = new Map<Route, string>();
   for (const controller of CONTROLLERS) {
     const base = Reflect.getMetadata(PATH_METADATA, controller) as string;
-    const proto = controller.prototype as Record<string, unknown>;
+    const proto = controller.prototype as unknown as Record<string, unknown>;
     for (const name of Object.getOwnPropertyNames(proto)) {
       const handler = proto[name];
       if (name === 'constructor' || typeof handler !== 'function') continue;

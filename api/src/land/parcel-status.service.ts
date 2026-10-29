@@ -222,7 +222,10 @@ export class ParcelStatusService {
     parcelId: string,
     input: LegalStatusInput,
   ): Promise<ParcelPublicStatus> {
-    if (!STATUS_EDITOR_ROLES.includes(actor.role)) {
+    if (
+      !STATUS_EDITOR_ROLES.includes(actor.role) ||
+      actor.accountActive !== true
+    ) {
       await this.audit.log({
         actorId: actor.id,
         actorRole: actor.role,
