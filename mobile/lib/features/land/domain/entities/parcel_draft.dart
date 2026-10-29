@@ -7,6 +7,10 @@ import 'bornage.dart';
 /// meme que le serveur, en attendant la liste officielle (issue #24).
 const Map<String, String> communes = {'AGO': 'Agoe-Nyive', 'LOM': 'Lome'};
 
+/// Plafond de bornes d'une parcelle, le meme que le serveur (MAX_VERTICES) :
+/// au-dela, POST et PATCH /parcels repondent 400.
+const int maxParcelPoints = 500;
+
 /// Statut juridique declare lors du leve (maquette T5).
 enum DeclaredStatus {
   titre('Titré', 'TITRE'),
@@ -22,6 +26,7 @@ enum DeclaredStatus {
 /// Ce qui empeche de mettre la parcelle en file d'envoi.
 enum DraftBlocker {
   tooFewPoints,
+  tooManyPoints,
   flatPolygon,
   selfIntersection,
   noCommune,
@@ -68,6 +73,7 @@ class ParcelDraft {
   /// modification (la commune et le statut ne changent pas).
   List<DraftBlocker> get geometryBlockers => [
     if (points.length < 3) DraftBlocker.tooFewPoints,
+    if (points.length > maxParcelPoints) DraftBlocker.tooManyPoints,
     if (metrics.selfIntersects) DraftBlocker.selfIntersection,
     if (points.length >= 3 && !metrics.selfIntersects && !metrics.isValid)
       DraftBlocker.flatPolygon,

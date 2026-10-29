@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/gnss_fix_quality.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_point.dart';
@@ -57,6 +59,22 @@ void main() {
       b3,
     ]).copyWith(declaredStatus: DeclaredStatus.titre);
     expect(titled.blockers, [DraftBlocker.noTitleNumber]);
+  });
+
+  test('bloque au-dela de 500 bornes, comme le serveur', () {
+    // Bornes posees sur un petit cercle : polygone valide, sans croisement.
+    List<SurveyPoint> circle(int n) => [
+      for (var i = 0; i < n; i++)
+        point(
+          i + 1,
+          6.13 + 0.001 * math.sin(2 * math.pi * i / n),
+          1.21 + 0.001 * math.cos(2 * math.pi * i / n),
+        ),
+    ];
+    expect(draft(circle(maxParcelPoints)).blockers, isEmpty);
+    final tooMany = draft(circle(maxParcelPoints + 1));
+    expect(tooMany.geometryBlockers, [DraftBlocker.tooManyPoints]);
+    expect(tooMany.canQueue, isFalse);
   });
 
   test('signale les cotes croises puis se corrige en reordonnant', () {

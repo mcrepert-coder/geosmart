@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/land_api.dart';
 import '../domain/entities/land_models.dart';
 import '../domain/entities/parcel_draft.dart';
+import 'land_errors.dart';
 import 'land_style.dart';
 import 'widgets/polygon_preview.dart';
 
@@ -57,25 +58,9 @@ class _EditParcelPageState extends State<EditParcelPage> {
       if (!mounted) return;
       setState(() {
         _sending = false;
-        _error = switch (e.code) {
-          'VERSION_CONFLICT' =>
-            'La parcelle a été modifiée entre-temps (version ${e.details?['currentVersion'] ?? '?'}). Rouvrez sa fiche pour partir de la dernière version.',
-          'PARCEL_OVERLAP' => _overlapMessage(e),
-          _ => e.message,
-        };
+        _error = landErrorMessage(e, action: LandAction.update);
       });
     }
-  }
-
-  // Meme ton que la maquette OverlapAlert : la regle et la suite, sans accuser.
-  String _overlapMessage(LandApiException e) {
-    final conflicts = (e.details?['conflicts'] as List?) ?? const [];
-    if (conflicts.isEmpty) return e.message;
-    final first = conflicts.first as Map<String, dynamic>;
-    final area = (first['overlapAreaM2'] as num?)?.toDouble();
-    return 'La nouvelle limite recouvre ${first['parcelId']}'
-        '${area == null ? '' : ' sur ${formatArea(area)}'}. '
-        'Vérifiez les bornes ou signalez un litige. L\'alerte a été journalisée.';
   }
 
   @override
@@ -141,6 +126,13 @@ class _EditParcelPageState extends State<EditParcelPage> {
                 if (crossing != null) ...[
                   const SizedBox(height: 8),
                   Text(crossing, style: TextStyle(color: colors.danger)),
+                ],
+                if (blockers.contains(DraftBlocker.tooManyPoints)) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Une parcelle a au plus $maxParcelPoints bornes. Retirez les bornes en trop.',
+                    style: TextStyle(color: colors.danger),
+                  ),
                 ],
                 const SizedBox(height: 20),
                 TextField(
