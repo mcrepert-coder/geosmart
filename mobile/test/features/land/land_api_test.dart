@@ -27,12 +27,12 @@ SurveyPoint point(int n, double lat, double lon) => SurveyPoint(
 final draft = ParcelDraft(
   surveySessionId: 'CH-2026-031',
   points: [point(1, 6.13, 1.21), point(2, 6.13, 1.211), point(3, 6.131, 1.211)],
-  commune: 'AGO',
+  commune: 'AG3',
   declaredStatus: DeclaredStatus.coutumier,
 );
 
 const parcelJson = {
-  'id': 'TG-AGO-00457',
+  'id': 'TG-AG3-00457',
   'version': 1,
   'geometry': {'type': 'Polygon', 'coordinates': []},
   'areaM2': 6121.3,
@@ -89,8 +89,8 @@ void main() {
     expect(r.url.toString(), 'http://api.test/parcels');
     expect(r.headers['Authorization'], 'Bearer jeton');
     expect(r.headers['Idempotency-Key'], 'cle-1');
-    expect(jsonDecode(r.body)['commune'], 'AGO');
-    expect(parcel.id, 'TG-AGO-00457');
+    expect(jsonDecode(r.body)['commune'], 'AG3');
+    expect(parcel.id, 'TG-AG3-00457');
     expect(parcel.surveyorId, 'g-1');
     expect(parcel.boundaries.single.isFixed, isTrue);
   });
@@ -102,7 +102,7 @@ void main() {
         'message': 'Cette parcelle recouvre une parcelle deja enregistree.',
         'details': {
           'conflicts': [
-            {'parcelId': 'TG-AGO-00412', 'overlapAreaM2': 18.4},
+            {'parcelId': 'TG-AG3-00412', 'overlapAreaM2': 18.4},
           ],
           'auditSeq': 4812,
         },
@@ -128,7 +128,7 @@ void main() {
     await expectLater(
       api(
         (_) async => throw const SocketException('hors ligne'),
-      ).getParcel('TG-AGO-00457'),
+      ).getParcel('TG-AG3-00457'),
       throwsA(
         isA<LandApiException>().having((e) => e.isNetwork, 'reseau', isTrue),
       ),
@@ -139,7 +139,7 @@ void main() {
     await expectLater(
       api(
         (_) async => http.Response('Bad Gateway', 502),
-      ).getParcel('TG-AGO-00457'),
+      ).getParcel('TG-AG3-00457'),
       throwsA(
         isA<LandApiException>().having((e) => e.code, 'code', 'HTTP_502'),
       ),
@@ -151,7 +151,7 @@ void main() {
       if (r.url.path.endsWith('/attestations')) {
         return json({
           'number': 'AT-2026-000031',
-          'parcelId': 'TG-AGO-00457',
+          'parcelId': 'TG-AG3-00457',
           'parcelVersion': 2,
           'geometryHash': 'x',
           'documentHash': 'y',
@@ -180,9 +180,9 @@ void main() {
       ], 200);
     });
 
-    final attestation = await client.issueAttestation('TG-AGO-00457');
+    final attestation = await client.issueAttestation('TG-AG3-00457');
     expect(attestation.number, 'AT-2026-000031');
-    final versions = await client.listVersions('TG-AGO-00457');
+    final versions = await client.listVersions('TG-AG3-00457');
     expect(versions.map((v) => v.version), [2, 1]);
     expect(versions.first.reason, 'Reprise B3');
   });

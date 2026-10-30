@@ -1,13 +1,13 @@
-// Identifiant public des maquettes v1.0 : TG-<commune>-<numero>, ex. TG-AGO-00457.
-// Le numero a 5 chiffres, 6 au-dela de 99 999 (question posee a LGR, #24).
-export const PARCEL_ID_PATTERN = /^TG-[A-Z]{3}-\d{5,6}$/;
+import communes from './communes.json';
 
-// Liste PROVISOIRE, limitee aux codes des maquettes, en attendant la liste
-// officielle des communes demandee a LGR (#24).
-export const COMMUNES: Record<string, string> = {
-  AGO: 'Agoe-Nyive',
-  LOM: 'Lome',
-};
+// Identifiant public : TG-<commune>-<numero>, ex. TG-AG3-00457. La commune
+// tient en 3 lettres ou chiffres (decision de LGR, #24).
+// Le numero a 5 chiffres, 6 au-dela de 99 999 (question posee a LGR, #24).
+export const PARCEL_ID_PATTERN = /^TG-[A-Z0-9]{3}-\d{5,6}$/;
+
+// Communes ouvertes (Grand Lome pour le pilote). Pour en ajouter une, ajouter
+// sa ligne dans communes.json, sans toucher au code (decision de LGR, #24).
+export const COMMUNES: Record<string, string> = communes;
 
 export function isCommuneCode(code: string): boolean {
   return Object.prototype.hasOwnProperty.call(COMMUNES, code);

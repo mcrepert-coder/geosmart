@@ -39,7 +39,7 @@ export type ApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; kind: "not-found" | "invalid" | "network"; message: string };
 
-export const PARCEL_ID_PATTERN = /^TG-[A-Z]{3}-\d{5,6}$/;
+export const PARCEL_ID_PATTERN = /^TG-[A-Z0-9]{3}-\d{5,6}$/;
 export const ATTESTATION_PATTERN = /^AT-\d{4}-\d{6}$/;
 
 // Sans NEXT_PUBLIC_API_URL, la page affiche des donnees d'exemple, clairement
@@ -91,8 +91,8 @@ export function verifyAttestation(
 const NOT_A_TITLE = "Ne vaut pas titre foncier.";
 
 const DEMO_PARCELS: Record<string, ParcelPublicStatus> = {
-  "TG-AGO-00457": {
-    id: "TG-AGO-00457",
+  "TG-AG3-00457": {
+    id: "TG-AG3-00457",
     legalStatus: "COUTUMIER_NON_TITRE",
     statusSource: "Declaration du chef de canton, PV 2026/41",
     statusDate: "2026-10-22",
@@ -107,8 +107,8 @@ const DEMO_PARCELS: Record<string, ParcelPublicStatus> = {
     updatedAt: "2026-10-24T09:42:00Z",
     warnings: [NOT_A_TITLE],
   },
-  "TG-AGO-00377": {
-    id: "TG-AGO-00377",
+  "TG-AG3-00377": {
+    id: "TG-AG3-00377",
     legalStatus: "EN_LITIGE",
     statusSource: "Tribunal de Lome, ordonnance 2026/88",
     statusDate: "2026-09-12",
@@ -128,8 +128,8 @@ const DEMO_PARCELS: Record<string, ParcelPublicStatus> = {
       NOT_A_TITLE,
     ],
   },
-  "TG-LOM-01188": {
-    id: "TG-LOM-01188",
+  "TG-GO1-01188": {
+    id: "TG-GO1-01188",
     legalStatus: "INCONNU",
     statusSource: null,
     statusDate: null,
@@ -178,7 +178,7 @@ function demoAttestation(
       number,
       valid: authentic,
       authentic,
-      parcelId: "TG-AGO-00457",
+      parcelId: "TG-AG3-00457",
       parcelVersion: 2,
       issuedAt: "2026-10-24T11:02:00Z",
       superseded: false,

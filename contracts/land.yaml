@@ -357,7 +357,7 @@ paths:
             schema:
               type: object
               properties:
-                parcelId: { type: string, example: TG-AGO-00457, description: Parcelle levee pour cette demande }
+                parcelId: { type: string, example: TG-AG3-00457, description: Parcelle levee pour cette demande }
       responses:
         '200':
           description: Demande terminee
@@ -532,8 +532,8 @@ components:
       name: parcelId
       in: path
       required: true
-      description: Identifiant public TG-<commune>-<numero> (maquettes v1.0), ex. TG-AGO-00457
-      schema: { type: string, pattern: '^TG-[A-Z]{3}-\d{5,6}$', example: TG-AGO-00457 }
+      description: Identifiant public TG-<commune>-<numero> (maquettes v1.0), ex. TG-AG3-00457
+      schema: { type: string, pattern: '^TG-[A-Z0-9]{3}-\d{5,6}$', example: TG-AG3-00457 }
     AttestationNumber:
       name: number
       in: path
@@ -614,8 +614,11 @@ components:
         surveySessionId: { type: string, format: uuid }
         commune:
           type: string
-          enum: [AGO, LOM]
-          description: Code de commune de l'identifiant TG-<commune>-<numero>. Liste provisoire en attendant la liste officielle (#24).
+          pattern: '^[A-Z0-9]{3}$'
+          example: AG3
+          description: >-
+            Code de commune de l'identifiant TG-<commune>-<numero>. Pilote Grand Lome : GO1 a GO7 (Golfe),
+            AG1 a AG6 (Agoe-Nyive), decision de LGR (#24). Un code absent de api/src/land/communes.json recoit 400.
         geometry: { $ref: '#/components/schemas/Polygon' }
         boundaries:
           type: array
@@ -643,7 +646,7 @@ components:
       type: object
       required: [id, version, geometry, areaM2, perimeterM, legalStatus, certified, createdAt]
       properties:
-        id: { type: string, example: TG-AGO-00457 }
+        id: { type: string, example: TG-AG3-00457 }
         version: { type: integer, example: 1 }
         geometry: { $ref: '#/components/schemas/Polygon' }
         areaM2: { type: number, example: 9912.4 }
@@ -694,7 +697,7 @@ components:
             type: object
             properties:
               type: { type: string, enum: [Feature] }
-              id: { type: string, example: TG-AGO-00457 }
+              id: { type: string, example: TG-AG3-00457 }
               geometry: { $ref: '#/components/schemas/Polygon' }
               properties:
                 type: object
@@ -707,7 +710,7 @@ components:
       type: object
       required: [id, legalStatus, certified, warnings]
       properties:
-        id: { type: string, example: TG-AGO-00457 }
+        id: { type: string, example: TG-AG3-00457 }
         legalStatus: { $ref: '#/components/schemas/LegalStatus' }
         statusSource: { type: string, nullable: true, example: "Releve ANDF n. 2026/1187" }
         statusDate: { type: string, format: date, nullable: true }
@@ -748,7 +751,7 @@ components:
       required: [number, parcelId, parcelVersion, geometryHash, documentHash, issuedAt, mention]
       properties:
         number: { type: string, example: AT-2026-000037 }
-        parcelId: { type: string, example: TG-AGO-00457 }
+        parcelId: { type: string, example: TG-AG3-00457 }
         parcelVersion: { type: integer, example: 1 }
         geometryHash: { type: string }
         documentHash: { type: string, description: SHA-256 du PDF }
@@ -817,7 +820,7 @@ components:
             type: object
             required: [parcelId, overlapAreaM2]
             properties:
-              parcelId: { type: string, example: TG-AGO-00412 }
+              parcelId: { type: string, example: TG-AG3-00412 }
               overlapAreaM2: { type: number, example: 18.4 }
               version: { type: integer, nullable: true }
               legalStatus: { type: string, nullable: true, description: "TITRE, COUTUMIER_NON_TITRE, EN_LITIGE ou INCONNU" }
@@ -879,7 +882,7 @@ components:
         message: "Cette parcelle recouvre une parcelle deja enregistree. Verifiez les bornes avec le geometre."
         details:
           conflicts:
-            - parcelId: TG-AGO-00412
+            - parcelId: TG-AG3-00412
               overlapAreaM2: 42.7
           auditSeq: 1205
 

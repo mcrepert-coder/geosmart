@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import type { QueryRunner } from 'typeorm';
 import { LandParcels1793102500000 } from '../migrations/1793102500000-land-parcels';
+import { LandParcelIdFormat1793103100000 } from '../migrations/1793103100000-land-parcel-id-format';
 import type { SqlRunner } from '../../audit/sql-runner';
 import { ParcelGeometryService } from './parcel-geometry.service';
 
@@ -40,12 +41,15 @@ describe('ParcelGeometryService (PostGIS)', () => {
     db = new PGlite({ extensions: { postgis } });
     runner = { query: (sql, params) => db.query(sql, params) };
     await new LandParcels1793102500000().up(runner as unknown as QueryRunner);
+    await new LandParcelIdFormat1793103100000().up(
+      runner as unknown as QueryRunner,
+    );
     const checked = await service.check(runner, base);
     await db.query(
       `INSERT INTO parcels (id, geom, area_m2, perimeter_m, geometry_hash,
          surveyor_id, survey_session_id, idempotency_key, commune)
-       VALUES ('TG-AGO-00001', ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
-         $2, $3, $4, gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'AGO')`,
+       VALUES ('TG-AG3-00001', ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
+         $2, $3, $4, gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'AG3')`,
       [
         JSON.stringify(checked.polygon),
         checked.areaM2,
@@ -119,7 +123,7 @@ describe('ParcelGeometryService (PostGIS)', () => {
         (await service.check(runner, shifted)).polygon,
       );
       expect(conflicts).toHaveLength(1);
-      expect(conflicts[0].parcelId).toBe('TG-AGO-00001');
+      expect(conflicts[0].parcelId).toBe('TG-AG3-00001');
       // Un quart du carre recouvert : environ 3 060 m2.
       expect(conflicts[0].overlapAreaM2).toBeGreaterThan(2900);
       expect(conflicts[0].overlapAreaM2).toBeLessThan(3200);
@@ -171,7 +175,7 @@ describe('ParcelGeometryService (PostGIS)', () => {
         await service.findOverlaps(
           runner,
           (await service.check(runner, moved)).polygon,
-          'TG-AGO-00001',
+          'TG-AG3-00001',
         ),
       ).toEqual([]);
     });
@@ -191,14 +195,14 @@ describe('ParcelGeometryService (PostGIS)', () => {
 
   it('formate le 409 du contrat', () => {
     const error = service.overlapError(
-      [{ parcelId: 'TG-AGO-00001', overlapAreaM2: 42.7 }],
+      [{ parcelId: 'TG-AG3-00001', overlapAreaM2: 42.7 }],
       1205,
     );
     expect(error).toBeInstanceOf(ConflictException);
     expect(error.getResponse()).toMatchObject({
       code: 'PARCEL_OVERLAP',
       details: {
-        conflicts: [{ parcelId: 'TG-AGO-00001', overlapAreaM2: 42.7 }],
+        conflicts: [{ parcelId: 'TG-AG3-00001', overlapAreaM2: 42.7 }],
         auditSeq: 1205,
       },
     });

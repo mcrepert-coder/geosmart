@@ -14,6 +14,7 @@ import { AuditService } from '../audit/audit.service';
 import type { SqlRunner } from '../audit/sql-runner';
 import { ParcelGeometryService } from './geometry/parcel-geometry.service';
 import { LandParcels1793102500000 } from './migrations/1793102500000-land-parcels';
+import { LandParcelIdFormat1793103100000 } from './migrations/1793103100000-land-parcel-id-format';
 import { LandOverlapAlertReviews1793102900000 } from './migrations/1793102900000-land-overlap-alert-reviews';
 import { OverlapAlertService } from './overlap-alert.service';
 import { LandActor, ParcelService, ParcelView } from './parcel.service';
@@ -65,7 +66,7 @@ describe('OverlapAlertService (PostGIS)', () => {
       surveyor,
       {
         surveySessionId: randomUUID(),
-        commune: 'AGO',
+        commune: 'AG3',
         geometry: square(lon, 6.13),
         boundaries,
       },
@@ -80,6 +81,7 @@ describe('OverlapAlertService (PostGIS)', () => {
     const qr = runner as unknown as QueryRunner;
     await new AuditLog1793102400000().up(qr);
     await new LandParcels1793102500000().up(qr);
+    await new LandParcelIdFormat1793103100000().up(qr);
     await new LandOverlapAlertReviews1793102900000().up(qr);
     const dataSource = {
       query: (sql: string, params?: unknown[]) => runner.query(sql, params),

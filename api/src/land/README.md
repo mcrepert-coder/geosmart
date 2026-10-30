@@ -46,7 +46,7 @@ Le role est verifie et journalise par les services, jamais par l'interface seule
 
 ## Regles importantes
 
-- **Identifiant** : `TG-<commune>-<numero>` (ex. `TG-AGO-00457`), compteur par commune. Liste des communes provisoire dans `parcel-id.ts` (`AGO`, `LOM`).
+- **Identifiant** : `TG-<commune>-<numero>` (ex. `TG-AG3-00457`), compteur par commune. Les 13 communes du pilote sont dans `communes.json` ; pour en ajouter une, ajouter sa ligne dans ce fichier et dans `communes` de `parcel_draft.dart` (mobile), sinon `communes_test.dart` echoue.
 - **Geometrie** : GeoJSON en WGS84 (EPSG:4326), ordre `[longitude, latitude]`, de 3 a 500 sommets. Surface et perimetre calcules en UTM 31N (EPSG:32631). L'application mobile fait le meme calcul (`mobile/lib/features/land/domain/geometry/utm.dart`), verifie contre PostGIS au millimetre.
 - **Chevauchement** : refus 409 si l'interieur de deux parcelles se recoupe ; une limite ou un sommet commun est accepte. Tolerance reglable par `LAND_OVERLAP_TOLERANCE_M2` (0 par defaut). Le refus est journalise avec la geometrie proposee, pour l'ecran W3.
 - **Certification** : une parcelle est certifiee seulement si le geometre est inscrit a l'Ordre et si toutes les bornes sont en RTK Fixed (RG-03).
@@ -100,4 +100,4 @@ Apercu des ecrans mobiles avec des donnees d'exemple : `flutter run -t lib/featu
 | Photos du bornage | sur le serveur, plus tard | a faire ; voisins et date seulement pour l'instant |
 | Demandes de leve TERMINEE et ANNULEE | le geometre termine, l'agent annule tant que la demande est ouverte | fait (`complete`, `cancel`) |
 | Attestation | nom du geometre et numero d'inscription a l'Ordre | fait : imprimes des que `request.user` porte `fullName` et `ordreNumber` (#23) ; sinon identifiant du compte |
-| Liste officielle des communes | sans reponse | liste provisoire `AGO`, `LOM` |
+| Liste des communes | Grand Lome : `GO1` a `GO7`, `AG1` a `AG6`, format `[A-Z0-9]{3}` | fait (`communes.json`) |

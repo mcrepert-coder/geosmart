@@ -13,7 +13,7 @@ import 'package:http/testing.dart';
 
 // Reponse du serveur pour la maquette C1 (parcelle en litige).
 const litige = {
-  'id': 'TG-AGO-00377',
+  'id': 'TG-AG3-00377',
   'legalStatus': 'EN_LITIGE',
   'statusSource': 'Tribunal de Lome, ordonnance 2026/88',
   'statusDate': '2026-09-12',
@@ -41,7 +41,7 @@ class FakeServer {
   http.Client get client => MockClient((request) async {
     requested.add(request.url);
     if (!online) throw const SocketException('hors ligne');
-    if (request.url.path == '/parcels/TG-AGO-00377/status') {
+    if (request.url.path == '/parcels/TG-AG3-00377/status') {
       return http.Response(
         jsonEncode(litige),
         200,
@@ -62,10 +62,10 @@ void main() {
       final status = await ParcelStatusApi(
         server.client,
         baseUrl: 'http://api.test/',
-      ).fetch('TG-AGO-00377');
+      ).fetch('TG-AG3-00377');
       expect(
         server.requested.single.toString(),
-        'http://api.test/parcels/TG-AGO-00377/status',
+        'http://api.test/parcels/TG-AG3-00377/status',
       );
       expect(status.inDispute, isTrue);
       expect(status.bornage, (neighboursTotal: 3, neighboursPresent: 2));
@@ -79,7 +79,7 @@ void main() {
       final server = FakeServer();
       final api = ParcelStatusApi(server.client, baseUrl: 'http://api.test');
       await expectLater(
-        api.fetch('TG-AGO-99999'),
+        api.fetch('TG-AG3-99999'),
         throwsA(
           isA<ParcelStatusException>().having(
             (e) => e.kind,
@@ -90,7 +90,7 @@ void main() {
       );
       server.online = false;
       await expectLater(
-        api.fetch('TG-AGO-00377'),
+        api.fetch('TG-AG3-00377'),
         throwsA(
           isA<ParcelStatusException>().having(
             (e) => e.kind,
@@ -113,13 +113,13 @@ void main() {
         clock: () => consulted,
       );
 
-      expect(await check('TG-AGO-00377'), isA<FreshResult>());
+      expect(await check('TG-AG3-00377'), isA<FreshResult>());
       server.online = false;
-      final offline = await check('TG-AGO-00377');
+      final offline = await check('TG-AG3-00377');
       expect(offline, isA<OfflineResult>());
       expect((offline as OfflineResult).cached.consultedAt, consulted);
 
-      final unknown = await check('TG-AGO-00457');
+      final unknown = await check('TG-AG3-00457');
       expect(
         unknown,
         isA<CheckFailed>().having(
@@ -157,11 +157,11 @@ void main() {
 
     testWidgets('affiche le resultat de la maquette C1', (tester) async {
       await pump(tester, MemoryParcelStatusCache());
-      await tester.enterText(find.byType(TextField), 'tg-ago-00377');
+      await tester.enterText(find.byType(TextField), 'tg-ag3-00377');
       await tester.tap(find.text('Vérifier'));
       await tester.pumpAndSettle();
 
-      expect(find.text('TG-AGO-00377'), findsWidgets);
+      expect(find.text('TG-AG3-00377'), findsWidgets);
       expect(find.text('En litige'), findsOneWidget);
       expect(find.text('Non certifiée'), findsOneWidget);
       expect(find.text('14/10/2026 · v3'), findsOneWidget);
@@ -181,7 +181,7 @@ void main() {
 
     testWidgets('refuse un identifiant mal forme', (tester) async {
       final server = await pump(tester, MemoryParcelStatusCache());
-      await tester.enterText(find.byType(TextField), 'AGO-457');
+      await tester.enterText(find.byType(TextField), 'AG3-457');
       await tester.tap(find.text('Vérifier'));
       await tester.pump();
       expect(find.textContaining('Format attendu'), findsOneWidget);

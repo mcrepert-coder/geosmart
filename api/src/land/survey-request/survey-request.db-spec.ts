@@ -13,6 +13,7 @@ import { AuditLog1793102400000 } from '../../audit/migrations/1793102400000-audi
 import { AuditService } from '../../audit/audit.service';
 import type { SqlRunner } from '../../audit/sql-runner';
 import { LandParcels1793102500000 } from '../migrations/1793102500000-land-parcels';
+import { LandParcelIdFormat1793103100000 } from '../migrations/1793103100000-land-parcel-id-format';
 import { LandSurveyRequests1793102700000 } from '../migrations/1793102700000-land-survey-requests';
 import { LandSurveyRequestClose1793102800000 } from '../migrations/1793102800000-land-survey-request-close';
 import type { LandActor } from '../parcel.service';
@@ -76,6 +77,7 @@ describe('SurveyRequestService (PostGIS)', () => {
     const qr = runner as unknown as QueryRunner;
     await new AuditLog1793102400000().up(qr);
     await new LandParcels1793102500000().up(qr);
+    await new LandParcelIdFormat1793103100000().up(qr);
     await new LandSurveyRequests1793102700000().up(qr);
     await new LandSurveyRequestClose1793102800000().up(qr);
     const dataSource = {
@@ -253,7 +255,7 @@ describe('SurveyRequestService (PostGIS)', () => {
         service.complete(surveyorA, created.id, 'GS-2026-000001'),
       ).rejects.toBeInstanceOf(BadRequestException);
       await expect(
-        service.complete(surveyorA, created.id, 'TG-AGO-99999'),
+        service.complete(surveyorA, created.id, 'TG-AG3-99999'),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 

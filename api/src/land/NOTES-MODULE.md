@@ -23,7 +23,6 @@ Le detail (routes, regles, branchement, decisions de LGR) est dans `README.md`.
 - Refus de chevauchement dans la file d'envoi mobile : file de synchronisation de Beni.
 - Ecrans d'administration web (alertes W3, journal) : squelette admin de Marrich.
 - Photos du bornage : "plus tard" selon LGR.
-- Liste officielle des communes : sans reponse de LGR (provisoire `AGO`, `LOM`).
 - Note de litige visible sur la page publique : question 8 posee a LGR (#24).
 - Limite du nombre de requetes sur les routes publiques : `main.ts` de Marrich.
 

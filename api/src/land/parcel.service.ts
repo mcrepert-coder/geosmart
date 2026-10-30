@@ -46,7 +46,7 @@ export interface ParcelCreateInput {
   surveySessionId: string;
   geometry: unknown;
   boundaries: ParcelBoundary[];
-  // Code de commune de l'identifiant TG-<commune>-<numero> (ex. AGO).
+  // Code de commune de l'identifiant TG-<commune>-<numero> (ex. AG3).
   commune: string;
   locality?: string;
   bornage?: BornageInput;

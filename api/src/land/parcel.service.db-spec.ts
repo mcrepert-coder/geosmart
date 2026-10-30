@@ -14,6 +14,7 @@ import { AuditService } from '../audit/audit.service';
 import type { SqlRunner } from '../audit/sql-runner';
 import { ParcelGeometryService } from './geometry/parcel-geometry.service';
 import { LandParcels1793102500000 } from './migrations/1793102500000-land-parcels';
+import { LandParcelIdFormat1793103100000 } from './migrations/1793103100000-land-parcel-id-format';
 import type { ParcelBoundary } from './parcel-version.entity';
 import { LandActor, ParcelCreateInput, ParcelService } from './parcel.service';
 
@@ -48,7 +49,7 @@ function boundaries(fix: ParcelBoundary['fixQuality'] = 'FIXED') {
 function input(geometry: unknown, fix?: ParcelBoundary['fixQuality']) {
   return {
     surveySessionId: randomUUID(),
-    commune: 'AGO',
+    commune: 'AG3',
     geometry,
     boundaries: boundaries(fix),
     locality: 'Agoe, Lome',
@@ -92,6 +93,7 @@ describe('ParcelService.create (PostGIS)', () => {
     const qr = runner as unknown as QueryRunner;
     await new AuditLog1793102400000().up(qr);
     await new LandParcels1793102500000().up(qr);
+    await new LandParcelIdFormat1793103100000().up(qr);
 
     const dataSource = {
       query: (sql: string, params?: unknown[]) => runner.query(sql, params),
@@ -115,7 +117,7 @@ describe('ParcelService.create (PostGIS)', () => {
       randomUUID(),
     );
 
-    expect(parcel.id).toBe('TG-AGO-00001');
+    expect(parcel.id).toBe('TG-AG3-00001');
     expect(parcel.version).toBe(1);
     expect(parcel.certified).toBe(true);
     expect(parcel.legalStatus).toBe('INCONNU');
@@ -282,10 +284,10 @@ describe('ParcelService.create (PostGIS)', () => {
   it('numerote chaque commune separement', async () => {
     const lome = await service.create(
       surveyor,
-      { ...input(square(2.1, 6.4)), commune: 'LOM' },
+      { ...input(square(2.1, 6.4)), commune: 'GO1' },
       randomUUID(),
     );
-    expect(lome.id).toBe('TG-LOM-00001');
+    expect(lome.id).toBe('TG-GO1-00001');
   });
 
   it('refuse une commune hors de la liste (400)', async () => {
