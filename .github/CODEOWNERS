@@ -23,7 +23,7 @@
 /api/test/land/                     @NegusMasseme
 /api/test/audit/                    @NegusMasseme
 /contracts/land.yaml                @NegusMasseme
-/web/parcelle/                      @NegusMasseme
+/web/src/app/parcelle/              @NegusMasseme
 /mobile/lib/features/land/                                  @NegusMasseme
 /mobile/test/features/land/                                 @NegusMasseme
 
