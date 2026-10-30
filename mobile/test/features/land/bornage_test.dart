@@ -122,7 +122,7 @@ void main() {
               point(2, 6.13, 1.211),
               point(3, 6.131, 1.211),
             ],
-            commune: 'AGO',
+            commune: 'AG3',
             declaredStatus: DeclaredStatus.coutumier,
           ).copyWith(
             bornage: Bornage(neighbours: const [komlan, abla], heldAt: heldAt),

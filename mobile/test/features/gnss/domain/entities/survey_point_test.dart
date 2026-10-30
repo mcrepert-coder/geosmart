@@ -147,10 +147,10 @@ void main() {
     });
   });
 
-  group('SurveyPoint - Payload Sync (RG-08 / contracts/survey.md)', () {
+  group('SurveyPoint - Payload de mission (RG-08 / contracts/survey.md)', () {
     final now = DateTime.utc(2026, 10, 25, 14, 32);
 
-    test('toSyncPayload genere la structure attendue par POST /sync', () {
+    test('toPayload genere les champs attendus dans une mission', () {
       final point = SurveyPoint(
         id: 'local-1',
         clientId: 'uuid-sync-1',
@@ -171,14 +171,9 @@ void main() {
         recordedAt: now,
       );
 
-      final syncPayload = point.toSyncPayload();
+      final payload = point.toPayload();
 
-      expect(syncPayload['clientId'], 'uuid-sync-1');
-      expect(syncPayload['entityType'], 'survey_point');
-      expect(syncPayload['action'], 'CREATE');
-
-      final payload = syncPayload['payload'] as Map<String, dynamic>;
-      expect(payload['projectId'], 'proj-1');
+      expect(payload['clientId'], 'uuid-sync-1');
       expect(payload['pointNumber'], 1);
       expect(payload['pointName'], 'B1');
       expect(payload['latitude'], 6.137254);
@@ -188,6 +183,7 @@ void main() {
       expect(payload['satellitesCount'], 18);
       expect(payload['pdop'], 1.2);
       expect(payload['isValidated'], true);
+      expect(payload.containsKey('entityType'), isFalse);
     });
 
     test('toMap et fromMap pour SQLite sont symetriques', () {
@@ -223,4 +219,3 @@ void main() {
     });
   });
 }
-

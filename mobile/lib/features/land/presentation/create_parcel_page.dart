@@ -386,6 +386,11 @@ class _GeometryStatus extends StatelessWidget {
         colors.textMuted,
         'Relevez au moins 3 bornes pour fermer la parcelle.',
       ),
+      _ when draft.blockers.contains(DraftBlocker.tooManyPoints) => (
+        Icons.error_outline,
+        colors.danger,
+        'Une parcelle a au plus $maxParcelPoints bornes. Retirez les bornes en trop.',
+      ),
       _ when crossing != null => (Icons.error_outline, colors.danger, crossing),
       _ when draft.blockers.contains(DraftBlocker.flatPolygon) => (
         Icons.error_outline,
@@ -437,6 +442,7 @@ class _BottomActions extends StatelessWidget {
     if (b.isEmpty) return null;
     return switch (b.first) {
       DraftBlocker.tooFewPoints => 'Il faut au moins 3 bornes.',
+      DraftBlocker.tooManyPoints => 'Il faut au plus $maxParcelPoints bornes.',
       DraftBlocker.flatPolygon => 'Les bornes doivent former une surface.',
       DraftBlocker.selfIntersection => 'Corrigez l\'ordre des bornes.',
       DraftBlocker.noCommune => 'Choisissez la commune.',

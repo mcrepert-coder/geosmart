@@ -11,7 +11,7 @@ import 'package:http/testing.dart';
 // Parcelle de la maquette BottomSheet ; le geometre n'est renvoye qu'a
 // l'auteur et a l'administrateur.
 Map<String, dynamic> parcel({bool withSurveyor = true}) => {
-  'id': 'TG-AGO-00398',
+  'id': 'TG-AG3-00398',
   'version': 2,
   'areaM2': 612.4,
   'perimeterM': 101.8,
@@ -77,7 +77,7 @@ Future<void> pump(
     MaterialApp(
       home: Scaffold(
         body: ParcelSheet(
-          parcelId: 'TG-AGO-00398',
+          parcelId: 'TG-AG3-00398',
           api: api,
           viewer: viewer,
           onEdit: (ParcelInfo p) => actions?.add('modifier ${p.id}'),
@@ -98,7 +98,7 @@ void main() {
       actions: actions,
     );
 
-    expect(find.text('TG-AGO-00398'), findsOneWidget);
+    expect(find.text('TG-AG3-00398'), findsOneWidget);
     expect(find.text('Coutumier non titré'), findsOneWidget);
     expect(find.text('Non certifiée'), findsOneWidget);
     expect(find.text('3 / 4 bornes Fixed'), findsOneWidget);
@@ -110,7 +110,7 @@ void main() {
 
     await tester.tap(find.text('Modifier'));
     await tester.tap(find.text('Attestation de levé'));
-    expect(actions, ['modifier TG-AGO-00398', 'attestation TG-AGO-00398']);
+    expect(actions, ['modifier TG-AG3-00398', 'attestation TG-AG3-00398']);
 
     await tester.tap(find.text('Historique'));
     await tester.pumpAndSettle();
@@ -142,7 +142,7 @@ void main() {
       await pump(tester, LandViewer(id: 'x', role: role), withSurveyor: false);
       expect(find.byType(OutlinedButton), findsNothing, reason: role);
       expect(find.byType(FilledButton), findsNothing, reason: role);
-      expect(find.text('TG-AGO-00398'), findsOneWidget, reason: role);
+      expect(find.text('TG-AG3-00398'), findsOneWidget, reason: role);
     }
   });
 }

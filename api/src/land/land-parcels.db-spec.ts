@@ -4,6 +4,7 @@ import type { PGlite } from '@electric-sql/pglite' with {
 import type { QueryRunner } from 'typeorm';
 import { AuditLog1793102400000 } from '../audit/migrations/1793102400000-audit-log';
 import { LandParcels1793102500000 } from './migrations/1793102500000-land-parcels';
+import { LandParcelIdFormat1793103100000 } from './migrations/1793103100000-land-parcel-id-format';
 
 // Lance avec `npm run test:db` : PGlite (PostgreSQL + PostGIS en WebAssembly)
 // est un module ESM, charge par import() dynamique.
@@ -39,6 +40,7 @@ describe('migration des parcelles (PostGIS)', () => {
   let runner: QueryRunner;
   const audit = new AuditLog1793102400000();
   const land = new LandParcels1793102500000();
+  const idFormat = new LandParcelIdFormat1793103100000();
 
   beforeAll(async () => {
     const { PGlite } = await import('@electric-sql/pglite');
@@ -49,6 +51,7 @@ describe('migration des parcelles (PostGIS)', () => {
     } as unknown as QueryRunner;
     await audit.up(runner);
     await land.up(runner);
+    await idFormat.up(runner);
   });
 
   afterAll(async () => {
@@ -57,38 +60,39 @@ describe('migration des parcelles (PostGIS)', () => {
 
   it('accepte une parcelle valide', async () => {
     await expect(
-      db.query(insertParcel('TG-AGO-00001', SQUARE)),
+      db.query(insertParcel('TG-AG3-00001', SQUARE)),
     ).resolves.toBeDefined();
   });
 
   it.each([
-    ['un polygone auto-intersecte', insertParcel('TG-AGO-00002', BOWTIE)],
+    ['un polygone auto-intersecte', insertParcel('TG-AG3-00002', BOWTIE)],
     ['un identifiant mal forme', insertParcel('GS-26-1', SQUARE)],
+    ['une commune en minuscules', insertParcel('TG-ag3-00008', SQUARE)],
     [
       'un statut juridique sans source',
-      insertParcel('TG-AGO-00003', SQUARE, 'TITRE'),
+      insertParcel('TG-AG3-00003', SQUARE, 'TITRE'),
     ],
     [
       'une commune differente de l identifiant',
-      insertParcel('TG-AGO-00007', SQUARE, 'INCONNU', 'LOM'),
+      insertParcel('TG-AG3-00007', SQUARE, 'INCONNU', 'GO1'),
     ],
     [
       'un titre sans numero de titre',
       `UPDATE parcels SET legal_status = 'TITRE', status_source = 'ANDF',
-         status_date = '2026-10-01' WHERE id = 'TG-AGO-00001'`,
+         status_date = '2026-10-01' WHERE id = 'TG-AG3-00001'`,
     ],
-    ['un statut hors liste', insertParcel('TG-AGO-00004', SQUARE, 'VENDU')],
+    ['un statut hors liste', insertParcel('TG-AG3-00004', SQUARE, 'VENDU')],
     [
       'un point au lieu d un polygone',
       insertParcel(
-        'TG-AGO-00005',
+        'TG-AG3-00005',
         'ST_SetSRID(ST_MakePoint(1.21, 6.13), 4326)',
       ),
     ],
     [
       'un autre systeme de reference',
       insertParcel(
-        'TG-AGO-00006',
+        'TG-AG3-00006',
         "ST_GeomFromText('POLYGON((0 0,1 0,1 1,0 0))', 32631)",
       ),
     ],
@@ -98,20 +102,20 @@ describe('migration des parcelles (PostGIS)', () => {
 
   it('refuse une version avec moins de 3 bornes', async () => {
     await expect(
-      db.query(insertVersion('TG-AGO-00001', '[{},{}]')),
+      db.query(insertVersion('TG-AG3-00001', '[{},{}]')),
     ).rejects.toThrow();
   });
 
   it('accepte une version puis refuse son doublon', async () => {
-    await db.query(insertVersion('TG-AGO-00001', '[{},{},{},{}]'));
+    await db.query(insertVersion('TG-AG3-00001', '[{},{},{},{}]'));
     await expect(
-      db.query(insertVersion('TG-AGO-00001', '[{},{},{}]')),
+      db.query(insertVersion('TG-AG3-00001', '[{},{},{}]')),
     ).rejects.toThrow();
   });
 
   it("refuse la version d'une parcelle inconnue", async () => {
     await expect(
-      db.query(insertVersion('TG-AGO-99999', '[{},{},{}]')),
+      db.query(insertVersion('TG-AG3-99999', '[{},{},{}]')),
     ).rejects.toThrow();
   });
 
@@ -124,6 +128,7 @@ describe('migration des parcelles (PostGIS)', () => {
 
   it('annule proprement les migrations', async () => {
     await db.exec('DELETE FROM parcel_versions; DELETE FROM parcels');
+    await idFormat.down(runner);
     await land.down(runner);
     await audit.down(runner);
     const { rows } = await db.query<{ n: number }>(

@@ -73,7 +73,7 @@ void main() {
       ParcelDraft(
         surveySessionId: 'chantier-1',
         points: square,
-        commune: 'AGO',
+        commune: 'AG3',
       ),
     );
 
@@ -99,7 +99,7 @@ void main() {
       ParcelDraft(
         surveySessionId: 'chantier-1',
         points: square,
-        commune: 'AGO',
+        commune: 'AG3',
       ),
     );
     await tester.tap(find.text('Titré'));
@@ -117,7 +117,7 @@ void main() {
       ParcelDraft(
         surveySessionId: 'chantier-1',
         points: [square[0], square[2], square[1], square[3]],
-        commune: 'AGO',
+        commune: 'AG3',
         declaredStatus: DeclaredStatus.coutumier,
       ),
     );

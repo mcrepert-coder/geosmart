@@ -58,7 +58,7 @@ export function ParcelLookup() {
   function validate(id: string): string | null {
     if (id === "") return "Saisissez l'identifiant de la parcelle.";
     if (!PARCEL_ID_PATTERN.test(id)) {
-      return "Format attendu : TG, la commune et le numéro, par exemple TG-AGO-00457.";
+      return "Format attendu : TG, la commune et le numéro, par exemple TG-AG3-00457.";
     }
     return null;
   }
@@ -91,7 +91,7 @@ export function ParcelLookup() {
             id="parcel-id"
             name="id"
             className="gs-input gs-mono"
-            placeholder="TG-AGO-00457"
+            placeholder="TG-AG3-00457"
             autoComplete="off"
             autoCapitalize="characters"
             spellCheck={false}

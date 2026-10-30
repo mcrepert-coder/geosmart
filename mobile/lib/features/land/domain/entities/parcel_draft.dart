@@ -3,9 +3,28 @@ import '../../../gnss/domain/entities/survey_point.dart';
 import '../geometry/polygon_metrics.dart';
 import 'bornage.dart';
 
-/// Communes de l'identifiant `TG-<commune>-<numero>`. Liste PROVISOIRE, la
-/// meme que le serveur, en attendant la liste officielle (issue #24).
-const Map<String, String> communes = {'AGO': 'Agoe-Nyive', 'LOM': 'Lome'};
+/// Communes de l'identifiant `TG-<commune>-<numero>` (Grand Lome pour le
+/// pilote, issue #24). Copie de `api/src/land/communes.json`, car le telephone
+/// doit les proposer sans reseau : `communes_test.dart` echoue si elles different.
+const Map<String, String> communes = {
+  'GO1': 'Golfe 1',
+  'GO2': 'Golfe 2',
+  'GO3': 'Golfe 3',
+  'GO4': 'Golfe 4',
+  'GO5': 'Golfe 5',
+  'GO6': 'Golfe 6',
+  'GO7': 'Golfe 7',
+  'AG1': 'Agoe-Nyive 1',
+  'AG2': 'Agoe-Nyive 2',
+  'AG3': 'Agoe-Nyive 3',
+  'AG4': 'Agoe-Nyive 4',
+  'AG5': 'Agoe-Nyive 5',
+  'AG6': 'Agoe-Nyive 6',
+};
+
+/// Plafond de bornes d'une parcelle, le meme que le serveur (MAX_VERTICES) :
+/// au-dela, POST et PATCH /parcels repondent 400.
+const int maxParcelPoints = 500;
 
 /// Statut juridique declare lors du leve (maquette T5).
 enum DeclaredStatus {
@@ -22,6 +41,7 @@ enum DeclaredStatus {
 /// Ce qui empeche de mettre la parcelle en file d'envoi.
 enum DraftBlocker {
   tooFewPoints,
+  tooManyPoints,
   flatPolygon,
   selfIntersection,
   noCommune,
@@ -64,11 +84,18 @@ class ParcelDraft {
   /// ne sera pas certifiee et ne donnera pas d'attestation.
   bool get allPointsFixed => points.isNotEmpty && fixedCount == points.length;
 
-  List<DraftBlocker> get blockers => [
+  /// Ce qui empeche d'envoyer la geometrie, seul critere pour une
+  /// modification (la commune et le statut ne changent pas).
+  List<DraftBlocker> get geometryBlockers => [
     if (points.length < 3) DraftBlocker.tooFewPoints,
+    if (points.length > maxParcelPoints) DraftBlocker.tooManyPoints,
     if (metrics.selfIntersects) DraftBlocker.selfIntersection,
     if (points.length >= 3 && !metrics.selfIntersects && !metrics.isValid)
       DraftBlocker.flatPolygon,
+  ];
+
+  List<DraftBlocker> get blockers => [
+    ...geometryBlockers,
     if (commune == null) DraftBlocker.noCommune,
     if (declaredStatus == null) DraftBlocker.noStatus,
     if (declaredStatus == DeclaredStatus.titre &&
@@ -119,15 +146,35 @@ class ParcelDraft {
   /// l'administrateur avec sa source (question 3 de l'issue #24).
   Map<String, dynamic> toCreatePayload() {
     assert(canQueue, 'Brouillon incomplet : $blockers');
-    final ring = [
-      for (final p in points) [p.longitude, p.latitude],
-      [points.first.longitude, points.first.latitude],
-    ];
     return {
       'surveySessionId': surveySessionId,
       'commune': commune,
       if (locality != null && locality!.trim().isNotEmpty)
         'locality': locality!.trim(),
+      ..._geometryPayload(),
+    };
+  }
+
+  /// Corps de PATCH /parcels/:id (ParcelUpdate, EF-205) : nouvelle limite,
+  /// avec la version que le geometre a sous les yeux pour ne rien ecraser.
+  Map<String, dynamic> toUpdatePayload({
+    required int expectedVersion,
+    String? reason,
+  }) {
+    assert(geometryBlockers.isEmpty, 'Geometrie invalide : $geometryBlockers');
+    return {
+      'expectedVersion': expectedVersion,
+      if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      ..._geometryPayload(),
+    };
+  }
+
+  Map<String, dynamic> _geometryPayload() {
+    final ring = [
+      for (final p in points) [p.longitude, p.latitude],
+      [points.first.longitude, points.first.latitude],
+    ];
+    return {
       'geometry': {
         'type': 'Polygon',
         'coordinates': [ring],

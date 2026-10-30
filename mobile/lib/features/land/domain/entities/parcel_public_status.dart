@@ -88,4 +88,4 @@ class ParcelPublicStatus {
 }
 
 /// Identifiant `TG-<commune>-<numero>`, comme le serveur.
-final parcelIdPattern = RegExp(r'^TG-[A-Z]{3}-\d{5,6}$');
+final parcelIdPattern = RegExp(r'^TG-[A-Z0-9]{3}-\d{5,6}$');

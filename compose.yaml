@@ -24,6 +24,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-geosmart}:${POSTGRES_PASSWORD:-geosmart_dev_password}@db:5432/${POSTGRES_DB:-geosmart}
       JWT_SECRET: ${JWT_SECRET:-local-development-only-change-me}
       PORT: 3001
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      LAND_OVERLAP_TOLERANCE_M2: ${LAND_OVERLAP_TOLERANCE_M2:-0}
     ports:
       - "127.0.0.1:${API_PORT:-3001}:3001"
     depends_on:

@@ -14,6 +14,7 @@ import type { SqlRunner } from '../../audit/sql-runner';
 import { ParcelGeometryService } from '../geometry/parcel-geometry.service';
 import { LandAttestations1793102600000 } from '../migrations/1793102600000-land-attestations';
 import { LandParcels1793102500000 } from '../migrations/1793102500000-land-parcels';
+import { LandParcelIdFormat1793103100000 } from '../migrations/1793103100000-land-parcel-id-format';
 import type { ParcelBoundary } from '../parcel-version.entity';
 import { LandActor, ParcelService, ParcelView } from '../parcel.service';
 import { ATTESTATION_MENTION } from './attestation-pdf';
@@ -59,6 +60,7 @@ const surveyor: LandActor = {
   id: randomUUID(),
   role: 'GEOMETRE',
   registeredSurveyor: true,
+  accountActive: true,
 };
 
 describe('AttestationService (PostGIS)', () => {
@@ -84,7 +86,7 @@ describe('AttestationService (PostGIS)', () => {
       surveyor,
       {
         surveySessionId: randomUUID(),
-        commune: 'AGO',
+        commune: 'AG3',
         geometry: square(lon, 6.13),
         boundaries: boundaries(fix),
         locality: 'Agoe, Lome',
@@ -100,6 +102,7 @@ describe('AttestationService (PostGIS)', () => {
     const qr = runner as unknown as QueryRunner;
     await new AuditLog1793102400000().up(qr);
     await new LandParcels1793102500000().up(qr);
+    await new LandParcelIdFormat1793103100000().up(qr);
     await new LandAttestations1793102600000().up(qr);
     const dataSource = {
       query: (sql: string, params?: unknown[]) => runner.query(sql, params),
@@ -154,6 +157,21 @@ describe('AttestationService (PostGIS)', () => {
     });
   });
 
+  it("imprime le nom et le numero d'Ordre du geometre (decision 6, #24)", async () => {
+    const own = await create(1.5);
+    const attestation = await service.issue(
+      { ...surveyor, fullName: 'Kossi Agbeko', ordreNumber: 'OGT-0142' },
+      own.id,
+    );
+    const text = await pdfText(
+      await service.getPdf(surveyor, attestation.number),
+    );
+    expect(text).toContain(
+      "Kossi Agbeko, inscrit a l'Ordre sous le numero OGT-0142",
+    );
+    expect(text).not.toContain(surveyor.id);
+  });
+
   it('renvoie la meme attestation pour la meme version', async () => {
     const first = await service.issue(surveyor, parcel.id);
     const again = await service.issue(surveyor, parcel.id);
@@ -184,7 +202,7 @@ describe('AttestationService (PostGIS)', () => {
       unregistered,
       {
         surveySessionId: randomUUID(),
-        commune: 'AGO',
+        commune: 'AG3',
         geometry: square(1.4, 6.13),
         boundaries: boundaries(),
       },

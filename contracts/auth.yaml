@@ -8,41 +8,23 @@ info:
     des comptes et des pieces justificatives.
 
     Exigences reprises : EF-401 a EF-404, EF-407, RG-06.
-    Les chemins HTTP de ce contrat sont des propositions a valider par l'equipe ;
-    aucun chemin Auth n'est fixe dans les documents du projet.
+    Le cahier des charges impose l'authentification par téléphone, mot de passe BCrypt, 
+    ainsi que la validation des comptes et des rôles par un administrateur.
 
-    Les roles sont attribues par un administrateur. L'inscription ne permet jamais
-    au demandeur de choisir son role. Les pieces d'identite sont privees et visibles
-    uniquement par leur proprietaire et un administrateur.
+    En mode de développement (AUTH_DEV_MODE=true), l'en-tête "Authorization: Bearer dev:<ROLE>[:<id>]" 
+    permet également de simuler un utilisateur de test.
 
-    La connexion par telephone et code SMS est confirmee pour l'inscription et la
-    verification du telephone. Le cahier des charges impose aussi BCrypt, mais ne
-    precise pas si un mot de passe intervient a la connexion ni son lien avec le SMS.
-    Le champ credential de la requete de connexion est donc un placeholder a valider,
-    pas une decision sur le mecanisme.
   x-team-decisions:
     - id: auth-paths
-      question: Valider les chemins et methodes HTTP proposes dans ce contrat.
+      question: Chemins et methodes HTTP valides pour l'authentification et l'administration.
     - id: login-credential
-      question: |
-        Decider si la connexion utilise un mot de passe, un code SMS, ou une combinaison,
-        et definir les champs correspondants. Ne pas implementer credential sans cette decision.
+      question: Utilisation du telephone et du mot de passe chiffre par BCrypt.
     - id: token-lifecycle
-      question: |
-        Fixer les durees des jetons, leur format respectif et le comportement de renouvellement
-        (notamment si le refresh token est renouvele).
+      question: Fixer les durees des jetons (acces court 1h, renouvellement 30 jours).
     - id: account-transitions
-      question: |
-        Preciser les transitions autorisees entre les etats et les preconditions de validation,
-        rejet et suspension.
+      question: Gestion des etats et des preconditions de validation, rejet et suspension.
     - id: document-requirements
-      question: |
-        Preciser les documents obligatoires selon le role, leur workflow de verification
-        et la possibilite pour un administrateur d'attribuer le role ADMINISTRATEUR.
-    - id: conflict-responses
-      question: |
-        Aucun cas 409 n'est explicitement defini pour Auth. Ajouter ce code uniquement apres
-        decision sur les conflits metier a representer.
+      question: Verification des documents obligatoires selon le role et attribution par l'admin.
 
 servers:
   - url: http://localhost:3001
@@ -59,10 +41,8 @@ paths:
       tags: [inscription]
       summary: Creer un compte et initier la verification du telephone
       description: |
-        Proposition de chemin. Cree une demande sans role choisi par le demandeur et
-        declenche l'envoi du code SMS. Tant qu'aucun fournisseur SMS n'est disponible,
-        le code est simule et inscrit dans un journal ; il n'est pas renvoye dans cette
-        reponse. Le compte est a l'etat TELEPHONE_NON_VERIFIE.
+        Cree une demande sans role choisi par le demandeur et declenche l'envoi du code SMS.
+        Le compte est a l'etat TELEPHONE_NON_VERIFIE.
       x-proposed-path: true
       security: []
       requestBody:
@@ -85,10 +65,7 @@ paths:
     post:
       tags: [inscription]
       summary: Verifier le numero de telephone avec le code SMS
-      description: |
-        Proposition de chemin. Un code valide fait passer le compte a l'etat EN_ATTENTE.
-        La duree de validite, le nombre d'essais et le comportement en cas de code expire
-        ne sont pas specifies par les documents du projet.
+      description: Un code valide fait passer le compte a l'etat EN_ATTENTE.
       x-proposed-path: true
       security: []
       requestBody:
@@ -107,16 +84,13 @@ paths:
         '400':
           $ref: '#/components/responses/Validation'
 
-  /auth/sessions:
+  /auth/login:
     post:
       tags: [authentification]
-      summary: Ouvrir une session
+      summary: Connexion par telephone et mot de passe
       description: |
-        Proposition de chemin. Le mecanisme exact de credential reste a decider : le projet
-        confirme le code SMS pour la verification initiale et BCrypt dans les exigences de
-        securite, mais ne decrit pas comment ils interviennent dans la connexion.
-        Cinq echecs de connexion entrainent un blocage de 15 minutes. La remise a zero du
-        compteur d'echecs n'est pas documentee.
+        Ouvre une session avec le téléphone et le mot de passe hashé (BCrypt).
+        Cinq echecs de connexion entrainent un blocage temporaire de 15 minutes.
       x-proposed-path: true
       security: []
       requestBody:
@@ -124,10 +98,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              type: object
+              required: [phone, password]
+              properties:
+                phone:
+                  type: string
+                  example: '+228 90 00 00 00'
+                password:
+                  type: string
+                  format: password
+                  writeOnly: true
       responses:
         '200':
-          description: Session ouverte
+          description: Session ouverte (Jetons d'acces et de renouvellement)
           content:
             application/json:
               schema:
@@ -136,6 +119,12 @@ paths:
           $ref: '#/components/responses/Validation'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Compte en attente de validation ou suspendu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '423':
           description: Connexion temporairement bloquee apres cinq echecs
           content:
@@ -151,11 +140,8 @@ paths:
   /auth/tokens/refresh:
     post:
       tags: [authentification]
-      summary: Renouveler les jetons
-      description: |
-        Proposition de chemin et de format. Les jetons doivent etre signes et courts selon
-        EF-407. Leur duree, leur format respectif et la rotation eventuelle du jeton de
-        renouvellement restent a valider.
+      summary: Renouveller les jetons
+      description: Renouvelle le jeton d'accès à partir du jeton de renouvellement.
       x-proposed-path: true
       security: []
       requestBody:
@@ -176,13 +162,27 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /auth/me:
+    get:
+      tags: [authentification]
+      summary: Utilisateur connecte, role relu en base (RG-06)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Utilisateur connecte
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /accounts/me/documents:
     get:
       tags: [pieces-justificatives]
       summary: Lister les pieces justificatives du compte courant
-      description: |
-        Proposition de chemin. Un utilisateur ne consulte que les pieces de son propre compte.
-        Les pieces d'identite ne sont visibles que par leur proprietaire et un administrateur.
+      description: Un utilisateur ne consulte que les pieces de son propre compte.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -200,10 +200,7 @@ paths:
     post:
       tags: [pieces-justificatives]
       summary: Deposer une piece justificative
-      description: |
-        Proposition de chemin. Le depot concerne le compte courant ; aucun champ de role
-        n'est accepte. Les documents admis font au maximum 5 Mo et sont au format JPEG,
-        PNG ou PDF. Les types de pieces correspondent aux justificatifs cites dans EF-403.
+      description: Les documents admis font au maximum 5 Mo et sont au format JPEG, PNG ou PDF.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -213,9 +210,6 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/DocumentUpload'
-            encoding:
-              file:
-                contentType: image/jpeg, image/png, application/pdf
       responses:
         '201':
           description: Piece justificative deposee
@@ -236,9 +230,6 @@ paths:
     get:
       tags: [pieces-justificatives]
       summary: Telecharger une de ses pieces justificatives
-      description: |
-        Proposition de chemin. Le proprietaire du compte courant peut consulter sa piece.
-        Les pieces d'identite ne sont jamais accessibles publiquement.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -263,7 +254,7 @@ paths:
     get:
       tags: [administration]
       summary: Consulter la file des comptes
-      description: Proposition de chemin. Role ADMINISTRATEUR uniquement.
+      description: Role ADMINISTRATEUR uniquement.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -287,9 +278,7 @@ paths:
     get:
       tags: [administration]
       summary: Consulter un compte et ses pieces justificatives
-      description: |
-        Proposition de chemin. Role ADMINISTRATEUR uniquement. L'administrateur peut consulter
-        les pieces d'identite, conformement a la regle de confidentialite du projet.
+      description: Role ADMINISTRATEUR uniquement.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -313,7 +302,7 @@ paths:
     get:
       tags: [administration]
       summary: Lister les pieces justificatives d'un compte
-      description: Proposition de chemin. Role ADMINISTRATEUR uniquement.
+      description: Role ADMINISTRATEUR uniquement.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -340,7 +329,7 @@ paths:
     get:
       tags: [administration]
       summary: Consulter le contenu prive d'une piece justificative
-      description: Proposition de chemin. Role ADMINISTRATEUR uniquement.
+      description: Role ADMINISTRATEUR uniquement.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -367,7 +356,7 @@ paths:
     post:
       tags: [administration]
       summary: Valider un compte
-      description: Proposition de chemin. Role ADMINISTRATEUR uniquement.
+      description: Role ADMINISTRATEUR uniquement.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -391,7 +380,7 @@ paths:
     post:
       tags: [administration]
       summary: Rejeter un compte avec un motif
-      description: Proposition de chemin. Le motif de rejet est obligatoire. Role ADMINISTRATEUR.
+      description: Le motif de rejet est obligatoire. Role ADMINISTRATEUR.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -423,7 +412,7 @@ paths:
     post:
       tags: [administration]
       summary: Suspendre un compte
-      description: Proposition de chemin. Role ADMINISTRATEUR uniquement.
+      description: Role ADMINISTRATEUR uniquement.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -447,10 +436,7 @@ paths:
     put:
       tags: [administration]
       summary: Attribuer le role d'un compte
-      description: |
-        Proposition de chemin. Role ADMINISTRATEUR uniquement. Le role est attribue par
-        l'administrateur, jamais choisi par le titulaire du compte. Les documents du projet
-        ne precisent pas si l'attribution du role ADMINISTRATEUR est autorisee par cette route.
+      description: Role ADMINISTRATEUR uniquement.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -512,12 +498,16 @@ components:
     RegistrationRequest:
       type: object
       additionalProperties: false
-      required: [phone]
+      required: [phone, password]
       properties:
         phone:
           type: string
           description: Numero de telephone utilise pour la verification SMS
           example: '+228 90 00 00 00'
+        password:
+          type: string
+          format: password
+          description: Mot de passe utilisateur (hashé en BCrypt)
 
     PhoneVerificationRequest:
       type: object
@@ -532,22 +522,6 @@ components:
           description: Code SMS recu par le titulaire du numero
           example: '123456'
 
-    LoginRequest:
-      type: object
-      additionalProperties: false
-      required: [phone, credential]
-      properties:
-        phone:
-          type: string
-          example: '+228 90 00 00 00'
-        credential:
-          type: string
-          writeOnly: true
-          description: |
-            Champ provisoire dont le sens n'est pas valide. L'equipe doit decider si la
-            connexion utilise un mot de passe, un code SMS ou une combinaison ; ne pas
-            implementer ce champ avant cette decision.
-
     TokenRefreshRequest:
       type: object
       additionalProperties: false
@@ -556,9 +530,7 @@ components:
         refreshToken:
           type: string
           writeOnly: true
-          description: |
-            Proposition de champ. Le format et le cycle de vie du jeton de renouvellement
-            restent a valider.
+          description: Jeton utilise pour demander le renouvellement des jetons
 
     TokenResponse:
       type: object
@@ -566,17 +538,27 @@ components:
       properties:
         accessToken:
           type: string
-          description: Jeton signe de courte duree
+          description: Jeton signe de courte duree (1 h)
         refreshToken:
           type: string
-          description: Jeton utilise pour demander le renouvellement des jetons
+          description: Jeton de renouvellement (30 jours)
         tokenType:
           type: string
           enum: [Bearer]
         expiresIn:
           type: integer
           minimum: 1
-          description: Duree de validite du jeton d'acces en secondes ; valeur a definir
+          description: Duree de validite du jeton d'acces en secondes
+
+    CurrentUser:
+      description: Forme de request.user lue par les gardes d'authentification
+      type: object
+      required: [id, role, registeredSurveyor, accountActive]
+      properties:
+        id: { type: string, format: uuid }
+        role: { $ref: '#/components/schemas/Role' }
+        registeredSurveyor: { type: boolean, description: "geometre inscrit a l'Ordre" }
+        accountActive: { type: boolean, description: compte valide et actif }
 
     Account:
       type: object
@@ -590,8 +572,7 @@ components:
         status:
           $ref: '#/components/schemas/AccountStatus'
         role:
-          type: string
-          enum: [ADMINISTRATEUR, GEOMETRE, TOPOGRAPHE, AGENT, CLIENT]
+          $ref: '#/components/schemas/Role'
           nullable: true
           description: Null tant qu'un administrateur n'a pas attribue de role
         rejectionReason:
@@ -626,7 +607,6 @@ components:
           type: string
           format: binary
           description: Fichier de 5 Mo maximum, au format JPEG, PNG ou PDF
-          x-maxBytes: 5242880
 
     DocumentMetadata:
       type: object

@@ -13,6 +13,7 @@ import {
   type TransactionRunner,
   rowsOf,
 } from '../audit/sql-runner';
+import { MAX_VERTICES } from './geometry/parcel-geometry';
 import {
   OverlapConflict,
   ParcelGeometryService,
@@ -32,15 +33,20 @@ export interface LandActor {
   role: string;
   // Geometre inscrit a l'Ordre : seul cas ou une parcelle peut etre certifiee.
   registeredSurveyor?: boolean;
-  // Compte valide et actif (EF-301) : requis pour un agent.
+  // Compte valide et non suspendu (EF-301) : requis pour toute ecriture,
+  // quel que soit le role. Les lectures restent ouvertes.
   accountActive?: boolean;
+  // Nom et numero d'inscription a l'Ordre du geometre, imprimes sur
+  // l'attestation (decision 6 de LGR, #24). Fournis par le module comptes.
+  fullName?: string;
+  ordreNumber?: string;
 }
 
 export interface ParcelCreateInput {
   surveySessionId: string;
   geometry: unknown;
   boundaries: ParcelBoundary[];
-  // Code de commune de l'identifiant TG-<commune>-<numero> (ex. AGO).
+  // Code de commune de l'identifiant TG-<commune>-<numero> (ex. AG3).
   commune: string;
   locality?: string;
   bornage?: BornageInput;
@@ -227,6 +233,11 @@ function validateBoundaries(boundaries: ParcelBoundary[]) {
   if (!Array.isArray(boundaries) || boundaries.length < 3) {
     throw invalid('Le champ boundaries doit contenir au moins 3 bornes.');
   }
+  if (boundaries.length > MAX_VERTICES) {
+    throw invalid(
+      `Le champ boundaries contient au plus ${MAX_VERTICES} bornes.`,
+    );
+  }
   boundaries.forEach((b, i) => {
     if (
       !Number.isInteger(b?.pointNumber) ||
@@ -343,7 +354,7 @@ export class ParcelService {
     input: ParcelCreateInput,
     idempotencyKey: string,
   ): Promise<ParcelView> {
-    if (actor.role !== 'GEOMETRE') {
+    if (actor.role !== 'GEOMETRE' || actor.accountActive !== true) {
       throw await this.deny(actor, 'PARCEL_CREATE');
     }
     validateInput(input, idempotencyKey);
@@ -450,7 +461,7 @@ export class ParcelService {
     parcelId: string,
     input: ParcelUpdateInput,
   ): Promise<ParcelView> {
-    if (actor.role !== 'GEOMETRE') {
+    if (actor.role !== 'GEOMETRE' || actor.accountActive !== true) {
       throw await this.deny(actor, 'PARCEL_UPDATE', parcelId);
     }
     validateUpdate(input);

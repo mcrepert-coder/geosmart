@@ -9,6 +9,7 @@ import { AuditService } from '../audit/audit.service';
 import type { SqlRunner } from '../audit/sql-runner';
 import { ParcelGeometryService } from './geometry/parcel-geometry.service';
 import { LandParcels1793102500000 } from './migrations/1793102500000-land-parcels';
+import { LandParcelIdFormat1793103100000 } from './migrations/1793103100000-land-parcel-id-format';
 import { ParcelStatusService } from './parcel-status.service';
 import {
   BornageInput,
@@ -45,6 +46,7 @@ const author: LandActor = {
   id: randomUUID(),
   role: 'GEOMETRE',
   registeredSurveyor: true,
+  accountActive: true,
 };
 
 // Voisins de la maquette T6.
@@ -120,6 +122,7 @@ describe('bornage enregistre avec la version (PostGIS)', () => {
     const qr = runner as unknown as QueryRunner;
     await new AuditLog1793102400000().up(qr);
     await new LandParcels1793102500000().up(qr);
+    await new LandParcelIdFormat1793103100000().up(qr);
     const dataSource = {
       query: (sql: string, params?: unknown[]) => runner.query(sql, params),
       transaction: <T>(work: (tx: SqlRunner) => Promise<T>) =>
@@ -141,7 +144,7 @@ describe('bornage enregistre avec la version (PostGIS)', () => {
       author,
       {
         surveySessionId: randomUUID(),
-        commune: 'AGO',
+        commune: 'AG3',
         geometry: square(1.21),
         boundaries,
         bornage: bornage(neighbours, '2026-10-20T09:30:00Z'),

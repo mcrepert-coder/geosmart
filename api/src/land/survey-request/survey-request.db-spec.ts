@@ -13,7 +13,9 @@ import { AuditLog1793102400000 } from '../../audit/migrations/1793102400000-audi
 import { AuditService } from '../../audit/audit.service';
 import type { SqlRunner } from '../../audit/sql-runner';
 import { LandParcels1793102500000 } from '../migrations/1793102500000-land-parcels';
+import { LandParcelIdFormat1793103100000 } from '../migrations/1793103100000-land-parcel-id-format';
 import { LandSurveyRequests1793102700000 } from '../migrations/1793102700000-land-survey-requests';
+import { LandSurveyRequestClose1793102800000 } from '../migrations/1793102800000-land-survey-request-close';
 import type { LandActor } from '../parcel.service';
 import {
   SurveyRequestInput,
@@ -32,9 +34,21 @@ const otherAgent: LandActor = {
   role: 'AGENT',
   accountActive: true,
 };
-const surveyorA: LandActor = { id: randomUUID(), role: 'GEOMETRE' };
-const surveyorB: LandActor = { id: randomUUID(), role: 'GEOMETRE' };
-const admin: LandActor = { id: randomUUID(), role: 'ADMIN' };
+const surveyorA: LandActor = {
+  id: randomUUID(),
+  role: 'GEOMETRE',
+  accountActive: true,
+};
+const surveyorB: LandActor = {
+  id: randomUUID(),
+  role: 'GEOMETRE',
+  accountActive: true,
+};
+const admin: LandActor = {
+  id: randomUUID(),
+  role: 'ADMIN',
+  accountActive: true,
+};
 
 const request: SurveyRequestInput = {
   locality: ' Agoe, Lome ',
@@ -63,7 +77,9 @@ describe('SurveyRequestService (PostGIS)', () => {
     const qr = runner as unknown as QueryRunner;
     await new AuditLog1793102400000().up(qr);
     await new LandParcels1793102500000().up(qr);
+    await new LandParcelIdFormat1793103100000().up(qr);
     await new LandSurveyRequests1793102700000().up(qr);
+    await new LandSurveyRequestClose1793102800000().up(qr);
     const dataSource = {
       query: (sql: string, params?: unknown[]) => runner.query(sql, params),
       transaction: <T>(work: (tx: SqlRunner) => Promise<T>) =>
@@ -197,6 +213,95 @@ describe('SurveyRequestService (PostGIS)', () => {
       );
     },
   );
+
+  describe('fin de vie d une demande (decision 5 de LGR)', () => {
+    it('le geometre qui l a prise la passe a TERMINEE', async () => {
+      const created = await service.create(agent, request);
+      await service.take(surveyorA, created.id);
+
+      await expect(
+        service.complete(surveyorB, created.id),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      const done = await service.complete(surveyorA, created.id);
+      expect(done).toMatchObject({
+        state: 'TERMINEE',
+        surveyorId: surveyorA.id,
+      });
+      expect(await lastAudit()).toMatchObject({
+        action: 'SURVEY_REQUEST_COMPLETED',
+      });
+
+      const again: unknown = await service
+        .complete(surveyorA, created.id)
+        .catch((e: unknown) => e);
+      expect(again).toBeInstanceOf(ConflictException);
+      expect((again as ConflictException).getResponse()).toMatchObject({
+        code: 'REQUEST_STATE_CONFLICT',
+        details: { state: 'TERMINEE' },
+      });
+    });
+
+    it('refuse de terminer une demande encore ouverte', async () => {
+      const created = await service.create(agent, request);
+      await expect(
+        service.complete(surveyorA, created.id),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('refuse une parcelle mal formee ou inconnue', async () => {
+      const created = await service.create(agent, request);
+      await service.take(surveyorA, created.id);
+      await expect(
+        service.complete(surveyorA, created.id, 'GS-2026-000001'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        service.complete(surveyorA, created.id, 'TG-AG3-99999'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('l agent annule sa demande tant qu elle est ouverte', async () => {
+      const created = await service.create(agent, request);
+      await expect(
+        service.cancel(otherAgent, created.id),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      const cancelled = await service.cancel(agent, created.id);
+      expect(cancelled).toMatchObject({ state: 'ANNULEE', surveyorId: null });
+      expect(await lastAudit()).toMatchObject({
+        action: 'SURVEY_REQUEST_CANCELLED',
+      });
+      await expect(service.take(surveyorA, created.id)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+
+    it('n annule plus une demande deja prise', async () => {
+      const created = await service.create(agent, request);
+      await service.take(surveyorA, created.id);
+      const error: unknown = await service
+        .cancel(agent, created.id)
+        .catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toMatchObject({
+        message: expect.stringContaining('contactez le geometre') as unknown,
+      });
+    });
+
+    it.each<[string, LandActor]>([
+      ['un geometre qui annule', surveyorA],
+      ['un administrateur qui annule', admin],
+    ])('refuse %s (403)', async (_label, actor) => {
+      const created = await service.create(agent, request);
+      await expect(service.cancel(actor, created.id)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it('repond 404 pour une demande inconnue', async () => {
+      await expect(service.cancel(agent, randomUUID())).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
 
   it('laisse un journal dont la chaine est intacte', async () => {
     await expect(audit.verify(runner)).resolves.toMatchObject({ valid: true });

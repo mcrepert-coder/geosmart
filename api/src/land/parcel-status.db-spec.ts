@@ -13,6 +13,7 @@ import { AuditService } from '../audit/audit.service';
 import type { SqlRunner } from '../audit/sql-runner';
 import { ParcelGeometryService } from './geometry/parcel-geometry.service';
 import { LandParcels1793102500000 } from './migrations/1793102500000-land-parcels';
+import { LandParcelIdFormat1793103100000 } from './migrations/1793103100000-land-parcel-id-format';
 import {
   LegalStatusInput,
   NOT_A_LAND_TITLE,
@@ -22,11 +23,16 @@ import { LandActor, ParcelService, ParcelView } from './parcel.service';
 
 jest.setTimeout(60000);
 
-const admin: LandActor = { id: randomUUID(), role: 'ADMIN' };
+const admin: LandActor = {
+  id: randomUUID(),
+  role: 'ADMIN',
+  accountActive: true,
+};
 const surveyor: LandActor = {
   id: randomUUID(),
   role: 'GEOMETRE',
   registeredSurveyor: true,
+  accountActive: true,
 };
 
 describe('ParcelStatusService (PostGIS)', () => {
@@ -53,6 +59,7 @@ describe('ParcelStatusService (PostGIS)', () => {
     const qr = runner as unknown as QueryRunner;
     await new AuditLog1793102400000().up(qr);
     await new LandParcels1793102500000().up(qr);
+    await new LandParcelIdFormat1793103100000().up(qr);
     const dataSource = {
       query: (sql: string, params?: unknown[]) => runner.query(sql, params),
       transaction: <T>(work: (tx: SqlRunner) => Promise<T>) =>
@@ -70,7 +77,7 @@ describe('ParcelStatusService (PostGIS)', () => {
       surveyor,
       {
         surveySessionId: randomUUID(),
-        commune: 'AGO',
+        commune: 'AG3',
         geometry: {
           type: 'Polygon',
           coordinates: [
@@ -125,7 +132,7 @@ describe('ParcelStatusService (PostGIS)', () => {
       expect(text).not.toContain('coordinates');
     });
 
-    it.each(['TG-AGO-99999', 'pas-un-identifiant', ''])(
+    it.each(['TG-AG3-99999', 'pas-un-identifiant', ''])(
       'repond 404 pour %p',
       async (id) => {
         await expect(status.getPublicStatus(id)).rejects.toBeInstanceOf(
@@ -258,7 +265,7 @@ describe('ParcelStatusService (PostGIS)', () => {
 
     it('repond 404 pour une parcelle inconnue', async () => {
       await expect(
-        status.setLegalStatus(admin, 'TG-AGO-99999', {
+        status.setLegalStatus(admin, 'TG-AG3-99999', {
           legalStatus: 'INCONNU',
         }),
       ).rejects.toBeInstanceOf(NotFoundException);
