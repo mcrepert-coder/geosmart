@@ -1,13 +1,711 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
-class GnssPage extends StatelessWidget {
-  const GnssPage({super.key});
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../../app/format/geosmart_formats.dart';
+import '../../../app/theme/geosmart_theme.dart';
+import '../domain/entities/gnss_fix_quality.dart';
+import '../domain/entities/gnss_position.dart';
+import '../domain/entities/survey_point.dart';
+import '../domain/services/utm31n.dart';
+import 'viewmodels/survey_controller.dart';
+
+/// Ecran de mesure T3 (RTK Fixed) et T4 (RTK Float, theme nuit).
+///
+/// Vue MVVM : tout l'etat et les regles viennent de [SurveyController]. Cet
+/// ecran ne fait qu'afficher et relayer les actions.
+class GnssPage extends StatefulWidget {
+  const GnssPage({
+    super.key,
+    required this.controller,
+    this.animateQuality = true,
+  });
+
+  final SurveyController controller;
+
+  /// Clignotement de la pastille tant que la qualite n'est pas Fixed.
+  /// Desactive dans les tests pour eviter une animation sans fin.
+  final bool animateQuality;
+
+  @override
+  State<GnssPage> createState() => _GnssPageState();
+}
+
+class _GnssPageState extends State<GnssPage> {
+  late final StreamSubscription<SurveyEvent> _events;
+  GnssFixQuality? _lastQuality;
+  bool _night = false;
+
+  SurveyController get _controller => widget.controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastQuality = _controller.position?.fixQuality;
+    _controller.addListener(_onControllerChanged);
+    _events = _controller.events.listen(_onEvent);
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_onControllerChanged);
+    unawaited(_events.cancel());
+    super.dispose();
+  }
+
+  void _onControllerChanged() {
+    final quality = _controller.position?.fixQuality;
+    if (quality == GnssFixQuality.fixed &&
+        _lastQuality != GnssFixQuality.fixed) {
+      // Double vibration au passage en RTK Fixed (maquette T3).
+      HapticFeedback.heavyImpact();
+      HapticFeedback.heavyImpact();
+    }
+    _lastQuality = quality;
+    if (mounted) setState(() {});
+  }
+
+  void _onEvent(SurveyEvent event) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    switch (event) {
+      case PointRecorded(:final point):
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              "Borne ${point.pointName} enregistree sur l'appareil",
+            ),
+            action: SnackBarAction(
+              label: 'Annuler',
+              onPressed: () => unawaited(_controller.undoPoint(point.id)),
+            ),
+          ),
+        );
+      case MeasurementCancelled(:final reason):
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(SnackBar(content: Text(reason)));
+      case SurveyError(:final message):
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('GeoSmart')),
-      body: const Center(child: Text('GNSS prêt à être configuré')),
+    final theme = _night ? GeoSmartTheme.dark : GeoSmartTheme.light;
+    return Theme(
+      data: theme,
+      child: Builder(
+        builder: (context) {
+          final colors = GeoSmartColors.of(context);
+          return Scaffold(
+            appBar: AppBar(
+              toolbarHeight: 64,
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "Mesure d'une borne",
+                    style: GeoSmartText.h2.copyWith(color: colors.text),
+                  ),
+                  Text(
+                    _controller.session?.title ?? 'Mission locale',
+                    style: GeoSmartText.caption.copyWith(
+                      color: colors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                IconButton(
+                  tooltip: _night ? 'Theme jour' : 'Theme nuit',
+                  icon: Icon(
+                    _night
+                        ? Icons.light_mode_outlined
+                        : Icons.dark_mode_outlined,
+                  ),
+                  onPressed: () => setState(() => _night = !_night),
+                ),
+              ],
+            ),
+            body: SafeArea(
+              child: Column(
+                children: [
+                  if (_controller.isSimulation)
+                    _SimulationBanner(colors: colors),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.all(GeoSmartDimens.space4),
+                      children: [
+                        _QualityBanner(
+                          position: _controller.position,
+                          colors: colors,
+                          animate: widget.animateQuality,
+                        ),
+                        const SizedBox(height: GeoSmartDimens.space3),
+                        _MetricsGrid(
+                          position: _controller.position,
+                          colors: colors,
+                        ),
+                        const SizedBox(height: GeoSmartDimens.space3),
+                        _CoordinatesCard(
+                          position: _controller.position,
+                          colors: colors,
+                        ),
+                        const SizedBox(height: GeoSmartDimens.space6),
+                        Text(
+                          'Bornes relevees (${_controller.points.length})',
+                          style: GeoSmartText.h3.copyWith(color: colors.text),
+                        ),
+                        const SizedBox(height: GeoSmartDimens.space3),
+                        if (_controller.points.isEmpty)
+                          _EmptyPoints(colors: colors)
+                        else
+                          for (final point in _controller.points)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: GeoSmartDimens.space2,
+                              ),
+                              child: _PointTile(point: point, colors: colors),
+                            ),
+                      ],
+                    ),
+                  ),
+                  _BottomAction(controller: _controller, colors: colors),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SimulationBanner extends StatelessWidget {
+  const _SimulationBanner({required this.colors});
+
+  final GeoSmartColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: colors.warningSoft,
+      padding: const EdgeInsets.symmetric(
+        horizontal: GeoSmartDimens.space4,
+        vertical: GeoSmartDimens.space2,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.science_outlined, size: 18, color: colors.warning),
+          const SizedBox(width: GeoSmartDimens.space2),
+          Expanded(
+            child: Text(
+              'Donnees simulees, pas de precision RTK annoncee.',
+              style: GeoSmartText.caption.copyWith(color: colors.warning),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QualityBanner extends StatelessWidget {
+  const _QualityBanner({
+    required this.position,
+    required this.colors,
+    required this.animate,
+  });
+
+  final GnssPosition? position;
+  final GeoSmartColors colors;
+  final bool animate;
+
+  @override
+  Widget build(BuildContext context) {
+    final quality = position?.fixQuality;
+    final (background, foreground) = switch (quality) {
+      GnssFixQuality.fixed => (colors.successSoft, colors.success),
+      GnssFixQuality.float => (colors.warningSoft, colors.warning),
+      GnssFixQuality.dgps => (colors.warningSoft, colors.warning),
+      GnssFixQuality.autonomous => (colors.dangerSoft, colors.danger),
+      GnssFixQuality.invalid => (colors.dangerSoft, colors.danger),
+      null => (colors.surfaceSunken, colors.textMuted),
+    };
+    final label = quality?.label ?? 'En attente';
+    final detail = position == null
+        ? 'Recherche du recepteur GNSS'
+        : '${position!.satellitesCount} satellites, ${position!.instrument}';
+
+    return Container(
+      padding: const EdgeInsets.all(GeoSmartDimens.space4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(GeoSmartDimens.radiusLg),
+        border: Border.all(color: foreground.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          _QualityDot(
+            color: foreground,
+            pulsing: animate && quality != GnssFixQuality.fixed,
+          ),
+          const SizedBox(width: GeoSmartDimens.space3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: GeoSmartText.h2.copyWith(color: foreground)),
+                Text(
+                  detail,
+                  style: GeoSmartText.caption.copyWith(color: foreground),
+                ),
+              ],
+            ),
+          ),
+          if (position?.accuracy != null)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'Sigma H',
+                  style: GeoSmartText.caption.copyWith(color: foreground),
+                ),
+                Text(
+                  formatSigma(position!.accuracy),
+                  style: GeoSmartText.data(colors).copyWith(color: foreground),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QualityDot extends StatefulWidget {
+  const _QualityDot({required this.color, required this.pulsing});
+
+  final Color color;
+  final bool pulsing;
+
+  @override
+  State<_QualityDot> createState() => _QualityDotState();
+}
+
+class _QualityDotState extends State<_QualityDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 800),
+    value: 1,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(covariant _QualityDot oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _sync();
+  }
+
+  void _sync() {
+    if (widget.pulsing) {
+      if (!_controller.isAnimating) _controller.repeat(reverse: true);
+    } else {
+      _controller.stop();
+      _controller.value = 1;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.3, end: 1).animate(_controller),
+      child: Container(
+        width: 16,
+        height: 16,
+        decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
+      ),
+    );
+  }
+}
+
+class _MetricsGrid extends StatelessWidget {
+  const _MetricsGrid({required this.position, required this.colors});
+
+  final GnssPosition? position;
+  final GeoSmartColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _MetricTile(
+                label: 'Satellites',
+                value: position == null
+                    ? 'n.d.'
+                    : '${position!.satellitesCount}',
+                colors: colors,
+              ),
+            ),
+            const SizedBox(width: GeoSmartDimens.space2),
+            Expanded(
+              child: _MetricTile(
+                label: 'PDOP',
+                value: formatDop(position?.pdop),
+                colors: colors,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: GeoSmartDimens.space2),
+        Row(
+          children: [
+            Expanded(
+              child: _MetricTile(
+                label: 'HDOP',
+                value: formatDop(position?.hdop),
+                colors: colors,
+              ),
+            ),
+            const SizedBox(width: GeoSmartDimens.space2),
+            Expanded(
+              child: _MetricTile(
+                label: 'VDOP',
+                value: formatDop(position?.vdop),
+                colors: colors,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  const _MetricTile({
+    required this.label,
+    required this.value,
+    required this.colors,
+  });
+
+  final String label;
+  final String value;
+  final GeoSmartColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: GeoSmartDimens.space3,
+        vertical: GeoSmartDimens.space2,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(GeoSmartDimens.radiusMd),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GeoSmartText.caption.copyWith(color: colors.textMuted),
+          ),
+          Text(
+            value,
+            style: GeoSmartText.data(
+              colors,
+            ).copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CoordinatesCard extends StatelessWidget {
+  const _CoordinatesCard({required this.position, required this.colors});
+
+  final GnssPosition? position;
+  final GeoSmartColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = position;
+    if (value == null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(GeoSmartDimens.space4),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(GeoSmartDimens.radiusLg),
+          border: Border.all(color: colors.border),
+        ),
+        child: Text(
+          'En attente du recepteur GNSS.',
+          style: GeoSmartText.body.copyWith(color: colors.textMuted),
+        ),
+      );
+    }
+
+    final utm = toUtm31N(value.latitude, value.longitude);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(GeoSmartDimens.space4),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(GeoSmartDimens.radiusLg),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'UTM 31N',
+            style: GeoSmartText.caption.copyWith(color: colors.textMuted),
+          ),
+          const SizedBox(height: GeoSmartDimens.space1),
+          Text(
+            'E ${formatUtm(utm.easting)}',
+            style: GeoSmartText.data(
+              colors,
+            ).copyWith(fontSize: 17, fontWeight: FontWeight.w700),
+          ),
+          Text(
+            'N ${formatUtm(utm.northing)}',
+            style: GeoSmartText.data(
+              colors,
+            ).copyWith(fontSize: 17, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: GeoSmartDimens.space3),
+          Divider(color: colors.border, height: 1),
+          const SizedBox(height: GeoSmartDimens.space3),
+          Text(
+            'WGS84',
+            style: GeoSmartText.caption.copyWith(color: colors.textMuted),
+          ),
+          const SizedBox(height: GeoSmartDimens.space1),
+          Text(
+            '${formatLatitude(value.latitude)}  ${formatLongitude(value.longitude)}',
+            style: GeoSmartText.dataSmall(colors),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyPoints extends StatelessWidget {
+  const _EmptyPoints({required this.colors});
+
+  final GeoSmartColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(GeoSmartDimens.space4),
+      decoration: BoxDecoration(
+        color: colors.surfaceSunken,
+        borderRadius: BorderRadius.circular(GeoSmartDimens.radiusLg),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        children: [
+          Text(
+            'Aucune borne enregistree',
+            style: GeoSmartText.bodyStrong.copyWith(color: colors.text),
+          ),
+          const SizedBox(height: GeoSmartDimens.space1),
+          Text(
+            'Posez la canne a plomb et attendez le RTK Fixed.',
+            textAlign: TextAlign.center,
+            style: GeoSmartText.caption.copyWith(color: colors.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PointTile extends StatelessWidget {
+  const _PointTile({required this.point, required this.colors});
+
+  final SurveyPoint point;
+  final GeoSmartColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final utm = toUtm31N(point.latitude, point.longitude);
+    return Container(
+      padding: const EdgeInsets.all(GeoSmartDimens.space3),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(GeoSmartDimens.radiusMd),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: GeoSmartDimens.space2,
+              vertical: GeoSmartDimens.space1,
+            ),
+            decoration: BoxDecoration(
+              color: colors.accentSoft,
+              borderRadius: BorderRadius.circular(GeoSmartDimens.radiusSm),
+            ),
+            child: Text(
+              point.pointName,
+              style: GeoSmartText.label.copyWith(color: colors.accent),
+            ),
+          ),
+          const SizedBox(width: GeoSmartDimens.space3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'E ${formatUtm(utm.easting)}  N ${formatUtm(utm.northing)}',
+                  style: GeoSmartText.dataSmall(colors),
+                ),
+                Text(
+                  '${point.fixQuality.label}, ${point.satellitesCount} sat, PDOP ${formatDop(point.pdop)}',
+                  style: GeoSmartText.caption.copyWith(color: colors.textMuted),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            formatTime(point.recordedAt),
+            style: GeoSmartText.dataSmall(colors),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BottomAction extends StatelessWidget {
+  const _BottomAction({required this.controller, required this.colors});
+
+  final SurveyController controller;
+  final GeoSmartColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        GeoSmartDimens.space4,
+        GeoSmartDimens.space3,
+        GeoSmartDimens.space4,
+        GeoSmartDimens.space4,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
+      child: controller.isAveraging
+          ? _measurementInProgress(colors)
+          : _recordButton(context, colors),
+    );
+  }
+
+  Widget _measurementInProgress(GeoSmartColors colors) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Mesure en cours',
+              style: GeoSmartText.bodyStrong.copyWith(color: colors.text),
+            ),
+            const Spacer(),
+            Text(
+              '${controller.epochsCollected} / ${controller.epochsRequired}',
+              style: GeoSmartText.data(colors),
+            ),
+          ],
+        ),
+        const SizedBox(height: GeoSmartDimens.space2),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(GeoSmartDimens.radiusPill),
+          child: LinearProgressIndicator(
+            value: controller.measurementProgress,
+            minHeight: 8,
+            color: colors.accent,
+            backgroundColor: colors.surfaceSunken,
+          ),
+        ),
+        const SizedBox(height: GeoSmartDimens.space2),
+        SizedBox(
+          width: double.infinity,
+          height: GeoSmartDimens.touchMin,
+          child: TextButton(
+            onPressed: controller.cancelMeasurement,
+            child: const Text('Annuler la mesure'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _recordButton(BuildContext context, GeoSmartColors colors) {
+    final reason = controller.disabledReason;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: GeoSmartDimens.touchField,
+          child: FilledButton(
+            onPressed: controller.canRecord
+                ? controller.startMeasurement
+                : null,
+            style: FilledButton.styleFrom(
+              backgroundColor: colors.accent,
+              foregroundColor: colors.onAccent,
+              disabledBackgroundColor: colors.surfaceSunken,
+              disabledForegroundColor: colors.textMuted,
+              textStyle: GeoSmartText.button,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(GeoSmartDimens.radiusMd),
+              ),
+            ),
+            child: const Text('Enregistrer la borne'),
+          ),
+        ),
+        if (reason != null) ...[
+          const SizedBox(height: GeoSmartDimens.space2),
+          Text(
+            reason,
+            textAlign: TextAlign.center,
+            style: GeoSmartText.caption.copyWith(color: colors.textMuted),
+          ),
+        ],
+      ],
     );
   }
 }
