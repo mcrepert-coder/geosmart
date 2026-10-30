@@ -56,8 +56,9 @@ test("legalStatusLabel ecrit chaque statut en toutes lettres", () => {
 });
 
 test("les identifiants suivent le format du serveur", () => {
+  assert.ok(PARCEL_ID_PATTERN.test("TG-AG3-00457"));
   assert.ok(PARCEL_ID_PATTERN.test("TG-AGO-00457"));
-  assert.ok(PARCEL_ID_PATTERN.test("TG-LOM-100000"));
+  assert.ok(PARCEL_ID_PATTERN.test("TG-GO1-100000"));
   assert.ok(!PARCEL_ID_PATTERN.test("GS-2026-000142"));
   assert.ok(!PARCEL_ID_PATTERN.test("tg-ago-00457"));
   assert.ok(ATTESTATION_PATTERN.test("AT-2026-000031"));
@@ -66,14 +67,14 @@ test("les identifiants suivent le format du serveur", () => {
 
 test("le message WhatsApp porte le lien et la mention obligatoire", async () => {
   assert.ok(DEMO_MODE);
-  const result = await fetchParcelStatus("TG-AGO-00457");
+  const result = await fetchParcelStatus("TG-AG3-00457");
   assert.ok(result.ok);
-  const url = shareUrl("https://geosmart.tg", "TG-AGO-00457");
-  assert.equal(url, "https://geosmart.tg/parcelle?id=TG-AGO-00457");
+  const url = shareUrl("https://geosmart.tg", "TG-AG3-00457");
+  assert.equal(url, "https://geosmart.tg/parcelle?id=TG-AG3-00457");
   assert.equal(
     shareMessage(result.data, url),
     [
-      "Parcelle TG-AGO-00457 sur GeoSmart Field",
+      "Parcelle TG-AG3-00457 sur GeoSmart Field",
       `Coutumier non titré · 452,18${NBSP}m² · parcelle certifiée`,
       url,
       "Ne vaut pas titre foncier.",
@@ -82,10 +83,10 @@ test("le message WhatsApp porte le lien et la mention obligatoire", async () => 
 });
 
 test("le mode exemple distingue parcelle connue et inconnue", async () => {
-  const litige = await fetchParcelStatus("TG-AGO-00377");
+  const litige = await fetchParcelStatus("TG-AG3-00377");
   assert.ok(litige.ok && litige.data.legalStatus === "EN_LITIGE");
   assert.ok(litige.ok && !litige.data.certified);
-  const absent = await fetchParcelStatus("TG-AGO-99999");
+  const absent = await fetchParcelStatus("TG-AG3-99999");
   assert.deepEqual(absent, { ok: false, kind: "not-found", message: "Parcelle introuvable." });
 });
 

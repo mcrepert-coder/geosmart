@@ -35,7 +35,7 @@ final b4 = point(4, 6.131, 1.21);
 ParcelDraft draft(List<SurveyPoint> points) => ParcelDraft(
   surveySessionId: 'chantier-1',
   points: points,
-  commune: 'AGO',
+  commune: 'AG3',
   declaredStatus: DeclaredStatus.coutumier,
 );
 
@@ -113,7 +113,7 @@ void main() {
     ]).copyWith(locality: ' Agoe ').toCreatePayload();
 
     expect(payload['surveySessionId'], 'chantier-1');
-    expect(payload['commune'], 'AGO');
+    expect(payload['commune'], 'AG3');
     expect(payload['locality'], 'Agoe');
     final ring = (payload['geometry'] as Map)['coordinates'][0] as List;
     expect(ring, hasLength(5));

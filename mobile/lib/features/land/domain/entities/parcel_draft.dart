@@ -3,9 +3,24 @@ import '../../../gnss/domain/entities/survey_point.dart';
 import '../geometry/polygon_metrics.dart';
 import 'bornage.dart';
 
-/// Communes de l'identifiant `TG-<commune>-<numero>`. Liste PROVISOIRE, la
-/// meme que le serveur, en attendant la liste officielle (issue #24).
-const Map<String, String> communes = {'AGO': 'Agoe-Nyive', 'LOM': 'Lome'};
+/// Communes de l'identifiant `TG-<commune>-<numero>` (Grand Lome pour le
+/// pilote, issue #24). Copie de `api/src/land/communes.json`, car le telephone
+/// doit les proposer sans reseau : `communes_test.dart` echoue si elles different.
+const Map<String, String> communes = {
+  'GO1': 'Golfe 1',
+  'GO2': 'Golfe 2',
+  'GO3': 'Golfe 3',
+  'GO4': 'Golfe 4',
+  'GO5': 'Golfe 5',
+  'GO6': 'Golfe 6',
+  'GO7': 'Golfe 7',
+  'AG1': 'Agoe-Nyive 1',
+  'AG2': 'Agoe-Nyive 2',
+  'AG3': 'Agoe-Nyive 3',
+  'AG4': 'Agoe-Nyive 4',
+  'AG5': 'Agoe-Nyive 5',
+  'AG6': 'Agoe-Nyive 6',
+};
 
 /// Plafond de bornes d'une parcelle, le meme que le serveur (MAX_VERTICES) :
 /// au-dela, POST et PATCH /parcels repondent 400.

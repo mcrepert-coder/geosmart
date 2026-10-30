@@ -12,6 +12,7 @@ import type { SqlRunner } from '../../audit/sql-runner';
 import { LandModule } from '../land.module';
 import { LandAttestations1793102600000 } from '../migrations/1793102600000-land-attestations';
 import { LandParcels1793102500000 } from '../migrations/1793102500000-land-parcels';
+import { LandParcelIdFormat1793103100000 } from '../migrations/1793103100000-land-parcel-id-format';
 import { LandSurveyRequests1793102700000 } from '../migrations/1793102700000-land-survey-requests';
 import { LandSurveyRequestClose1793102800000 } from '../migrations/1793102800000-land-survey-request-close';
 import { LandOverlapAlertReviews1793102900000 } from '../migrations/1793102900000-land-overlap-alert-reviews';
@@ -66,6 +67,7 @@ describe('Routes du module foncier (HTTP + PostGIS)', () => {
     const qr = runner as unknown as QueryRunner;
     await new AuditLog1793102400000().up(qr);
     await new LandParcels1793102500000().up(qr);
+    await new LandParcelIdFormat1793103100000().up(qr);
     await new LandAttestations1793102600000().up(qr);
     await new LandSurveyRequests1793102700000().up(qr);
     await new LandSurveyRequestClose1793102800000().up(qr);
@@ -122,7 +124,7 @@ describe('Routes du module foncier (HTTP + PostGIS)', () => {
       .set('Idempotency-Key', randomUUID())
       .send({
         surveySessionId: randomUUID(),
-        commune: 'AGO',
+        commune: 'AG3',
         geometry: square,
         boundaries,
       });
@@ -139,7 +141,7 @@ describe('Routes du module foncier (HTTP + PostGIS)', () => {
       .set('Idempotency-Key', randomUUID())
       .send({
         surveySessionId: randomUUID(),
-        commune: 'AGO',
+        commune: 'AG3',
         geometry: square,
         boundaries,
       });
@@ -154,7 +156,7 @@ describe('Routes du module foncier (HTTP + PostGIS)', () => {
       .set('Idempotency-Key', randomUUID())
       .send({
         surveySessionId: randomUUID(),
-        commune: 'AGO',
+        commune: 'AG3',
         geometry: square,
         boundaries,
       });
@@ -395,7 +397,7 @@ describe('Routes du module foncier (HTTP + PostGIS)', () => {
         .post('/parcels')
         .set(suspended(surveyor))
         .set('Idempotency-Key', randomUUID())
-        .send({ commune: 'AGO', geometry: square, boundaries }),
+        .send({ commune: 'AG3', geometry: square, boundaries }),
       request(server())
         .patch(`/parcels/${parcelId}`)
         .set(suspended(surveyor))

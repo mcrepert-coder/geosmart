@@ -114,7 +114,7 @@ const _geometreId = 'geometre-demo';
 
 // Fiche ouverte depuis l'onglet "Fiche" (BottomSheet, T8, modification).
 final Map<String, Object?> _sheetParcel = {
-  'id': 'TG-AGO-00457',
+  'id': 'TG-AG3-00457',
   'version': 2,
   'areaM2': 452.18,
   'perimeterM': 101.81,
@@ -189,8 +189,8 @@ final List<Map<String, Object?>> _requests = [
 ];
 
 const _demoParcels = {
-  'TG-AGO-00377': {
-    'id': 'TG-AGO-00377',
+  'TG-AG3-00377': {
+    'id': 'TG-AG3-00377',
     'legalStatus': 'EN_LITIGE',
     'statusSource': 'Tribunal de Lome, ordonnance 2026/88',
     'statusDate': '2026-09-12',
@@ -209,8 +209,8 @@ const _demoParcels = {
     },
     'warnings': ['Ne vaut pas titre foncier.'],
   },
-  'TG-AGO-00457': {
-    'id': 'TG-AGO-00457',
+  'TG-AG3-00457': {
+    'id': 'TG-AG3-00457',
     'legalStatus': 'COUTUMIER_NON_TITRE',
     'statusSource': 'Declaration du chef de canton, PV 2026/41',
     'statusDate': '2026-10-22',
@@ -307,7 +307,7 @@ class _PreviewHomeState extends State<_PreviewHome> {
 
   Future<void> _openSheet() => showParcelSheet(
     context,
-    parcelId: 'TG-AGO-00457',
+    parcelId: 'TG-AG3-00457',
     api: _api,
     viewer: _viewer,
     onEdit: (parcel) {
@@ -356,7 +356,7 @@ class _PreviewHomeState extends State<_PreviewHome> {
         initialDraft: ParcelDraft(
           surveySessionId: 'CH-2026-031',
           points: _demoPoints,
-          commune: 'AGO',
+          commune: 'AG3',
         ),
         onQueue: (_) async =>
             Future<void>.delayed(const Duration(milliseconds: 600)),
@@ -380,7 +380,7 @@ class _PreviewHomeState extends State<_PreviewHome> {
             FilledButton.icon(
               onPressed: _openSheet,
               icon: const Icon(Icons.map_outlined),
-              label: const Text('Ouvrir TG-AGO-00457 sur la carte'),
+              label: const Text('Ouvrir TG-AG3-00457 sur la carte'),
             ),
             const SizedBox(height: 12),
             const Text(

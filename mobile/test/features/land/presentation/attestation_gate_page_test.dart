@@ -9,7 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 Map<String, dynamic> parcel({String b5 = 'FIXED'}) => {
-  'id': 'TG-AGO-00457',
+  'id': 'TG-AG3-00457',
   'version': 2,
   'areaM2': 452.18,
   'perimeterM': 101.81,
@@ -49,7 +49,7 @@ Future<List<http.Request>> pump(
   await tester.pumpWidget(
     MaterialApp(
       home: AttestationGatePage(
-        parcelId: 'TG-AGO-00457',
+        parcelId: 'TG-AG3-00457',
         registeredSurveyor: registered,
         api: LandApi(
           MockClient((r) {
@@ -82,7 +82,7 @@ void main() {
         if (r.method == 'POST') {
           return json({
             'number': 'AT-2026-000031',
-            'parcelId': 'TG-AGO-00457',
+            'parcelId': 'TG-AG3-00457',
             'parcelVersion': 2,
             'geometryHash': 'x',
             'documentHash': 'b'.padRight(64, 'c'),
@@ -105,7 +105,7 @@ void main() {
 
     await tester.tap(issueButton());
     await tester.pumpAndSettle();
-    expect(requests.last.url.path, '/parcels/TG-AGO-00457/attestations');
+    expect(requests.last.url.path, '/parcels/TG-AG3-00457/attestations');
     expect(find.text('Attestation AT-2026-000031 émise'), findsOneWidget);
     expect(enabled(tester), isFalse);
   });

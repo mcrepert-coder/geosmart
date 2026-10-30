@@ -14,29 +14,29 @@ void main() {
   test('explique un chevauchement a la creation', () {
     final message = landErrorMessage(
       overlap([
-        {'parcelId': 'TG-AGO-00001', 'overlapAreaM2': 42.5},
+        {'parcelId': 'TG-AG3-00001', 'overlapAreaM2': 42.5},
       ]),
     );
-    expect(message, startsWith('Le levé recouvre TG-AGO-00001 sur 42,50'));
+    expect(message, startsWith('Le levé recouvre TG-AG3-00001 sur 42,50'));
     expect(message, contains('Vérifiez les bornes ou signalez un litige.'));
   });
 
   test('parle de la nouvelle limite a la modification', () {
     final message = landErrorMessage(
       overlap([
-        {'parcelId': 'TG-AGO-00001', 'overlapAreaM2': 42.5},
+        {'parcelId': 'TG-AG3-00001', 'overlapAreaM2': 42.5},
       ]),
       action: LandAction.update,
     );
-    expect(message, startsWith('La nouvelle limite recouvre TG-AGO-00001'));
+    expect(message, startsWith('La nouvelle limite recouvre TG-AG3-00001'));
   });
 
   test('compte les autres parcelles en conflit', () {
     final message = landErrorMessage(
       overlap([
-        {'parcelId': 'TG-AGO-00001', 'overlapAreaM2': 42.5},
-        {'parcelId': 'TG-AGO-00002', 'overlapAreaM2': 3.0},
-        {'parcelId': 'TG-AGO-00003', 'overlapAreaM2': 1.0},
+        {'parcelId': 'TG-AG3-00001', 'overlapAreaM2': 42.5},
+        {'parcelId': 'TG-AG3-00002', 'overlapAreaM2': 3.0},
+        {'parcelId': 'TG-AG3-00003', 'overlapAreaM2': 1.0},
       ]),
     );
     expect(message, contains('et 2 autres parcelles.'));

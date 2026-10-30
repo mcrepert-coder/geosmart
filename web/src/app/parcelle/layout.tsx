@@ -34,7 +34,7 @@ export default function ParcelleLayout({ children }: LayoutProps<"/parcelle">) {
       {DEMO_MODE && (
         <p className="gs-demo px-4 py-2 text-center" role="status">
           Données d&apos;exemple : l&apos;API n&apos;est pas encore branchée. Essayez
-          TG-AGO-00457, TG-AGO-00377 ou TG-LOM-01188.
+          TG-AG3-00457, TG-AG3-00377 ou TG-GO1-01188.
         </p>
       )}
       <header className="gs-header">

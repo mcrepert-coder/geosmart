@@ -51,7 +51,7 @@ class _VerifyParcelPageState extends State<VerifyParcelPage> {
   String? _validate(String id) {
     if (id.isEmpty) return "Saisissez l'identifiant de la parcelle.";
     if (!parcelIdPattern.hasMatch(id)) {
-      return 'Format attendu : TG, la commune et le numéro, par exemple TG-AGO-00457.';
+      return 'Format attendu : TG, la commune et le numéro, par exemple TG-AG3-00457.';
     }
     return null;
   }
@@ -106,7 +106,7 @@ class _VerifyParcelPageState extends State<VerifyParcelPage> {
                     decoration: InputDecoration(
                       labelText: 'Identifiant de parcelle',
                       floatingLabelBehavior: FloatingLabelBehavior.always,
-                      hintText: 'TG-AGO-00457',
+                      hintText: 'TG-AG3-00457',
                       errorText: _error,
                       errorMaxLines: 3,
                       filled: true,

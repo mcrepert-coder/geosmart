@@ -27,7 +27,7 @@ SurveyPoint point(int n, double lat, double lon) => SurveyPoint(
 );
 
 final current = ParcelInfo.fromJson({
-  'id': 'TG-AGO-00457',
+  'id': 'TG-AG3-00457',
   'version': 2,
   'areaM2': 12000.0,
   'perimeterM': 440.0,
@@ -50,7 +50,7 @@ final square = [
 ];
 
 Map<String, dynamic> updated() => {
-  'id': 'TG-AGO-00457',
+  'id': 'TG-AG3-00457',
   'version': 3,
   'areaM2': 12242.64,
   'perimeterM': 442.59,
@@ -123,14 +123,14 @@ void main() {
         popped,
       );
 
-      expect(find.text('TG-AGO-00457 · version 2'), findsOneWidget);
+      expect(find.text('TG-AG3-00457 · version 2'), findsOneWidget);
       await tester.enterText(find.byType(TextField), 'Reprise de la borne B3');
       await tester.tap(find.text('Enregistrer la version 3'));
       await tester.pumpAndSettle();
 
       final r = requests.single;
       expect(r.method, 'PATCH');
-      expect(r.url.path, '/parcels/TG-AGO-00457');
+      expect(r.url.path, '/parcels/TG-AG3-00457');
       final body = jsonDecode(r.body) as Map<String, dynamic>;
       expect(body['expectedVersion'], 2);
       expect(body['reason'], 'Reprise de la borne B3');
@@ -170,7 +170,7 @@ void main() {
         'message': 'Cette parcelle recouvre une parcelle deja enregistree.',
         'details': {
           'conflicts': [
-            {'parcelId': 'TG-AGO-00412', 'overlapAreaM2': 18.4},
+            {'parcelId': 'TG-AG3-00412', 'overlapAreaM2': 18.4},
           ],
         },
       }, 409),
@@ -179,7 +179,7 @@ void main() {
     await tester.tap(find.text('Enregistrer la version 3'));
     await tester.pumpAndSettle();
     expect(
-      find.textContaining('recouvre TG-AGO-00412 sur 18,40'),
+      find.textContaining('recouvre TG-AG3-00412 sur 18,40'),
       findsOneWidget,
     );
     expect(find.textContaining("L'alerte a été journalisée."), findsOneWidget);
