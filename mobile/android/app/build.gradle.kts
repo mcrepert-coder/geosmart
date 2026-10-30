@@ -40,6 +40,11 @@ kotlin {
     }
 }
 
+dependencies {
+    // Tests JVM du module GNSS natif, sans telephone ni recepteur.
+    testImplementation("junit:junit:4.13.2")
+}
+
 flutter {
     source = "../.."
 }

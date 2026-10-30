@@ -10,6 +10,7 @@ class GnssPosition {
     this.accuracy,
     this.fixQuality = GnssFixQuality.invalid,
     this.satellitesCount = 0,
+    this.satellitesInView = 0,
     this.pdop,
     this.hdop,
     this.vdop,
@@ -32,8 +33,11 @@ class GnssPosition {
   /// Qualite du positionnement (Fixed, Float, Autonome, Invalide).
   final GnssFixQuality fixQuality;
 
-  /// Nombre de satellites visibles et utilises dans la solution (RG-04).
+  /// Nombre de satellites utilises dans la solution (RG-04).
   final int satellitesCount;
+
+  /// Nombre de satellites visibles d'apres les trames GSV.
+  final int satellitesInView;
 
   /// Dilution de precision 3D (PDOP, RG-04).
   final double? pdop;
@@ -68,6 +72,7 @@ class GnssPosition {
     double? accuracy,
     GnssFixQuality? fixQuality,
     int? satellitesCount,
+    int? satellitesInView,
     double? pdop,
     double? hdop,
     double? vdop,
@@ -82,6 +87,7 @@ class GnssPosition {
       accuracy: accuracy ?? this.accuracy,
       fixQuality: fixQuality ?? this.fixQuality,
       satellitesCount: satellitesCount ?? this.satellitesCount,
+      satellitesInView: satellitesInView ?? this.satellitesInView,
       pdop: pdop ?? this.pdop,
       hdop: hdop ?? this.hdop,
       vdop: vdop ?? this.vdop,
@@ -98,6 +104,7 @@ class GnssPosition {
       'accuracy': accuracy,
       'fix_quality': fixQuality.serialized,
       'satellites_count': satellitesCount,
+      'satellites_in_view': satellitesInView,
       'pdop': pdop,
       'hdop': hdop,
       'vdop': vdop,
@@ -115,6 +122,7 @@ class GnssPosition {
       accuracy: (map['accuracy'] as num?)?.toDouble(),
       fixQuality: GnssFixQuality.fromString(map['fix_quality'] as String?),
       satellitesCount: (map['satellites_count'] as num?)?.toInt() ?? 0,
+      satellitesInView: (map['satellites_in_view'] as num?)?.toInt() ?? 0,
       pdop: (map['pdop'] as num?)?.toDouble(),
       hdop: (map['hdop'] as num?)?.toDouble(),
       vdop: (map['vdop'] as num?)?.toDouble(),
