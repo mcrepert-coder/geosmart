@@ -43,6 +43,8 @@ jobs:
         run: npm run lint
       - if: steps.present.outputs.ok == 'true'
         run: npm test
+      - if: steps.present.outputs.ok == 'true'
+        run: npm run test:db -- --runInBand
 
   mobile:
     runs-on: ubuntu-latest
