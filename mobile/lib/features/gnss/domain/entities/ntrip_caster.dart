@@ -21,6 +21,7 @@ class NtripCaster {
     host: host,
     port: port,
     path: '/$mountpoint',
-    userInfo: '${Uri.encodeComponent(username)}:${Uri.encodeComponent(password)}',
+    userInfo:
+        '${Uri.encodeComponent(username)}:${Uri.encodeComponent(password)}',
   );
 }

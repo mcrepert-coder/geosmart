@@ -74,6 +74,26 @@ Represente un chantier et l'ensemble ordonne des bornes levees.
 
 Une mission n'est jamais synchronisee point par point. Toutes ses bornes sont enregistrees localement pendant le leve, puis la mission entiere est envoyee apres son passage a `COMPLETED`.
 
+### File d'envoi locale
+
+La file contient une entree par mission terminee, jamais une entree par borne.
+
+| Champ | Type | Description |
+|---|---|---|
+| `session_id` | String | Mission locale concernee |
+| `client_id` | String | Identifiant d'idempotence de la mission (RG-08) |
+| `status` | String | `PENDING`, `SYNCED` ou `REJECTED` |
+| `attempts` | Integer | Nombre d'echecs reseau |
+| `last_error` | String | Dernier message d'erreur, nullable |
+| `enqueued_at` | String (ISO 8601 UTC) | Date d'entree dans la file |
+| `updated_at` | String (ISO 8601 UTC) | Date de la derniere tentative |
+
+Une panne reseau laisse la mission en `PENDING` avec une tentative de plus. Un refus metier passe la mission en `REJECTED`. Une mission acceptee passe a `SYNCED` dans la file et dans `survey_sessions`.
+
+### Calcul des mesures
+
+Le perimetre et la surface sont calcules localement en UTM 31N au moment de terminer la mission. Les bornes restent en WGS84 dans la base et dans la charge utile. Une mission de moins de trois bornes, ou contenant une borne non `FIXED`, ne peut pas passer a `COMPLETED`.
+
 ---
 
 ## 3. Format d'echange pour la synchronisation (`POST /sync`)

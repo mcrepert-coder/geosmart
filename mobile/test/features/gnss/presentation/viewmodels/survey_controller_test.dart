@@ -3,9 +3,11 @@ import 'package:geosmart_mobile/features/gnss/domain/entities/gnss_fix_quality.d
 import 'package:geosmart_mobile/features/gnss/domain/entities/gnss_position.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_point.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_session.dart';
+import 'package:geosmart_mobile/features/gnss/domain/entities/survey_session_status.dart';
 import 'package:geosmart_mobile/features/gnss/presentation/viewmodels/survey_controller.dart';
 
 import '../../../../support/fake_survey_store.dart';
+import '../../../../support/fake_sync_queue.dart';
 
 void main() {
   late FakeSurveySessionStore store;
@@ -263,6 +265,146 @@ void main() {
     test('ignore une borne inconnue', () async {
       await controller.undoPoint('absente');
       expect(controller.points, isEmpty);
+    });
+  });
+
+  group('SurveyController fin de mission', () {
+    late FakeSyncQueueStore queue;
+    late FakeSyncTransport transport;
+    late SurveyController mission;
+    late ManualGnssSource missionSource;
+    late List<SurveyEvent> missionEvents;
+    var nextId = 0;
+
+    Future<void> recordPoint(int number) async {
+      final latitude = 6.13192 + number / 100000;
+      final longitude = 1.22281 + number / 100000;
+      missionSource.emit(position(latitude: latitude, longitude: longitude));
+      await settle();
+      mission.startMeasurement();
+      for (var i = 0; i < 10; i++) {
+        missionSource.emit(position(latitude: latitude, longitude: longitude));
+        await settle();
+      }
+    }
+
+    setUp(() async {
+      queue = FakeSyncQueueStore();
+      transport = FakeSyncTransport();
+      nextId = 0;
+      missionSource = ManualGnssSource();
+      mission = SurveyController(
+        store: FakeSurveySessionStore(session: session),
+        source: missionSource,
+        sessionId: session.id,
+        queue: queue,
+        syncTransport: transport,
+        idGenerator: () => 'mission-id-${nextId++}',
+        clock: () => DateTime.utc(2026, 10, 30, 9, 45),
+      );
+      missionEvents = [];
+      mission.events.listen(missionEvents.add);
+      await mission.start();
+      await settle();
+    });
+
+    tearDown(() {
+      mission.dispose();
+    });
+
+    test('refuse de terminer avec moins de trois bornes', () async {
+      await recordPoint(1);
+      await recordPoint(2);
+
+      expect(mission.canFinishMission, isFalse);
+      expect(await mission.finishMission(), isFalse);
+      expect(mission.error, contains('trois bornes'));
+      expect(mission.session!.status, SurveySessionStatus.inProgress);
+      expect(queue.entries, isEmpty);
+    });
+
+    test('termine la mission et calcule les mesures', () async {
+      for (var number = 1; number <= 3; number++) {
+        await recordPoint(number);
+      }
+
+      expect(mission.canFinishMission, isTrue);
+      expect(await mission.finishMission(), isTrue);
+      await settle();
+
+      expect(mission.session!.isCompleted, isTrue);
+      expect(mission.session!.perimeterMeters, greaterThan(0));
+      expect(mission.session!.areaSquareMeters, greaterThan(0));
+      expect(mission.measurements, isNotNull);
+      expect(queue.entries, hasLength(1));
+      expect(missionEvents.whereType<MissionCompleted>(), hasLength(1));
+    });
+
+    test('envoie la mission apres sa cloture', () async {
+      for (var number = 1; number <= 3; number++) {
+        await recordPoint(number);
+      }
+
+      await mission.finishMission();
+      await settle();
+
+      expect(transport.sent, hasLength(1));
+      expect(transport.sent.single['entityType'], 'survey_session');
+      expect(mission.session!.status, SurveySessionStatus.synced);
+      expect(mission.pendingSyncCount, 0);
+      expect(mission.syncError, isNull);
+      expect(missionEvents.whereType<SyncFinished>(), hasLength(1));
+    });
+
+    test('garde la mission en attente si le serveur echoue', () async {
+      transport.failure = StateError('reseau indisponible');
+      for (var number = 1; number <= 3; number++) {
+        await recordPoint(number);
+      }
+
+      await mission.finishMission();
+
+      expect(transport.sent, isEmpty);
+      expect(mission.session!.status, SurveySessionStatus.completed);
+      expect(mission.pendingSyncCount, 1);
+      expect(mission.syncError, isNotNull);
+    });
+
+    test('signale l absence de serveur configure', () async {
+      final offline = SurveyController(
+        store: FakeSurveySessionStore(session: session),
+        source: ManualGnssSource(),
+        sessionId: session.id,
+        queue: FakeSyncQueueStore(),
+      );
+      addTearDown(offline.dispose);
+      final offlineEvents = <SurveyEvent>[];
+      offline.events.listen(offlineEvents.add);
+      await offline.start();
+
+      await offline.syncNow();
+
+      expect(offline.canSyncNow, isFalse);
+      expect(offline.syncError, contains('non configuree'));
+      expect(offlineEvents.whereType<SyncUnavailable>(), hasLength(1));
+    });
+
+    test('bascule de source et remet la position a zero', () async {
+      missionSource.emit(position());
+      await settle();
+      expect(mission.position, isNotNull);
+
+      final next = ManualGnssSource();
+      addTearDown(next.stop);
+      await mission.switchSource(next);
+
+      expect(mission.source, same(next));
+      expect(mission.position, isNull);
+      expect(next.started, isTrue);
+
+      next.emit(position(latitude: 6.14));
+      await settle();
+      expect(mission.position?.latitude, 6.14);
     });
   });
 }

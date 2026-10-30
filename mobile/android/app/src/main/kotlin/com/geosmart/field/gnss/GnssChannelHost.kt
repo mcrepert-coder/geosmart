@@ -39,6 +39,7 @@ class GnssChannelHost(
     private var pending: PendingCall? = null
     private var simulator: NmeaSimulator? = null
     private var simulation = false
+    private val casterVault = CasterCredentialVault(activity)
 
     private val connector = BluetoothGnssConnector(
         context = activity,
@@ -156,6 +157,37 @@ class GnssChannelHost(
                     )
                 }
             }
+
+            "saveCaster" -> {
+                val host = call.argument<String>("host")?.trim().orEmpty()
+                val mountpoint = call.argument<String>("mountpoint")?.trim().orEmpty()
+                val username = call.argument<String>("username").orEmpty()
+                val password = call.argument<String>("password").orEmpty()
+                val port = call.argument<Number>("port")?.toInt() ?: 0
+                val useTls = call.argument<Boolean>("useTls") == true
+                if (host.isEmpty() || mountpoint.isEmpty() || port !in 1..65535) {
+                    result.error(
+                        ERROR_INVALID_ARGUMENT,
+                        "Configuration NTRIP incomplete.",
+                        null,
+                    )
+                    return
+                }
+                result.success(
+                    casterVault.save(
+                        host = host,
+                        port = port,
+                        mountpoint = mountpoint,
+                        username = username,
+                        password = password,
+                        useTls = useTls,
+                    ),
+                )
+            }
+
+            "loadCaster" -> result.success(casterVault.load())
+
+            "clearCaster" -> result.success(casterVault.clear())
 
             else -> result.notImplemented()
         }

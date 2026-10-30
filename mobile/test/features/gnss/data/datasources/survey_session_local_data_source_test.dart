@@ -6,6 +6,7 @@ import 'package:geosmart_mobile/features/gnss/domain/entities/gnss_position.dart
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_point.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_session.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_session_status.dart';
+import 'package:geosmart_mobile/features/gnss/domain/repositories/sync_queue_store.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
@@ -126,6 +127,88 @@ void main() {
 
       final points = await store.pointsFor(session.id);
       expect(points, isEmpty);
+    });
+
+    test('met a jour la mission sans toucher aux bornes', () async {
+      await store.createSession(session);
+      await store.addPoint(session.id, point(number: 1));
+      final loaded = (await store.loadSession(session.id))!;
+
+      await store.saveSession(
+        loaded.copyWith(
+          status: SurveySessionStatus.completed,
+          perimeterMeters: 12.5,
+          areaSquareMeters: 8.0,
+        ),
+      );
+
+      final reloaded = await store.loadSession(session.id);
+      expect(reloaded!.status, SurveySessionStatus.completed);
+      expect(reloaded.perimeterMeters, 12.5);
+      expect(reloaded.areaSquareMeters, 8.0);
+      expect(reloaded.points, hasLength(1));
+    });
+
+    test('refuse de mettre a jour une mission inconnue', () async {
+      expect(() => store.saveSession(session), throwsStateError);
+    });
+  });
+
+  group('SurveySessionLocalDataSource - file d envoi', () {
+    late SurveySession completed;
+
+    setUp(() async {
+      await store.createSession(session);
+      completed = session.copyWith(status: SurveySessionStatus.completed);
+      await store.saveSession(completed);
+    });
+
+    test('enfile une mission terminee une seule fois', () async {
+      await store.enqueue(completed);
+      await store.enqueue(completed);
+
+      expect(await store.pendingCount(), 1);
+      final entry = (await store.pending()).single;
+      expect(entry.sessionId, session.id);
+      expect(entry.clientId, session.clientId);
+      expect(entry.status, SyncQueueStatus.pending);
+      expect(entry.attempts, 0);
+      expect(entry.lastError, isNull);
+    });
+
+    test('marque une mission synchronisee', () async {
+      await store.enqueue(completed);
+
+      await store.markSynced(session.id);
+
+      expect(await store.pendingCount(), 0);
+    });
+
+    test('un echec reseau garde la mission en attente', () async {
+      await store.enqueue(completed);
+
+      await store.markFailed(session.id, 'reseau indisponible');
+
+      final entry = (await store.pending()).single;
+      expect(entry.attempts, 1);
+      expect(entry.lastError, 'reseau indisponible');
+    });
+
+    test('un refus metier retire la mission de la file', () async {
+      await store.enqueue(completed);
+
+      await store.markRejected(session.id, 'refus serveur');
+
+      expect(await store.pendingCount(), 0);
+    });
+
+    test('markPending remet une mission refusee en attente', () async {
+      await store.enqueue(completed);
+      await store.markRejected(session.id, 'refus serveur');
+
+      await store.markPending(session.id);
+
+      expect(await store.pendingCount(), 1);
     });
   });
 }

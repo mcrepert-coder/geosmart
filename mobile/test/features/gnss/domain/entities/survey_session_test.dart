@@ -194,4 +194,68 @@ void main() {
       expect(updated.canSync, isTrue);
     });
   });
+
+  group('SurveySession - fin de mission', () {
+    test('completeWithMeasurements calcule perimetre et surface', () {
+      final updated = session(
+        status: SurveySessionStatus.inProgress,
+        perimeterMeters: null,
+        areaSquareMeters: null,
+      ).completeWithMeasurements(completedAt: completedAt);
+
+      expect(updated.status, SurveySessionStatus.completed);
+      expect(updated.perimeterMeters, isNotNull);
+      expect(updated.perimeterMeters, greaterThan(0));
+      expect(updated.areaSquareMeters, isNotNull);
+      expect(updated.areaSquareMeters, greaterThan(0));
+      expect(updated.completedAt, completedAt);
+      expect(updated.canSync, isTrue);
+    });
+
+    test('refuse moins de trois bornes', () {
+      expect(
+        () => session(
+          status: SurveySessionStatus.inProgress,
+          points: [point(1), point(2)],
+          perimeterMeters: null,
+          areaSquareMeters: null,
+        ).completeWithMeasurements(),
+        throwsStateError,
+      );
+    });
+
+    test('refuse une borne non Fixed', () {
+      expect(
+        () => session(
+          status: SurveySessionStatus.inProgress,
+          points: [
+            point(1),
+            point(2, quality: GnssFixQuality.float),
+            point(3),
+          ],
+          perimeterMeters: null,
+          areaSquareMeters: null,
+        ).completeWithMeasurements(),
+        throwsStateError,
+      );
+    });
+
+    test('refuse une mission deja terminee', () {
+      expect(() => session().completeWithMeasurements(), throwsStateError);
+    });
+
+    test('canComplete et isCompleted decrivent l etat de la mission', () {
+      final inProgress = session(
+        status: SurveySessionStatus.inProgress,
+        perimeterMeters: null,
+        areaSquareMeters: null,
+      );
+
+      expect(inProgress.canComplete, isTrue);
+      expect(inProgress.isCompleted, isFalse);
+      expect(session().canComplete, isFalse);
+      expect(session().isCompleted, isTrue);
+      expect(session(status: SurveySessionStatus.synced).isCompleted, isTrue);
+    });
+  });
 }

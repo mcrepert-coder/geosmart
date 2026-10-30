@@ -101,6 +101,27 @@ En cas de perte de liaison Bluetooth, le canal emet une erreur `STREAM_DISCONNEC
   - `assetPath` (String) : Chemin vers le fichier NMEA simule.
 - **Retour** : `Boolean`.
 
+#### 6. `saveCaster(...)`
+- **Description** : Enregistre la configuration du caster NTRIP. Le mot de passe est chiffre en AES-GCM avec une cle du Keystore Android ; il n'est jamais ecrit en clair.
+- **Parametres** :
+  - `host` (String) : Nom ou adresse du caster.
+  - `port` (Integer) : Port entre 1 et 65535.
+  - `mountpoint` (String) : Point de montage RTCM.
+  - `username` (String) : Identifiant du caster.
+  - `password` (String) : Mot de passe, chiffre avant stockage.
+  - `useTls` (Boolean) : Transport HTTPS vers le caster.
+- **Retour** : `Boolean` (`false` si le Keystore est indisponible ou si la configuration est invalide).
+
+#### 7. `loadCaster()`
+- **Description** : Relit la configuration du caster et dechiffre le mot de passe.
+- **Parametres** : Aucun.
+- **Retour** : `Map<String, dynamic>?` avec `host`, `port`, `mountpoint`, `username`, `password`, `useTls`, ou `null` si aucune configuration n'est stockee.
+
+#### 8. `clearCaster()`
+- **Description** : Supprime la configuration memorisee.
+- **Parametres** : Aucun.
+- **Retour** : `Boolean`.
+
 ---
 
 ## 4. Statuts de connexion retournes

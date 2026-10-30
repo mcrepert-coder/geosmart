@@ -112,6 +112,67 @@ void main() {
       );
     });
 
+    test('compte les satellites visibles avec les trames GSV', () {
+      decoder.feed(
+        _withChecksum(
+          'GPGSV,2,1,08,01,40,083,46,02,17,308,41,12,07,344,39,14,22,228,45',
+        ),
+      );
+      decoder.feed(
+        _withChecksum(
+          'GPGSV,2,2,08,15,30,120,40,18,25,210,38,22,10,050,30,24,15,090,35',
+        ),
+      );
+
+      final position = decoder.feed(
+        _withChecksum(
+          'GNGGA,143200.00,0607.9152,N,00113.3686,E,4,00,0.8,24.35,M,0.0,M,1.0,0000',
+        ),
+      );
+
+      expect(position!.satellitesInView, 8);
+      expect(position.satellitesCount, 8);
+    });
+
+    test('garde le nombre de satellites utilises quand GGA le fournit', () {
+      decoder.feed(
+        _withChecksum(
+          'GPGSV,1,1,08,01,40,083,46,02,17,308,41,12,07,344,39,14,22,228,45',
+        ),
+      );
+
+      final position = decoder.feed(ggaFixed);
+
+      expect(position!.satellitesInView, 4);
+      expect(position.satellitesCount, 18);
+    });
+
+    test('additionne les PRN uniques de plusieurs constellations', () {
+      decoder.feed(
+        _withChecksum(
+          'GPGSV,1,1,04,01,40,083,46,02,17,308,41,12,07,344,39,14,22,228,45',
+        ),
+      );
+      decoder.feed(
+        _withChecksum('GLGSV,1,1,03,65,30,120,40,66,25,210,38,67,10,050,30'),
+      );
+
+      final position = decoder.feed(
+        _withChecksum(
+          'GNGGA,143200.00,0607.9152,N,00113.3686,E,4,00,0.8,24.35,M,0.0,M,1.0,0000',
+        ),
+      );
+
+      expect(position!.satellitesInView, 7);
+      expect(position.satellitesCount, 7);
+    });
+
+    test('laisse satellitesInView a zero sans trame GSV', () {
+      final position = decoder.feed(ggaFixed);
+
+      expect(position!.satellitesInView, 0);
+    });
+
     test('decode le fichier de simulation livre avec l application', () {
       final file = File('android/app/src/main/assets/nmea/simulation.txt');
       expect(file.existsSync(), isTrue, reason: 'Fichier NMEA absent');

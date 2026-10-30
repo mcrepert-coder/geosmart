@@ -19,6 +19,8 @@ class NmeaPositionDecoder {
   double? _hdopFromGsa;
   double? _vdop;
   double? _speed;
+  final Map<String, int> _gsvTotals = {};
+  final Map<String, Set<int>> _gsvPrns = {};
 
   /// Traite une phrase. Renvoie une position sur une trame GGA exploitable.
   GnssPosition? feed(String rawLine) {
@@ -36,6 +38,9 @@ class NmeaPositionDecoder {
       case 'GSA':
         _onGsa(fields);
         return null;
+      case 'GSV':
+        _onGsv(fields);
+        return null;
       case 'RMC':
         _onRmc(fields);
         return null;
@@ -50,12 +55,15 @@ class NmeaPositionDecoder {
     final longitude = _coordinate(fields[4], fields[5], isLatitude: false);
     if (latitude == null || longitude == null) return null;
 
+    final used = _integer(fields[7]) ?? 0;
+    final inView = _satellitesInView;
     return GnssPosition(
       latitude: latitude,
       longitude: longitude,
       altitude: _decimal(fields[9]),
       fixQuality: GnssFixQuality.fromNmeaCode(_integer(fields[6])),
-      satellitesCount: _integer(fields[7]) ?? 0,
+      satellitesCount: used > 0 ? used : inView,
+      satellitesInView: inView,
       pdop: _pdop,
       hdop: _decimal(fields[8]) ?? _hdopFromGsa,
       vdop: _vdop,
@@ -70,6 +78,32 @@ class NmeaPositionDecoder {
     _pdop = _decimal(fields[15]);
     _hdopFromGsa = _decimal(fields[16]);
     _vdop = _decimal(fields[17]);
+  }
+
+  void _onGsv(List<String> fields) {
+    if (fields.length < 4) return;
+    final header = fields.first;
+    if (header.length < 3) return;
+    final talker = header.substring(1, 3);
+    final messageNumber = _integer(fields[2]) ?? 0;
+    final total = _integer(fields[3]);
+    if (total != null && total > 0) _gsvTotals[talker] = total;
+    if (messageNumber <= 1) _gsvPrns[talker] = <int>{};
+
+    final prns = _gsvPrns.putIfAbsent(talker, () => <int>{});
+    for (var index = 4; index + 3 < fields.length; index += 4) {
+      final prn = _integer(fields[index]);
+      if (prn != null && prn > 0) prns.add(prn);
+    }
+  }
+
+  int get _satellitesInView {
+    final unique = _gsvPrns.values.fold<int>(
+      0,
+      (sum, prns) => sum + prns.length,
+    );
+    if (unique > 0) return unique;
+    return _gsvTotals.values.fold<int>(0, (sum, total) => sum + total);
   }
 
   void _onRmc(List<String> fields) {

@@ -1,105 +1,114 @@
 import 'dart:async';
-import 'dart:convert';
-import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
-// import '../gnss/domain/entities/ntrip_caster.dart';
+import 'dart:typed_data';
+
 import '../../domain/entities/ntrip_caster.dart';
-import '../../infrastructure/gnss_channel.dart';
+import '../../domain/repositories/rtcm_sink.dart';
+import 'ntrip_client.dart';
 
-/// Data source that connects to an NTRIP caster, receives RTCM correction
-/// bytes and forwards them to the native GNSS receiver via the MethodChannel.
-class NtripDataSource {
+/// Cycle de vie minimal d'une connexion NTRIP, injectable dans le ViewModel.
+abstract interface class NtripConnection {
+  Future<bool> start();
+
+  Future<void> stop();
+}
+
+/// Recoit les corrections RTCM 3.x d'un caster et les injecte dans le
+/// recepteur GNSS. La reconnexion est automatique tant que la session est
+/// active.
+class NtripDataSource implements NtripConnection {
+  NtripDataSource({
+    required this.caster,
+    required this.sink,
+    NtripClient? client,
+    this.retryDelay = const Duration(seconds: 5),
+    this.onStatus,
+  }) : _client = client ?? DioNtripClient();
+
   final NtripCaster caster;
-  final GnssChannel _channel;
-  final Dio _dio;
+  final RtcmSink sink;
+  final NtripClient _client;
+  final Duration retryDelay;
+  final void Function(bool streaming, String? error)? onStatus;
+
   StreamSubscription<List<int>>? _subscription;
+  Timer? _retryTimer;
   bool _active = false;
+  bool _streaming = false;
 
-  NtripDataSource({required this.caster, required this._channel})
-    : _dio = Dio();
+  bool get isActive => _active;
 
-  /// Starts the NTRIP connection. Returns when the first chunk is received.
-  Future<void> start() async {
-    if (_active) return;
+  bool get isStreaming => _streaming;
+
+  @override
+  Future<bool> start() async {
+    if (_active) return _streaming;
     _active = true;
-    await _connect();
+    return _connect();
   }
 
-  /// Stops the NTRIP stream and cleans up resources.
+  @override
   Future<void> stop() async {
     _active = false;
+    _retryTimer?.cancel();
+    _retryTimer = null;
     await _subscription?.cancel();
     _subscription = null;
+    _setStreaming(false, null);
   }
 
-  // -------------------------------------------------------------------
-  // Private helpers
-  // -------------------------------------------------------------------
-  Future<void> _connect() async {
-    final options = Options(
-      responseType: ResponseType.stream,
-      followRedirects: true,
-      headers: {
-        // Basic auth header if credentials are provided.
-        if (caster.username.isNotEmpty)
-          'Authorization':
-              'Basic ${base64Encode('${caster.username}:${caster.password}'.codeUnits)}',
-        'User-Agent': 'GeosmartNtripClient/1.0',
-        'Accept': '*/*',
-        'Connection': 'keep-alive',
-      },
-    );
-
+  Future<bool> _connect() async {
+    if (!_active) return false;
     try {
-      final response = await _dio.getUri(caster.uri, options: options);
-      if (response.statusCode != 200) {
-        throw DioException(
-          requestOptions: response.requestOptions,
-          error: 'NTRIP server returned ${response.statusCode}',
-        );
-      }
-
-      final stream = response.data!.stream;
-      // The stream yields List<int> chunks.
-      _subscription = stream
-          .map((chunk) => chunk as List<int>)
-          .listen(
-            _onData,
-            onError: _onError,
-            onDone: _onDone,
-            cancelOnError: true,
-          );
-    } catch (e) {
-      debugPrint('NTRIP connection error: $e');
-      if (_active) {
-        // Simple exponential back‑off: wait 5 seconds then retry.
-        await Future.delayed(const Duration(seconds: 5));
-        await _connect();
-      }
+      final stream = await _client.open(caster);
+      if (!_active) return false;
+      _subscription = stream.listen(
+        _onData,
+        onError: _onError,
+        onDone: _onDone,
+        cancelOnError: true,
+      );
+      _setStreaming(true, null);
+      return true;
+    } catch (error) {
+      _setStreaming(false, _message(error));
+      _scheduleReconnect();
+      return false;
     }
   }
 
-  void _onData(List<int> bytes) async {
-    try {
-      await _channel.sendRtcm(Uint8List.fromList(bytes));
-    } catch (e) {
-      debugPrint('Failed to forward RTCM: $e');
-    }
+  void _onData(List<int> bytes) {
+    if (!_active) return;
+    unawaited(sink.sendRtcm(Uint8List.fromList(bytes)));
   }
 
-  void _onError(Object error, StackTrace stack) async {
-    debugPrint('NTRIP stream error: $error');
-    if (_active) {
-      await Future.delayed(const Duration(seconds: 5));
-      await _connect();
-    }
+  void _onError(Object error, StackTrace stack) {
+    if (!_active) return;
+    _setStreaming(false, _message(error));
+    _scheduleReconnect();
   }
 
-  void _onDone() async {
-    debugPrint('NTRIP stream closed by server');
-    if (_active) {
-      await Future.delayed(const Duration(seconds: 5));
-      await _connect();
-    }
+  void _onDone() {
+    if (!_active) return;
+    _setStreaming(false, 'Le caster NTRIP a ferme le flux.');
+    _scheduleReconnect();
+  }
+
+  void _scheduleReconnect() {
+    if (!_active || _retryTimer != null) return;
+    _retryTimer = Timer(retryDelay, () {
+      _retryTimer = null;
+      if (_active) unawaited(_connect());
+    });
+  }
+
+  void _setStreaming(bool streaming, String? error) {
+    if (_streaming == streaming && error == null) return;
+    _streaming = streaming;
+    onStatus?.call(streaming, error);
+  }
+
+  String _message(Object error) {
+    if (error is NtripException) return error.message;
+    return error.toString();
   }
 }

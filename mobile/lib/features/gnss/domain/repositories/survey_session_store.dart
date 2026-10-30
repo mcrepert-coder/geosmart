@@ -8,6 +8,9 @@ abstract interface class SurveySessionStore {
 
   Future<SurveySession?> loadSession(String id);
 
+  /// Met a jour la mission seule, sans toucher a ses bornes.
+  Future<void> saveSession(SurveySession session);
+
   Future<List<SurveyPoint>> pointsFor(String sessionId);
 
   Future<void> addPoint(String sessionId, SurveyPoint point);

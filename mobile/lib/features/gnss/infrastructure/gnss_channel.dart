@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../domain/entities/gnss_device.dart';
+import '../domain/entities/ntrip_caster.dart';
 
 /// Wrapper Flutter du pont natif decrit dans `contracts/gnss-channel.md`.
 ///
@@ -81,6 +82,59 @@ class GnssChannel {
       return result ?? false;
     } on PlatformException catch (error) {
       debugPrint('GnssChannel.sendRtcm: ${error.code} ${error.message}');
+      return false;
+    }
+  }
+
+  /// Enregistre la configuration du caster. Le mot de passe est chiffre par
+  /// le Keystore Android, jamais ecrit en clair.
+  Future<bool> saveCaster(NtripCaster caster) async {
+    try {
+      final result = await _method.invokeMethod<bool>('saveCaster', {
+        'host': caster.host,
+        'port': caster.port,
+        'mountpoint': caster.mountpoint,
+        'username': caster.username,
+        'password': caster.password,
+        'useTls': caster.useTls,
+      });
+      return result ?? false;
+    } on PlatformException catch (error) {
+      debugPrint('GnssChannel.saveCaster: ${error.code} ${error.message}');
+      return false;
+    }
+  }
+
+  /// Relit la configuration du caster, mot de passe dechiffre par le natif.
+  Future<NtripCaster?> loadCaster() async {
+    try {
+      final result = await _method.invokeMapMethod<String, Object?>(
+        'loadCaster',
+      );
+      if (result == null) return null;
+      final host = (result['host'] as String?)?.trim() ?? '';
+      final mountpoint = (result['mountpoint'] as String?)?.trim() ?? '';
+      if (host.isEmpty || mountpoint.isEmpty) return null;
+      return NtripCaster(
+        host: host,
+        port: (result['port'] as num?)?.toInt() ?? 2101,
+        mountpoint: mountpoint,
+        username: (result['username'] as String?) ?? '',
+        password: (result['password'] as String?) ?? '',
+        useTls: result['useTls'] == true,
+      );
+    } on PlatformException catch (error) {
+      debugPrint('GnssChannel.loadCaster: ${error.code} ${error.message}');
+      return null;
+    }
+  }
+
+  Future<bool> clearCaster() async {
+    try {
+      final result = await _method.invokeMethod<bool>('clearCaster');
+      return result ?? false;
+    } on PlatformException catch (error) {
+      debugPrint('GnssChannel.clearCaster: ${error.code} ${error.message}');
       return false;
     }
   }

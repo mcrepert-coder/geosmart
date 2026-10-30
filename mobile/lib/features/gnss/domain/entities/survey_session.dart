@@ -1,3 +1,4 @@
+import '../services/survey_measurements.dart';
 import 'survey_point.dart';
 import 'survey_session_status.dart';
 
@@ -78,6 +79,15 @@ class SurveySession {
       allPointsValidated &&
       hasMeasurements;
 
+  /// La mission est terminee, en attente d'envoi ou deja envoyee.
+  bool get isCompleted =>
+      status == SurveySessionStatus.completed ||
+      status == SurveySessionStatus.synced;
+
+  /// La mission peut passer a `COMPLETED` avec ses mesures calculees.
+  bool get canComplete =>
+      !isCompleted && hasMinimumPoints && allPointsValidated;
+
   /// Cree une copie de la mission avec les champs fournis.
   SurveySession copyWith({
     String? id,
@@ -118,6 +128,25 @@ class SurveySession {
       perimeterMeters: perimeterMeters,
       areaSquareMeters: areaSquareMeters,
       completedAt: completedAt ?? DateTime.now().toUtc(),
+    );
+  }
+
+  /// Termine le leve en calculant perimetre et surface en UTM 31N (EF-107).
+  ///
+  /// Leve une [StateError] si la mission ne contient pas au moins trois
+  /// bornes toutes validees en RTK Fixed.
+  SurveySession completeWithMeasurements({DateTime? completedAt}) {
+    if (!canComplete) {
+      throw StateError(
+        'La mission doit contenir au moins $minimumPoints bornes RTK Fixed '
+        'et ne pas etre deja terminee.',
+      );
+    }
+    final measurements = SurveyMeasurements.fromPoints(points);
+    return complete(
+      perimeterMeters: measurements.perimeterMeters,
+      areaSquareMeters: measurements.areaSquareMeters,
+      completedAt: completedAt,
     );
   }
 

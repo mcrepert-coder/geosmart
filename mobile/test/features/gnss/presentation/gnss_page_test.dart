@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:geosmart_mobile/app/theme/geosmart_theme.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/gnss_fix_quality.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/gnss_position.dart';
+import 'package:geosmart_mobile/features/gnss/domain/entities/survey_point.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_session.dart';
+import 'package:geosmart_mobile/features/gnss/domain/entities/survey_session_status.dart';
 import 'package:geosmart_mobile/features/gnss/presentation/gnss_page.dart';
 import 'package:geosmart_mobile/features/gnss/presentation/viewmodels/survey_controller.dart';
 
@@ -57,6 +59,30 @@ void main() {
       ),
     );
     return (controller, source);
+  }
+
+  SurveyPoint point(int number) {
+    return SurveyPoint.fromPosition(
+      id: 'point-$number',
+      clientId: 'client-point-$number',
+      projectId: session.projectId,
+      surveyorId: session.surveyorId,
+      pointNumber: number,
+      pointName: 'B$number',
+      position: GnssPosition(
+        latitude: 6.13192 + number / 100000,
+        longitude: 1.22281 + number / 100000,
+        altitude: 12.5,
+        accuracy: 0.012,
+        fixQuality: GnssFixQuality.fixed,
+        satellitesCount: 18,
+        pdop: 1.4,
+        hdop: 0.8,
+        vdop: 1.1,
+        instrument: 'UM982',
+        recordedAt: DateTime.utc(2026, 10, 30, 9, 30),
+      ),
+    );
   }
 
   Future<void> pumpFrames(WidgetTester tester) async {
@@ -159,5 +185,63 @@ void main() {
     expect(calls, hasLength(2));
 
     await unmount(tester);
+  });
+
+  testWidgets('termine la mission apres confirmation', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final source = ManualGnssSource();
+    final controller = SurveyController(
+      store: FakeSurveySessionStore(
+        session: session,
+        points: [point(1), point(2), point(3)],
+      ),
+      source: source,
+      sessionId: session.id,
+      clock: () => DateTime.utc(2026, 10, 30, 10),
+    );
+    addTearDown(controller.dispose);
+    await controller.start();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GeoSmartTheme.light,
+        home: GnssPage(controller: controller, animateQuality: false),
+      ),
+    );
+    await tester.pump();
+
+    await tester.scrollUntilVisible(
+      find.text('Terminer et enregistrer'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Terminer et enregistrer'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirmer la fin du leve'), findsOneWidget);
+
+    await tester.tap(find.text('Confirmer la fin du leve'));
+    await tester.pumpAndSettle();
+
+    expect(controller.session!.status, SurveySessionStatus.completed);
+    expect(controller.session!.perimeterMeters, isNotNull);
+    expect(controller.session!.areaSquareMeters, isNotNull);
+
+    await unmount(tester);
+  });
+
+  testWidgets('ouvre l ecran de choix du recepteur', (tester) async {
+    await pumpPage(tester);
+
+    await tester.tap(find.byTooltip('Choisir le recepteur'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recepteur GNSS'), findsOneWidget);
+    expect(find.text('Utiliser la simulation'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }

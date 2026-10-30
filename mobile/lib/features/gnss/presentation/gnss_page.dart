@@ -8,7 +8,12 @@ import '../../../app/theme/geosmart_theme.dart';
 import '../domain/entities/gnss_fix_quality.dart';
 import '../domain/entities/gnss_position.dart';
 import '../domain/entities/survey_point.dart';
+import '../domain/entities/survey_session_status.dart';
+import '../domain/services/survey_measurements.dart';
 import '../domain/services/utm31n.dart';
+import 'ntrip_page.dart';
+import 'source_page.dart';
+import 'viewmodels/ntrip_controller.dart';
 import 'viewmodels/survey_controller.dart';
 
 /// Ecran de mesure T3 (RTK Fixed) et T4 (RTK Float, theme nuit).
@@ -20,6 +25,7 @@ class GnssPage extends StatefulWidget {
     super.key,
     required this.controller,
     this.animateQuality = true,
+    this.ntripController,
   });
 
   final SurveyController controller;
@@ -27,6 +33,9 @@ class GnssPage extends StatefulWidget {
   /// Clignotement de la pastille tant que la qualite n'est pas Fixed.
   /// Desactive dans les tests pour eviter une animation sans fin.
   final bool animateQuality;
+
+  /// ViewModel NTRIP injecte par les tests ou par la composition.
+  final NtripController? ntripController;
 
   @override
   State<GnssPage> createState() => _GnssPageState();
@@ -89,7 +98,69 @@ class _GnssPageState extends State<GnssPage> {
       case SurveyError(:final message):
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(SnackBar(content: Text(message)));
+      case MissionCompleted(:final session):
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Mission terminee : perimetre '
+              '${formatDecimal(session.perimeterMeters ?? 0)} m, surface '
+              '${formatDecimal(session.areaSquareMeters ?? 0)} m2.',
+            ),
+          ),
+        );
+      case SyncFinished(:final result):
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              result.sent > 0
+                  ? '${result.sent} mission(s) envoyee(s).'
+                  : result.hasFailures
+                  ? 'Envoi impossible, la mission reste sur l\'appareil.'
+                  : 'Aucune mission en attente.',
+            ),
+          ),
+        );
+      case SyncUnavailable(:final message):
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(SnackBar(content: Text(message)));
     }
+  }
+
+  Future<void> _openSourcePage() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => GnssSourcePage(controller: _controller),
+      ),
+    );
+  }
+
+  Future<void> _openNtripPage() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => NtripPage(controller: widget.ntripController),
+      ),
+    );
+  }
+
+  Future<void> _confirmFinish() async {
+    final points = _controller.points;
+    if (points.length < 3) return;
+    final preview = SurveyMeasurements.fromPoints(points);
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: GeoSmartColors.of(context).surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(GeoSmartDimens.radiusLg),
+        ),
+      ),
+      builder: (_) =>
+          _FinishMissionSheet(preview: preview, pointsCount: points.length),
+    );
+    if (confirmed == true) await _controller.finishMission();
   }
 
   @override
@@ -120,6 +191,16 @@ class _GnssPageState extends State<GnssPage> {
                 ],
               ),
               actions: [
+                IconButton(
+                  tooltip: 'Choisir le recepteur',
+                  icon: const Icon(Icons.sensors_outlined),
+                  onPressed: _openSourcePage,
+                ),
+                IconButton(
+                  tooltip: 'Corrections NTRIP',
+                  icon: const Icon(Icons.satellite_alt_outlined),
+                  onPressed: _openNtripPage,
+                ),
                 IconButton(
                   tooltip: _night ? 'Theme jour' : 'Theme nuit',
                   icon: Icon(
@@ -171,6 +252,27 @@ class _GnssPageState extends State<GnssPage> {
                               ),
                               child: _PointTile(point: point, colors: colors),
                             ),
+                        if (_controller.session?.isCompleted ?? false) ...[
+                          const SizedBox(height: GeoSmartDimens.space4),
+                          _MissionSummaryCard(
+                            controller: _controller,
+                            colors: colors,
+                          ),
+                        ] else if (_controller.canFinishMission) ...[
+                          const SizedBox(height: GeoSmartDimens.space4),
+                          _FinishMissionCard(
+                            colors: colors,
+                            busy: _controller.isFinishing,
+                            onFinish: _confirmFinish,
+                          ),
+                        ],
+                        if (_controller.pendingSyncCount > 0) ...[
+                          const SizedBox(height: GeoSmartDimens.space3),
+                          _PendingSyncCard(
+                            controller: _controller,
+                            colors: colors,
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -602,6 +704,323 @@ class _PointTile extends StatelessWidget {
             style: GeoSmartText.dataSmall(colors),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FinishMissionCard extends StatelessWidget {
+  const _FinishMissionCard({
+    required this.colors,
+    required this.busy,
+    required this.onFinish,
+  });
+
+  final GeoSmartColors colors;
+  final bool busy;
+  final VoidCallback onFinish;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(GeoSmartDimens.space4),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(GeoSmartDimens.radiusLg),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Terminer la mission',
+            style: GeoSmartText.h3.copyWith(color: colors.text),
+          ),
+          const SizedBox(height: GeoSmartDimens.space1),
+          Text(
+            'Le perimetre et la surface seront calcules en UTM 31N, puis la '
+            'mission sera enregistree sur l appareil avant son envoi.',
+            style: GeoSmartText.caption.copyWith(color: colors.textMuted),
+          ),
+          const SizedBox(height: GeoSmartDimens.space3),
+          SizedBox(
+            width: double.infinity,
+            height: GeoSmartDimens.touchMin,
+            child: FilledButton(
+              onPressed: busy ? null : onFinish,
+              style: FilledButton.styleFrom(
+                backgroundColor: colors.primary,
+                foregroundColor: colors.onPrimary,
+                disabledBackgroundColor: colors.surfaceSunken,
+                disabledForegroundColor: colors.textMuted,
+                textStyle: GeoSmartText.button,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(GeoSmartDimens.radiusMd),
+                ),
+              ),
+              child: Text(
+                busy ? 'Calcul en cours...' : 'Terminer et enregistrer',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MissionSummaryCard extends StatelessWidget {
+  const _MissionSummaryCard({required this.controller, required this.colors});
+
+  final SurveyController controller;
+  final GeoSmartColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final session = controller.session;
+    if (session == null) return const SizedBox.shrink();
+    final synced = session.status == SurveySessionStatus.synced;
+    final color = synced ? colors.success : colors.warning;
+    final background = synced ? colors.successSoft : colors.warningSoft;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(GeoSmartDimens.space4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(GeoSmartDimens.radiusLg),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                synced
+                    ? Icons.cloud_done_outlined
+                    : Icons.cloud_upload_outlined,
+                size: 20,
+                color: color,
+              ),
+              const SizedBox(width: GeoSmartDimens.space2),
+              Expanded(
+                child: Text(
+                  session.status.label,
+                  style: GeoSmartText.h3.copyWith(color: color),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: GeoSmartDimens.space3),
+          _InfoRow(
+            label: 'Perimetre',
+            value: '${formatDecimal(session.perimeterMeters ?? 0)} m',
+            colors: colors,
+          ),
+          _InfoRow(
+            label: 'Surface',
+            value: '${formatDecimal(session.areaSquareMeters ?? 0)} m2',
+            colors: colors,
+          ),
+          _InfoRow(
+            label: 'Bornes',
+            value: '${session.points.length}',
+            colors: colors,
+          ),
+          if (controller.pendingSyncCount > 0) ...[
+            const SizedBox(height: GeoSmartDimens.space3),
+            SizedBox(
+              width: double.infinity,
+              height: GeoSmartDimens.touchMin,
+              child: FilledButton(
+                onPressed: controller.isSyncing || !controller.canSyncNow
+                    ? null
+                    : controller.syncNow,
+                style: FilledButton.styleFrom(
+                  backgroundColor: colors.primary,
+                  foregroundColor: colors.onPrimary,
+                  disabledBackgroundColor: colors.surfaceSunken,
+                  disabledForegroundColor: colors.textMuted,
+                  textStyle: GeoSmartText.button,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      GeoSmartDimens.radiusMd,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  controller.isSyncing
+                      ? 'Synchronisation...'
+                      : controller.canSyncNow
+                      ? 'Synchroniser maintenant'
+                      : 'Serveur non configure',
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PendingSyncCard extends StatelessWidget {
+  const _PendingSyncCard({required this.controller, required this.colors});
+
+  final SurveyController controller;
+  final GeoSmartColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = controller.pendingSyncCount;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(GeoSmartDimens.space3),
+      decoration: BoxDecoration(
+        color: colors.warningSoft,
+        borderRadius: BorderRadius.circular(GeoSmartDimens.radiusMd),
+        border: Border.all(color: colors.warning.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.sync_outlined, size: 18, color: colors.warning),
+          const SizedBox(width: GeoSmartDimens.space2),
+          Expanded(
+            child: Text(
+              count == 1
+                  ? '1 mission en attente d envoi.'
+                  : '$count missions en attente d envoi.',
+              style: GeoSmartText.caption.copyWith(color: colors.warning),
+            ),
+          ),
+          if (controller.canSyncNow)
+            TextButton(
+              onPressed: controller.isSyncing ? null : controller.syncNow,
+              child: Text(controller.isSyncing ? 'Envoi...' : 'Envoyer'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    required this.colors,
+  });
+
+  final String label;
+  final String value;
+  final GeoSmartColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: GeoSmartDimens.space1),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GeoSmartText.caption.copyWith(color: colors.textMuted),
+          ),
+          Text(
+            value,
+            style: GeoSmartText.data(
+              colors,
+            ).copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FinishMissionSheet extends StatelessWidget {
+  const _FinishMissionSheet({required this.preview, required this.pointsCount});
+
+  final SurveyMeasurements preview;
+  final int pointsCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = GeoSmartColors.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(GeoSmartDimens.space5),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.borderStrong,
+                  borderRadius: BorderRadius.circular(
+                    GeoSmartDimens.radiusPill,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: GeoSmartDimens.space4),
+            Text(
+              'Terminer la mission',
+              style: GeoSmartText.h2.copyWith(color: colors.text),
+            ),
+            const SizedBox(height: GeoSmartDimens.space2),
+            Text(
+              'Verifiez les mesures calculees en UTM 31N avant de fermer le '
+              'leve. Les bornes restent sur l appareil.',
+              style: GeoSmartText.body.copyWith(color: colors.textMuted),
+            ),
+            const SizedBox(height: GeoSmartDimens.space4),
+            _InfoRow(label: 'Bornes', value: '$pointsCount', colors: colors),
+            _InfoRow(
+              label: 'Perimetre',
+              value: '${formatDecimal(preview.perimeterMeters)} m',
+              colors: colors,
+            ),
+            _InfoRow(
+              label: 'Surface',
+              value: '${formatDecimal(preview.areaSquareMeters)} m2',
+              colors: colors,
+            ),
+            const SizedBox(height: GeoSmartDimens.space5),
+            SizedBox(
+              width: double.infinity,
+              height: GeoSmartDimens.touchField,
+              child: FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: colors.accent,
+                  foregroundColor: colors.onAccent,
+                  textStyle: GeoSmartText.button,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      GeoSmartDimens.radiusMd,
+                    ),
+                  ),
+                ),
+                child: const Text('Confirmer la fin du leve'),
+              ),
+            ),
+            const SizedBox(height: GeoSmartDimens.space2),
+            SizedBox(
+              width: double.infinity,
+              height: GeoSmartDimens.touchMin,
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Continuer la mesure'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

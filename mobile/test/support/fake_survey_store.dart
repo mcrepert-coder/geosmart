@@ -31,6 +31,11 @@ class FakeSurveySessionStore implements SurveySessionStore {
   }
 
   @override
+  Future<void> saveSession(SurveySession value) async {
+    session = value;
+  }
+
+  @override
   Future<List<SurveyPoint>> pointsFor(String sessionId) async => [...points];
 
   @override

@@ -1,13 +1,21 @@
+// ignore_for_file: prefer_initializing_formals
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../data/datasources/dio_sync_transport.dart';
 import '../../domain/entities/gnss_fix_quality.dart';
 import '../../domain/entities/gnss_position.dart';
 import '../../domain/entities/survey_point.dart';
 import '../../domain/entities/survey_session.dart';
+import '../../domain/entities/survey_session_status.dart';
 import '../../domain/repositories/gnss_position_source.dart';
 import '../../domain/repositories/survey_session_store.dart';
+import '../../domain/repositories/sync_queue_store.dart';
+import '../../domain/repositories/sync_transport.dart';
+import '../../domain/services/survey_measurements.dart';
+import '../../domain/services/sync_queue_processor.dart';
 
 /// Evenements destines a la vue (toast, annulation, erreur).
 sealed class SurveyEvent {
@@ -32,6 +40,27 @@ class SurveyError extends SurveyEvent {
   final String message;
 }
 
+/// La mission vient de passer a `COMPLETED` avec ses mesures calculees.
+class MissionCompleted extends SurveyEvent {
+  const MissionCompleted(this.session);
+
+  final SurveySession session;
+}
+
+/// Un passage de la file d'envoi est termine.
+class SyncFinished extends SurveyEvent {
+  const SyncFinished(this.result);
+
+  final SyncQueueResult result;
+}
+
+/// Aucun serveur n'est configure pour envoyer la mission.
+class SyncUnavailable extends SurveyEvent {
+  const SyncUnavailable(this.message);
+
+  final String message;
+}
+
 /// ViewModel de l'ecran de mesure (MVVM).
 ///
 /// Il porte l'etat de la mission, la position courante, la moyenne de dix
@@ -41,16 +70,32 @@ class SurveyError extends SurveyEvent {
 class SurveyController extends ChangeNotifier {
   SurveyController({
     required this.store,
-    required this.source,
+    required GnssPositionSource source,
     required this.sessionId,
     this.epochsRequired = 10,
+    SyncQueueStore? queue,
+    SyncTransport? syncTransport,
     String Function()? idGenerator,
     DateTime Function()? clock,
-  }) : _idGenerator = idGenerator ?? _defaultId,
+  }) : _source = source,
+       queue =
+           queue ?? (store is SyncQueueStore ? store as SyncQueueStore : null),
+       _syncTransport = syncTransport ?? DioSyncTransport.fromEnvironment(),
+       _idGenerator = idGenerator ?? _defaultId,
        _clock = clock ?? DateTime.now;
 
   final SurveySessionStore store;
-  final GnssPositionSource source;
+
+  /// File locale des missions terminees. Par defaut, le depot SQLite sert
+  /// aussi de file d'envoi.
+  final SyncQueueStore? queue;
+
+  final SyncTransport? _syncTransport;
+
+  GnssPositionSource _source;
+
+  GnssPositionSource get source => _source;
+
   final String sessionId;
 
   /// Nombre d'epoques moyennes avant l'enregistrement d'une borne.
@@ -70,7 +115,11 @@ class SurveyController extends ChangeNotifier {
   bool _isAveraging = false;
   bool _started = false;
   bool _disposed = false;
+  bool _isFinishing = false;
+  bool _isSyncing = false;
+  int _pendingSyncCount = 0;
   String? _error;
+  String? _syncError;
 
   static int _idCounter = 0;
 
@@ -101,6 +150,36 @@ class SurveyController extends ChangeNotifier {
   String? get error => _error;
 
   Stream<SurveyEvent> get events => _events.stream;
+
+  bool get isFinishing => _isFinishing;
+
+  bool get isSyncing => _isSyncing;
+
+  int get pendingSyncCount => _pendingSyncCount;
+
+  String? get syncError => _syncError;
+
+  /// Vrai quand un serveur est configure et qu'une file locale existe.
+  bool get canSyncNow => queue != null && _syncTransport != null;
+
+  /// La mission peut etre terminee avec ses mesures calculees.
+  bool get canFinishMission =>
+      !_loading &&
+      !_isFinishing &&
+      (_session?.copyWith(points: _points).canComplete ?? false);
+
+  /// Mesures calculees de la mission terminee, nulles avant la fin du leve.
+  SurveyMeasurements? get measurements {
+    final session = _session;
+    if (session?.perimeterMeters == null || session?.areaSquareMeters == null) {
+      return null;
+    }
+    return SurveyMeasurements(
+      edgeMeters: const [],
+      perimeterMeters: session!.perimeterMeters!,
+      areaSquareMeters: session.areaSquareMeters!,
+    );
+  }
 
   /// RG-01 : une borne ne s'enregistre que sur un point RTK Fixed, hors
   /// moyenne en cours.
@@ -141,8 +220,14 @@ class SurveyController extends ChangeNotifier {
         _session = session;
         _points = [...session.points]
           ..sort((a, b) => a.pointNumber.compareTo(b.pointNumber));
-        _subscription = source.positions.listen(_onPosition);
-        await source.start();
+        _session = _session!.copyWith(points: _points);
+        _subscription = _source.positions.listen(_onPosition);
+        await _source.start();
+        try {
+          _pendingSyncCount = await queue?.pendingCount() ?? 0;
+        } catch (_) {
+          _pendingSyncCount = 0;
+        }
       }
     } catch (_) {
       _error = 'Impossible de charger la mission locale.';
@@ -150,6 +235,28 @@ class SurveyController extends ChangeNotifier {
       _loading = false;
       notifyListeners();
     }
+  }
+
+  /// Bascule vers une autre source GNSS sans quitter l'ecran de mesure
+  /// (EF-105). La position courante et la moyenne en cours sont remises a zero.
+  Future<void> switchSource(GnssPositionSource next) async {
+    if (identical(next, _source)) return;
+    final previous = _source;
+    await _subscription?.cancel();
+    _subscription = null;
+    await previous.stop();
+    _source = next;
+    _position = null;
+    _epochs.clear();
+    _isAveraging = false;
+    _error = null;
+    _subscription = next.positions.listen(_onPosition);
+    try {
+      await next.start();
+    } catch (_) {
+      _error = 'Impossible de demarrer la source GNSS.';
+    }
+    notifyListeners();
   }
 
   /// Demarre la moyenne des dix epoques (RG-01).
@@ -174,6 +281,7 @@ class SurveyController extends ChangeNotifier {
     try {
       await store.removePoint(pointId);
       _points = [..._points]..removeAt(index);
+      _session = _session?.copyWith(points: _points);
       notifyListeners();
     } catch (_) {
       _error = 'La borne n\'a pas pu etre supprimee.';
@@ -243,12 +351,100 @@ class SurveyController extends ChangeNotifier {
     try {
       await store.addPoint(_session!.id, point);
       _points = [..._points, point];
+      _session = _session!.copyWith(
+        points: _points,
+        status: SurveySessionStatus.inProgress,
+      );
       _error = null;
       _events.add(PointRecorded(point));
     } catch (_) {
       _error = "La borne n'a pas pu etre enregistree.";
       _events.add(const SurveyError("La borne n'a pas pu etre enregistree."));
     }
+    notifyListeners();
+  }
+
+  /// Termine la mission, calcule perimetre et surface, puis l'enregistre
+  /// localement avant de la mettre en file d'envoi (EF-107, RG-08).
+  Future<bool> finishMission() async {
+    final current = _session;
+    if (current == null) {
+      _fail('Mission introuvable sur l\'appareil.');
+      return false;
+    }
+    final withPoints = current.copyWith(points: _points);
+    if (!withPoints.canComplete) {
+      _fail(
+        'Il faut au moins trois bornes RTK Fixed pour terminer la mission.',
+      );
+      return false;
+    }
+
+    _isFinishing = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final completed = withPoints.completeWithMeasurements(
+        completedAt: _clock().toUtc(),
+      );
+      await store.saveSession(completed);
+      _session = completed;
+      await queue?.enqueue(completed);
+      _pendingSyncCount = await queue?.pendingCount() ?? 0;
+      _events.add(MissionCompleted(completed));
+      notifyListeners();
+      if (canSyncNow) await syncNow();
+      return true;
+    } catch (_) {
+      _fail('La mission n\'a pas pu etre terminee.');
+      return false;
+    } finally {
+      _isFinishing = false;
+      notifyListeners();
+    }
+  }
+
+  /// Rejoue la file d'envoi des missions terminees.
+  Future<void> syncNow() async {
+    final queueStore = queue;
+    final transport = _syncTransport;
+    if (queueStore == null || transport == null) {
+      _syncError = 'Adresse du serveur non configuree.';
+      _events.add(SyncUnavailable(_syncError!));
+      notifyListeners();
+      return;
+    }
+    if (_isSyncing) return;
+
+    _isSyncing = true;
+    _syncError = null;
+    notifyListeners();
+    try {
+      final processor = SyncQueueProcessor(
+        sessions: store,
+        queue: queueStore,
+        transport: transport,
+      );
+      final result = await processor.flush();
+      _pendingSyncCount = result.remaining;
+      _syncError = result.hasFailures
+          ? 'Certaines missions n\'ont pas pu etre envoyees.'
+          : null;
+      final refreshed = await store.loadSession(sessionId);
+      if (refreshed != null) _session = refreshed;
+      _events.add(SyncFinished(result));
+    } catch (_) {
+      _syncError = 'La synchronisation a echoue.';
+      _events.add(SurveyError(_syncError!));
+    } finally {
+      _isSyncing = false;
+      notifyListeners();
+    }
+  }
+
+  void _fail(String message) {
+    _error = message;
+    _events.add(SurveyError(message));
     notifyListeners();
   }
 
@@ -284,7 +480,7 @@ class SurveyController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _subscription?.cancel();
-    unawaited(source.stop());
+    unawaited(_source.stop());
     unawaited(_events.close());
     super.dispose();
   }
