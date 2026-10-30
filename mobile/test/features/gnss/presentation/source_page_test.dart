@@ -1,12 +1,38 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geosmart_mobile/app/theme/geosmart_theme.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/gnss_device.dart';
+import 'package:geosmart_mobile/features/gnss/domain/entities/gnss_position.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_session.dart';
+import 'package:geosmart_mobile/features/gnss/domain/repositories/gnss_position_source.dart';
 import 'package:geosmart_mobile/features/gnss/presentation/source_page.dart';
 import 'package:geosmart_mobile/features/gnss/presentation/viewmodels/survey_controller.dart';
 
 import '../../../support/fake_survey_store.dart';
+
+class FakeNativeSource implements GnssPositionSource {
+  final StreamController<GnssPosition> _controller =
+      StreamController<GnssPosition>.broadcast();
+  bool started = false;
+
+  @override
+  bool get isSimulation => false;
+
+  @override
+  Stream<GnssPosition> get positions => _controller.stream;
+
+  @override
+  Future<void> start() async {
+    started = true;
+  }
+
+  @override
+  Future<void> stop() async {
+    started = false;
+  }
+}
 
 void main() {
   final session = SurveySession(
@@ -31,10 +57,11 @@ void main() {
     GnssScan? scanDevices,
     GnssSourceBuilder? simulatedSource,
     GnssAddressSourceBuilder? nativeSource,
+    GnssPositionSource? initialSource,
   }) async {
     final controller = SurveyController(
       store: FakeSurveySessionStore(session: session),
-      source: ManualGnssSource(),
+      source: initialSource ?? ManualGnssSource(),
       sessionId: session.id,
     );
     addTearDown(controller.dispose);
@@ -74,7 +101,8 @@ void main() {
 
     expect(find.text('Recepteur GNSS'), findsOneWidget);
     expect(find.text('Simulation Dart'), findsOneWidget);
-    expect(find.text('Utiliser la simulation'), findsOneWidget);
+    expect(find.text('Mode simulation'), findsOneWidget);
+    expect(find.byType(Switch), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -121,17 +149,32 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('bascule vers la simulation demandee', (tester) async {
+  testWidgets('active la simulation demandee', (tester) async {
     final next = ManualGnssSource();
     addTearDown(next.stop);
     final controller = await pumpSourcePage(
       tester,
+      initialSource: FakeNativeSource(),
       simulatedSource: () => next,
     );
 
-    await tester.tap(
-      find.widgetWithText(FilledButton, 'Utiliser la simulation'),
-    );
+    await tester.tap(find.byType(Switch));
+    await settleAsync(tester);
+
+    expect(controller.source, same(next));
+    expect(next.started, isTrue);
+    expect(find.text('Recepteur GNSS'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('desactive la simulation et bascule vers le recepteur', (
+    tester,
+  ) async {
+    final next = FakeNativeSource();
+    final controller = await pumpSourcePage(tester, nativeSource: (_) => next);
+
+    await tester.tap(find.byType(Switch));
     await settleAsync(tester);
 
     expect(controller.source, same(next));

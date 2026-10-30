@@ -104,6 +104,10 @@ class GnssChannelHost(
     @SuppressLint("InlinedApi")
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
+            "requestPermissions" -> withPermissions(result) {
+                result.success(true)
+            }
+
             "startScan" -> withPermissions(result) { performScan(result) }
 
             "connectDevice" -> {

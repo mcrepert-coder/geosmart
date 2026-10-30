@@ -33,6 +33,22 @@ class GnssChannel {
         .cast<String>();
   }
 
+  /// Demande les autorisations Bluetooth a l'utilisateur.
+  ///
+  /// Renvoie `true` quand elles sont deja accordees ou viennent de l'etre,
+  /// `false` si l'utilisateur refuse ou si le natif echoue.
+  Future<bool> requestBluetoothPermissions() async {
+    try {
+      final result = await _method.invokeMethod<bool>('requestPermissions');
+      return result ?? false;
+    } on PlatformException catch (error) {
+      debugPrint(
+        'GnssChannel.requestPermissions: ${error.code} ${error.message}',
+      );
+      return false;
+    }
+  }
+
   /// Appareils appaires puis a proximite. Liste vide si le natif echoue.
   Future<List<GnssDevice>> startScan() async {
     try {

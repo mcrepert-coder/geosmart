@@ -17,6 +17,26 @@ void main() {
     messenger.setMockMethodCallHandler(method, null);
   });
 
+  test('requestBluetoothPermissions attend la reponse native', () async {
+    messenger.setMockMethodCallHandler(method, (call) async {
+      expect(call.method, 'requestPermissions');
+      return true;
+    });
+
+    expect(await channel().requestBluetoothPermissions(), isTrue);
+  });
+
+  test('requestBluetoothPermissions renvoie false apres un refus', () async {
+    messenger.setMockMethodCallHandler(method, (call) async {
+      throw PlatformException(
+        code: 'PERMISSIONS_REQUIRED',
+        message: 'Autorisation refusee',
+      );
+    });
+
+    expect(await channel().requestBluetoothPermissions(), isFalse);
+  });
+
   test('startScan lit les appareils et ecarte les adresses vides', () async {
     messenger.setMockMethodCallHandler(method, (call) async {
       expect(call.method, 'startScan');

@@ -240,7 +240,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Recepteur GNSS'), findsOneWidget);
-    expect(find.text('Utiliser la simulation'), findsOneWidget);
+    expect(find.text('Mode simulation'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
   });

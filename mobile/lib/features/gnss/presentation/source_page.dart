@@ -38,6 +38,7 @@ class _GnssSourcePageState extends State<GnssSourcePage> {
   final TextEditingController _address = TextEditingController();
   List<GnssDevice> _devices = const [];
   bool _scanning = false;
+  bool _switching = false;
   String? _connectingAddress;
   String? _error;
 
@@ -54,11 +55,14 @@ class _GnssSourcePageState extends State<GnssSourcePage> {
       _scanning = true;
       _error = null;
     });
+    final native = NativeGnssSource();
     try {
-      final devices =
-          await (widget.scanDevices?.call() ?? NativeGnssSource().scan());
+      final devices = await (widget.scanDevices?.call() ?? native.scan());
       if (!mounted) return;
-      setState(() => _devices = devices);
+      setState(() {
+        _devices = devices;
+        _error = native.error;
+      });
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -70,14 +74,40 @@ class _GnssSourcePageState extends State<GnssSourcePage> {
   }
 
   Future<void> _useSimulation() async {
+    if (_controller.isSimulation || _switching) return;
     setState(() {
+      _switching = true;
       _connectingAddress = null;
       _error = null;
     });
     await _controller.switchSource(
       widget.simulatedSource?.call() ?? SimulatedGnssSource(),
     );
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+    setState(() => _switching = false);
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _useNative() async {
+    if (!_controller.isSimulation || _switching) return;
+    setState(() {
+      _switching = true;
+      _connectingAddress = null;
+      _error = null;
+    });
+    final current = _controller.source;
+    final address = current is NativeGnssSource ? current.address : null;
+    final source =
+        widget.nativeSource?.call(address ?? '') ??
+        NativeGnssSource(initialAddress: address);
+    await _controller.switchSource(source);
+    if (!mounted) return;
+    final error = source is NativeGnssSource ? source.error : null;
+    setState(() {
+      _switching = false;
+      _error = error;
+    });
+    if (error == null) Navigator.of(context).pop();
   }
 
   Future<void> _connect(String address) async {
@@ -96,7 +126,16 @@ class _GnssSourcePageState extends State<GnssSourcePage> {
         widget.nativeSource?.call(normalized) ??
         NativeGnssSource(initialAddress: normalized);
     await _controller.switchSource(source);
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+    final error = source is NativeGnssSource ? source.error : null;
+    if (error != null) {
+      setState(() {
+        _connectingAddress = null;
+        _error = error;
+      });
+      return;
+    }
+    Navigator.of(context).pop();
   }
 
   bool _isMacAddress(String value) {
@@ -131,7 +170,18 @@ class _GnssSourcePageState extends State<GnssSourcePage> {
             const SizedBox(height: GeoSmartDimens.space6),
             _SectionTitle(title: 'Simulation', colors: colors),
             const SizedBox(height: GeoSmartDimens.space2),
-            _SimulationCard(colors: colors, onUse: _useSimulation),
+            _SimulationCard(
+              colors: colors,
+              active: _controller.isSimulation,
+              busy: _switching,
+              onChanged: (value) {
+                if (value) {
+                  _useSimulation();
+                } else {
+                  _useNative();
+                }
+              },
+            ),
             const SizedBox(height: GeoSmartDimens.space6),
             _SectionTitle(title: 'Recepteur Bluetooth', colors: colors),
             const SizedBox(height: GeoSmartDimens.space2),
@@ -237,45 +287,58 @@ class _CurrentSourceCard extends StatelessWidget {
 }
 
 class _SimulationCard extends StatelessWidget {
-  const _SimulationCard({required this.colors, required this.onUse});
+  const _SimulationCard({
+    required this.colors,
+    required this.active,
+    required this.busy,
+    required this.onChanged,
+  });
 
   final GeoSmartColors colors;
-  final VoidCallback onUse;
+  final bool active;
+  final bool busy;
+  final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return _Card(
       colors: colors,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            'Tester sans recepteur',
-            style: GeoSmartText.bodyStrong.copyWith(color: colors.text),
-          ),
-          const SizedBox(height: GeoSmartDimens.space1),
-          Text(
-            'La simulation produit une position toutes les secondes et passe '
-            'en RTK Fixed apres trois epoques. Les donnees restent simulees.',
-            style: GeoSmartText.caption.copyWith(color: colors.textMuted),
-          ),
-          const SizedBox(height: GeoSmartDimens.space3),
-          SizedBox(
-            width: double.infinity,
-            height: GeoSmartDimens.touchMin,
-            child: FilledButton(
-              onPressed: onUse,
-              style: FilledButton.styleFrom(
-                backgroundColor: colors.primary,
-                foregroundColor: colors.onPrimary,
-                textStyle: GeoSmartText.button,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(GeoSmartDimens.radiusMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Mode simulation',
+                  style: GeoSmartText.bodyStrong.copyWith(color: colors.text),
                 ),
-              ),
-              child: const Text('Utiliser la simulation'),
+                const SizedBox(height: GeoSmartDimens.space1),
+                Text(
+                  active
+                      ? 'Positions simulees, aucune precision RTK annoncee.'
+                      : 'Le recepteur Bluetooth fournit les positions reelles.',
+                  style: GeoSmartText.caption.copyWith(color: colors.textMuted),
+                ),
+              ],
             ),
           ),
+          const SizedBox(width: GeoSmartDimens.space3),
+          if (busy)
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.primary,
+              ),
+            )
+          else
+            Switch(
+              value: active,
+              onChanged: onChanged,
+              activeTrackColor: colors.primary,
+            ),
         ],
       ),
     );

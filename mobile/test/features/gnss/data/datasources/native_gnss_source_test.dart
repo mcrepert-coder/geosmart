@@ -55,6 +55,8 @@ void main() {
     final connected = <String>[];
     messenger.setMockMethodCallHandler(method, (call) async {
       switch (call.method) {
+        case 'requestPermissions':
+          return true;
         case 'startScan':
           return [
             {
@@ -105,6 +107,8 @@ void main() {
     var connectCalls = 0;
     messenger.setMockMethodCallHandler(method, (call) async {
       switch (call.method) {
+        case 'requestPermissions':
+          return true;
         case 'startScan':
           return [
             {
@@ -147,8 +151,66 @@ void main() {
     await gnss.start();
     await pumpEventQueue();
 
-    expect(calls, ['connectDevice']);
+    expect(calls, ['requestPermissions', 'connectDevice']);
     expect(gnss.devices, isEmpty);
+
+    await gnss.stop();
+  });
+
+  test('refuse la recherche sans autorisation Bluetooth', () async {
+    var scanCalls = 0;
+    messenger.setMockMethodCallHandler(method, (call) async {
+      switch (call.method) {
+        case 'requestPermissions':
+          return false;
+        case 'startScan':
+          scanCalls++;
+          return <Object?>[];
+      }
+      return null;
+    });
+
+    final gnss = source();
+    final devices = await gnss.scan();
+
+    expect(devices, isEmpty);
+    expect(scanCalls, 0);
+    expect(gnss.error, contains('refusees'));
+
+    await gnss.stop();
+  });
+
+  test('demande l autorisation avant de scanner', () async {
+    final calls = <String>[];
+    messenger.setMockMethodCallHandler(method, (call) async {
+      calls.add(call.method);
+      return call.method == 'startScan' ? <Object?>[] : true;
+    });
+
+    final gnss = source();
+    await gnss.scan();
+
+    expect(calls, ['requestPermissions', 'startScan']);
+    expect(gnss.error, isNull);
+
+    await gnss.stop();
+  });
+
+  test('signale l absence de recepteur reconnu', () async {
+    messenger.setMockMethodCallHandler(method, (call) async {
+      switch (call.method) {
+        case 'requestPermissions':
+          return true;
+        case 'startScan':
+          return <Object?>[];
+      }
+      return null;
+    });
+
+    final gnss = source();
+    await gnss.start();
+
+    expect(gnss.error, contains('Aucun recepteur'));
 
     await gnss.stop();
   });

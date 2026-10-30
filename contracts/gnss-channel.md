@@ -65,7 +65,7 @@ En cas de perte de liaison Bluetooth, le canal emet une erreur `STREAM_DISCONNEC
 ### Methodes disponibles
 
 #### 1. `startScan()`
-- **Description** : Recherche les peripheriques Bluetooth appaires et a proximite.
+- **Description** : Recherche les peripheriques Bluetooth appaires et a proximite. Demande les autorisations Bluetooth si elles manquent.
 - **Parametres** : Aucun.
 - **Retour** : `List<Map<String, dynamic>>`
   ```json
@@ -121,6 +121,11 @@ En cas de perte de liaison Bluetooth, le canal emet une erreur `STREAM_DISCONNEC
 - **Description** : Supprime la configuration memorisee.
 - **Parametres** : Aucun.
 - **Retour** : `Boolean`.
+
+#### 9. `requestPermissions()`
+- **Description** : Demande les autorisations Bluetooth a l'execution. Sur Android 12 et plus, `BLUETOOTH_SCAN` et `BLUETOOTH_CONNECT`; sur Android 11 et moins, `ACCESS_FINE_LOCATION`. L'appel attend la reponse de l'utilisateur.
+- **Parametres** : Aucun.
+- **Retour** : `Boolean` (`true` si les autorisations sont accordees, `false` si elles sont refusees ou si le natif echoue).
 
 ---
 

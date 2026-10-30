@@ -30,6 +30,7 @@ class NativeGnssSource implements GnssPositionSource {
   StreamSubscription<String>? _subscription;
   List<GnssDevice> _devices = const [];
   String? _address;
+  String? _error;
   bool _started = false;
 
   /// Adresse MAC du recepteur connecte, nulle avant connexion.
@@ -37,6 +38,9 @@ class NativeGnssSource implements GnssPositionSource {
 
   /// Derniere liste d'appareils renvoyee par le natif.
   List<GnssDevice> get devices => List.unmodifiable(_devices);
+
+  /// Dernier refus ou echec lisible, nul quand la source fonctionne.
+  String? get error => _error;
 
   @override
   bool get isSimulation => false;
@@ -46,14 +50,29 @@ class NativeGnssSource implements GnssPositionSource {
 
   /// Recherche les recepteurs autour du telephone.
   Future<List<GnssDevice>> scan() async {
+    _error = null;
+    if (!await _channel.requestBluetoothPermissions()) {
+      _error = 'Les autorisations Bluetooth sont refusees.';
+      _devices = const [];
+      return devices;
+    }
     _devices = await _channel.startScan();
     return devices;
   }
 
   /// Connecte une adresse connue et retient la cible des prochains demarrages.
   Future<bool> connect(String address) async {
+    _error = null;
+    if (!await _channel.requestBluetoothPermissions()) {
+      _error = 'Les autorisations Bluetooth sont refusees.';
+      return false;
+    }
     final connected = await _channel.connectDevice(address);
-    if (connected) _address = address;
+    if (connected) {
+      _address = address;
+    } else {
+      _error = 'Connexion Bluetooth impossible.';
+    }
     return connected;
   }
 
@@ -65,6 +84,7 @@ class NativeGnssSource implements GnssPositionSource {
   Future<void> start() async {
     if (_started) return;
     _started = true;
+    _error = null;
     _subscription ??= _channel.nmeaStream.listen(
       _onLine,
       onError: (Object error) {
@@ -73,14 +93,21 @@ class NativeGnssSource implements GnssPositionSource {
     );
 
     if (_address != null) {
-      await connect(_address!);
+      if (!await connect(_address!)) _started = false;
       return;
     }
     final found = await scan();
-    final target = _preferred(found);
-    if (target != null) {
-      await connect(target.address);
+    if (_error != null) {
+      _started = false;
+      return;
     }
+    final target = _preferred(found);
+    if (target == null) {
+      _error = 'Aucun recepteur GNSS trouve. Saisissez son adresse MAC.';
+      _started = false;
+      return;
+    }
+    if (!await connect(target.address)) _started = false;
   }
 
   @override
