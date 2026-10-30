@@ -1,0 +1,735 @@
+openapi: 3.0.3
+info:
+  title: GeoSmart - module comptes et authentification (auth)
+  version: 0.1.0
+  description: |
+    Proprietaire : Beni (AGLAMEY-SEGBEAYA Kanleto Beni).
+    Concerne : tous les modules (authentification et roles), ainsi que l'administration
+    des comptes et des pieces justificatives.
+
+    Exigences reprises : EF-401 a EF-404, EF-407, RG-06.
+    Les chemins HTTP de ce contrat sont des propositions a valider par l'equipe ;
+    aucun chemin Auth n'est fixe dans les documents du projet.
+
+    Les roles sont attribues par un administrateur. L'inscription ne permet jamais
+    au demandeur de choisir son role. Les pieces d'identite sont privees et visibles
+    uniquement par leur proprietaire et un administrateur.
+
+    La connexion par telephone et code SMS est confirmee pour l'inscription et la
+    verification du telephone. Le cahier des charges impose aussi BCrypt, mais ne
+    precise pas si un mot de passe intervient a la connexion ni son lien avec le SMS.
+    Le champ credential de la requete de connexion est donc un placeholder a valider,
+    pas une decision sur le mecanisme.
+  x-team-decisions:
+    - id: auth-paths
+      question: Valider les chemins et methodes HTTP proposes dans ce contrat.
+    - id: login-credential
+      question: |
+        Decider si la connexion utilise un mot de passe, un code SMS, ou une combinaison,
+        et definir les champs correspondants. Ne pas implementer credential sans cette decision.
+    - id: token-lifecycle
+      question: |
+        Fixer les durees des jetons, leur format respectif et le comportement de renouvellement
+        (notamment si le refresh token est renouvele).
+    - id: account-transitions
+      question: |
+        Preciser les transitions autorisees entre les etats et les preconditions de validation,
+        rejet et suspension.
+    - id: document-requirements
+      question: |
+        Preciser les documents obligatoires selon le role, leur workflow de verification
+        et la possibilite pour un administrateur d'attribuer le role ADMINISTRATEUR.
+    - id: conflict-responses
+      question: |
+        Aucun cas 409 n'est explicitement defini pour Auth. Ajouter ce code uniquement apres
+        decision sur les conflits metier a representer.
+
+servers:
+  - url: http://localhost:3001
+
+tags:
+  - name: inscription
+  - name: authentification
+  - name: pieces-justificatives
+  - name: administration
+
+paths:
+  /auth/registrations:
+    post:
+      tags: [inscription]
+      summary: Creer un compte et initier la verification du telephone
+      description: |
+        Proposition de chemin. Cree une demande sans role choisi par le demandeur et
+        declenche l'envoi du code SMS. Tant qu'aucun fournisseur SMS n'est disponible,
+        le code est simule et inscrit dans un journal ; il n'est pas renvoye dans cette
+        reponse. Le compte est a l'etat TELEPHONE_NON_VERIFIE.
+      x-proposed-path: true
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrationRequest'
+      responses:
+        '201':
+          description: Compte cree, verification du telephone en attente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/Validation'
+
+  /auth/phone-verifications:
+    post:
+      tags: [inscription]
+      summary: Verifier le numero de telephone avec le code SMS
+      description: |
+        Proposition de chemin. Un code valide fait passer le compte a l'etat EN_ATTENTE.
+        La duree de validite, le nombre d'essais et le comportement en cas de code expire
+        ne sont pas specifies par les documents du projet.
+      x-proposed-path: true
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneVerificationRequest'
+      responses:
+        '200':
+          description: Telephone verifie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/Validation'
+
+  /auth/sessions:
+    post:
+      tags: [authentification]
+      summary: Ouvrir une session
+      description: |
+        Proposition de chemin. Le mecanisme exact de credential reste a decider : le projet
+        confirme le code SMS pour la verification initiale et BCrypt dans les exigences de
+        securite, mais ne decrit pas comment ils interviennent dans la connexion.
+        Cinq echecs de connexion entrainent un blocage de 15 minutes. La remise a zero du
+        compteur d'echecs n'est pas documentee.
+      x-proposed-path: true
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Session ouverte
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '423':
+          description: Connexion temporairement bloquee apres cinq echecs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: LOGIN_TEMPORARILY_BLOCKED
+                message: Connexion temporairement bloquee.
+                details:
+                  lockedUntil: '2026-10-30T15:30:00Z'
+
+  /auth/tokens/refresh:
+    post:
+      tags: [authentification]
+      summary: Renouveler les jetons
+      description: |
+        Proposition de chemin et de format. Les jetons doivent etre signes et courts selon
+        EF-407. Leur duree, leur format respectif et la rotation eventuelle du jeton de
+        renouvellement restent a valider.
+      x-proposed-path: true
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+      responses:
+        '200':
+          description: Jetons renouveles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /accounts/me/documents:
+    get:
+      tags: [pieces-justificatives]
+      summary: Lister les pieces justificatives du compte courant
+      description: |
+        Proposition de chemin. Un utilisateur ne consulte que les pieces de son propre compte.
+        Les pieces d'identite ne sont visibles que par leur proprietaire et un administrateur.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Pieces justificatives du compte courant
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentMetadata'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [pieces-justificatives]
+      summary: Deposer une piece justificative
+      description: |
+        Proposition de chemin. Le depot concerne le compte courant ; aucun champ de role
+        n'est accepte. Les documents admis font au maximum 5 Mo et sont au format JPEG,
+        PNG ou PDF. Les types de pieces correspondent aux justificatifs cites dans EF-403.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DocumentUpload'
+            encoding:
+              file:
+                contentType: image/jpeg, image/png, application/pdf
+      responses:
+        '201':
+          description: Piece justificative deposee
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentMetadata'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+
+  /accounts/me/documents/{documentId}/content:
+    get:
+      tags: [pieces-justificatives]
+      summary: Telecharger une de ses pieces justificatives
+      description: |
+        Proposition de chemin. Le proprietaire du compte courant peut consulter sa piece.
+        Les pieces d'identite ne sont jamais accessibles publiquement.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: Contenu prive de la piece
+          content:
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/png:
+              schema: { type: string, format: binary }
+            application/pdf:
+              schema: { type: string, format: binary }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/accounts:
+    get:
+      tags: [administration]
+      summary: Consulter la file des comptes
+      description: Proposition de chemin. Role ADMINISTRATEUR uniquement.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Comptes visibles dans la file d'administration
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Account'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/accounts/{accountId}:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      tags: [administration]
+      summary: Consulter un compte et ses pieces justificatives
+      description: |
+        Proposition de chemin. Role ADMINISTRATEUR uniquement. L'administrateur peut consulter
+        les pieces d'identite, conformement a la regle de confidentialite du projet.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Compte
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/accounts/{accountId}/documents:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      tags: [administration]
+      summary: Lister les pieces justificatives d'un compte
+      description: Proposition de chemin. Role ADMINISTRATEUR uniquement.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Pieces justificatives privees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentMetadata'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/accounts/{accountId}/documents/{documentId}/content:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [administration]
+      summary: Consulter le contenu prive d'une piece justificative
+      description: Proposition de chemin. Role ADMINISTRATEUR uniquement.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Contenu prive de la piece
+          content:
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/png:
+              schema: { type: string, format: binary }
+            application/pdf:
+              schema: { type: string, format: binary }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/accounts/{accountId}/validate:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    post:
+      tags: [administration]
+      summary: Valider un compte
+      description: Proposition de chemin. Role ADMINISTRATEUR uniquement.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Compte apres validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/accounts/{accountId}/reject:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    post:
+      tags: [administration]
+      summary: Rejeter un compte avec un motif
+      description: Proposition de chemin. Le motif de rejet est obligatoire. Role ADMINISTRATEUR.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountRejection'
+      responses:
+        '200':
+          description: Compte rejete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/accounts/{accountId}/suspend:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    post:
+      tags: [administration]
+      summary: Suspendre un compte
+      description: Proposition de chemin. Role ADMINISTRATEUR uniquement.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Compte suspendu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/accounts/{accountId}/role:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    put:
+      tags: [administration]
+      summary: Attribuer le role d'un compte
+      description: |
+        Proposition de chemin. Role ADMINISTRATEUR uniquement. Le role est attribue par
+        l'administrateur, jamais choisi par le titulaire du compte. Les documents du projet
+        ne precisent pas si l'attribution du role ADMINISTRATEUR est autorisee par cette route.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleAssignment'
+      responses:
+        '200':
+          description: Role attribue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    DocumentId:
+      name: documentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    Role:
+      type: string
+      enum: [ADMINISTRATEUR, GEOMETRE, TOPOGRAPHE, AGENT, CLIENT]
+
+    AccountStatus:
+      type: string
+      description: Etats du compte definis dans le cahier des charges
+      enum: [TELEPHONE_NON_VERIFIE, EN_ATTENTE, ACTIF, REJETE, SUSPENDU]
+
+    RegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [phone]
+      properties:
+        phone:
+          type: string
+          description: Numero de telephone utilise pour la verification SMS
+          example: '+228 90 00 00 00'
+
+    PhoneVerificationRequest:
+      type: object
+      additionalProperties: false
+      required: [phone, code]
+      properties:
+        phone:
+          type: string
+          example: '+228 90 00 00 00'
+        code:
+          type: string
+          description: Code SMS recu par le titulaire du numero
+          example: '123456'
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [phone, credential]
+      properties:
+        phone:
+          type: string
+          example: '+228 90 00 00 00'
+        credential:
+          type: string
+          writeOnly: true
+          description: |
+            Champ provisoire dont le sens n'est pas valide. L'equipe doit decider si la
+            connexion utilise un mot de passe, un code SMS ou une combinaison ; ne pas
+            implementer ce champ avant cette decision.
+
+    TokenRefreshRequest:
+      type: object
+      additionalProperties: false
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          writeOnly: true
+          description: |
+            Proposition de champ. Le format et le cycle de vie du jeton de renouvellement
+            restent a valider.
+
+    TokenResponse:
+      type: object
+      required: [accessToken, refreshToken, tokenType]
+      properties:
+        accessToken:
+          type: string
+          description: Jeton signe de courte duree
+        refreshToken:
+          type: string
+          description: Jeton utilise pour demander le renouvellement des jetons
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresIn:
+          type: integer
+          minimum: 1
+          description: Duree de validite du jeton d'acces en secondes ; valeur a definir
+
+    Account:
+      type: object
+      required: [id, phone, status, role, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        phone:
+          type: string
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+        role:
+          type: string
+          enum: [ADMINISTRATEUR, GEOMETRE, TOPOGRAPHE, AGENT, CLIENT]
+          nullable: true
+          description: Null tant qu'un administrateur n'a pas attribue de role
+        rejectionReason:
+          type: string
+          nullable: true
+          description: Motif fourni lors du rejet, le cas echeant
+        documents:
+          type: array
+          description: Metadonnees privees visibles au titulaire et a l'administrateur
+          items:
+            $ref: '#/components/schemas/DocumentMetadata'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DocumentCategory:
+      type: string
+      description: Types de justificatifs cites dans EF-403
+      enum: [IDENTITY, PROFESSIONAL_CARD, APPROVAL, RCCM, ORDER_REGISTRATION]
+
+    DocumentUpload:
+      type: object
+      additionalProperties: false
+      required: [category, file]
+      properties:
+        category:
+          $ref: '#/components/schemas/DocumentCategory'
+        file:
+          type: string
+          format: binary
+          description: Fichier de 5 Mo maximum, au format JPEG, PNG ou PDF
+          x-maxBytes: 5242880
+
+    DocumentMetadata:
+      type: object
+      required: [id, category, contentType, sizeBytes, uploadedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        category:
+          $ref: '#/components/schemas/DocumentCategory'
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, application/pdf]
+        sizeBytes:
+          type: integer
+          minimum: 1
+          maximum: 5242880
+        uploadedAt:
+          type: string
+          format: date-time
+
+    AccountRejection:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          description: Motif du rejet communique avec la decision
+
+    RoleAssignment:
+      type: object
+      additionalProperties: false
+      required: [role]
+      properties:
+        role:
+          $ref: '#/components/schemas/Role'
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+          description: Message lisible sans detail interne ni secret
+        details:
+          type: object
+
+  responses:
+    Validation:
+      description: Donnees invalides
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: VALIDATION_ERROR
+            message: Les donnees fournies sont invalides.
+    Unauthorized:
+      description: Jeton absent, invalide ou identifiants invalides
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: UNAUTHORIZED
+            message: Authentification requise ou identifiants invalides.
+    Forbidden:
+      description: Role insuffisant pour effectuer cette action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: FORBIDDEN
+            message: Action non autorisee pour votre role.
+    NotFound:
+      description: Compte ou piece justificative introuvable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: NOT_FOUND
+            message: Ressource introuvable.
+    PayloadTooLarge:
+      description: Fichier superieur a la limite de 5 Mo
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: FILE_TOO_LARGE
+            message: Le fichier depasse la taille maximale de 5 Mo.
+    UnsupportedMediaType:
+      description: Format de fichier non pris en charge
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: UNSUPPORTED_MEDIA_TYPE
+            message: Seuls les formats JPEG, PNG et PDF sont acceptes.
