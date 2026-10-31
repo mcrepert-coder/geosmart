@@ -127,6 +127,11 @@ En cas de perte de liaison Bluetooth, le canal emet une erreur `STREAM_DISCONNEC
 - **Parametres** : Aucun.
 - **Retour** : `Boolean` (`true` si les autorisations sont accordees, `false` si elles sont refusees ou si le natif echoue).
 
+#### 10. `isBluetoothEnabled()`
+- **Description** : Relit l'etat de l'adaptateur Bluetooth, sans demander de permission. L'ecran de mesure affiche une alerte quand il est desactive et reverifie l'etat au retour au premier plan.
+- **Parametres** : Aucun.
+- **Retour** : `Boolean` (`true` si le Bluetooth est actif).
+
 ---
 
 ## 4. Statuts de connexion retournes

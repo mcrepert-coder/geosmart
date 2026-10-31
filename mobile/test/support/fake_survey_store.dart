@@ -5,6 +5,7 @@ import 'package:geosmart_mobile/features/gnss/domain/entities/survey_point.dart'
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_session.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_session_status.dart';
 import 'package:geosmart_mobile/features/gnss/domain/repositories/gnss_position_source.dart';
+import 'package:geosmart_mobile/features/gnss/domain/repositories/gnss_source_status.dart';
 import 'package:geosmart_mobile/features/gnss/domain/repositories/survey_session_store.dart';
 
 /// Faux depot local en memoire pour les tests de la couche presentation.
@@ -72,6 +73,57 @@ class ManualGnssSource implements GnssPositionSource {
   @override
   Future<void> stop() async {
     if (!_controller.isClosed) await _controller.close();
+  }
+
+  void emit(GnssPosition position) => _controller.add(position);
+}
+
+/// Source native pilotable, avec un etat Bluetooth modifiable par le test.
+class FakeStatusGnssSource implements GnssPositionSource, GnssSourceStatus {
+  FakeStatusGnssSource({bool bluetoothDisabled = false})
+    : _bluetoothEnabled = !bluetoothDisabled,
+      _bluetoothDisabled = bluetoothDisabled;
+
+  final StreamController<GnssPosition> _controller =
+      StreamController<GnssPosition>.broadcast();
+  bool started = false;
+  int refreshCalls = 0;
+  bool _bluetoothEnabled;
+  bool _bluetoothDisabled;
+
+  @override
+  bool get bluetoothDisabled => _bluetoothDisabled;
+
+  @override
+  String? error;
+
+  @override
+  bool get isSimulation => false;
+
+  @override
+  Stream<GnssPosition> get positions => _controller.stream;
+
+  /// Change l'etat materiel sans toucher a l'etat deja lu par la source.
+  void setBluetoothEnabled(bool enabled) => _bluetoothEnabled = enabled;
+
+  @override
+  Future<void> start() async {
+    started = true;
+    await refreshBluetoothState();
+  }
+
+  @override
+  Future<void> stop() async {
+    started = false;
+    if (!_controller.isClosed) await _controller.close();
+  }
+
+  @override
+  Future<bool> refreshBluetoothState() async {
+    refreshCalls++;
+    _bluetoothDisabled = !_bluetoothEnabled;
+    error = _bluetoothDisabled ? 'Bluetooth desactive.' : null;
+    return _bluetoothEnabled;
   }
 
   void emit(GnssPosition position) => _controller.add(position);

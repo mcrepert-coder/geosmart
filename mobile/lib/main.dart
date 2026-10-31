@@ -14,12 +14,11 @@ import 'features/gnss/presentation/viewmodels/survey_controller.dart';
 /// Identifiant de la mission de demonstration creee au premier lancement.
 const String demoSessionId = 'demo-session';
 
-/// Le simulateur reste le defaut tant que l'ecran T2 ne permet pas de choisir
-/// le recepteur. Pour essayer le pont natif :
-/// `flutter run --dart-define=GEOSMART_GNSS_SIMULATION=false`.
+/// Le recepteur Bluetooth est le defaut. Pour essayer la simulation sans
+/// materiel : `flutter run --dart-define=GEOSMART_GNSS_SIMULATION=true`.
 const bool useSimulatedGnss = bool.fromEnvironment(
   'GEOSMART_GNSS_SIMULATION',
-  defaultValue: true,
+  defaultValue: false,
 );
 
 Future<void> main() async {

@@ -41,7 +41,7 @@ class GnssPage extends StatefulWidget {
   State<GnssPage> createState() => _GnssPageState();
 }
 
-class _GnssPageState extends State<GnssPage> {
+class _GnssPageState extends State<GnssPage> with WidgetsBindingObserver {
   late final StreamSubscription<SurveyEvent> _events;
   GnssFixQuality? _lastQuality;
   bool _night = false;
@@ -51,6 +51,7 @@ class _GnssPageState extends State<GnssPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _lastQuality = _controller.position?.fixQuality;
     _controller.addListener(_onControllerChanged);
     _events = _controller.events.listen(_onEvent);
@@ -58,9 +59,17 @@ class _GnssPageState extends State<GnssPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.removeListener(_onControllerChanged);
     unawaited(_events.cancel());
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_controller.refreshBluetoothState());
+    }
   }
 
   void _onControllerChanged() {
@@ -90,6 +99,7 @@ class _GnssPageState extends State<GnssPage> {
               label: 'Annuler',
               onPressed: () => unawaited(_controller.undoPoint(point.id)),
             ),
+            duration: const Duration(seconds: 5),
           ),
         );
       case MeasurementCancelled(:final reason):
@@ -215,6 +225,12 @@ class _GnssPageState extends State<GnssPage> {
             body: SafeArea(
               child: Column(
                 children: [
+                  if (_controller.bluetoothDisabled)
+                    _BluetoothBanner(
+                      colors: colors,
+                      onRefresh: () =>
+                          unawaited(_controller.refreshBluetoothState()),
+                    ),
                   if (_controller.isSimulation)
                     _SimulationBanner(colors: colors),
                   Expanded(
@@ -287,6 +303,46 @@ class _GnssPageState extends State<GnssPage> {
   }
 }
 
+class _BluetoothBanner extends StatelessWidget {
+  const _BluetoothBanner({required this.colors, required this.onRefresh});
+
+  final GeoSmartColors colors;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: colors.warningSoft,
+      padding: const EdgeInsets.symmetric(
+        horizontal: GeoSmartDimens.space4,
+        vertical: GeoSmartDimens.space1,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.bluetooth_disabled, size: 18, color: colors.warning),
+          const SizedBox(width: GeoSmartDimens.space2),
+          Expanded(
+            child: Text(
+              'Bluetooth desactive. Activez-le pour recevoir les positions '
+              'du recepteur.',
+              style: GeoSmartText.caption.copyWith(color: colors.warning),
+            ),
+          ),
+          TextButton(
+            onPressed: onRefresh,
+            style: TextButton.styleFrom(
+              foregroundColor: colors.warning,
+              textStyle: GeoSmartText.button,
+            ),
+            child: const Text('Reverifier'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SimulationBanner extends StatelessWidget {
   const _SimulationBanner({required this.colors});
 
@@ -341,7 +397,7 @@ class _QualityBanner extends StatelessWidget {
     };
     final label = quality?.label ?? 'En attente';
     final detail = position == null
-        ? 'Recherche du recepteur GNSS'
+        ? 'Recherche du recepteur GNSS (assurez vous que le Bluetooth est actif et que le recepteur est allume)'
         : '${position!.satellitesCount} satellites, ${position!.instrument}';
 
     return Container(

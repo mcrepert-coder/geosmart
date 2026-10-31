@@ -11,6 +11,7 @@ import '../../domain/entities/survey_point.dart';
 import '../../domain/entities/survey_session.dart';
 import '../../domain/entities/survey_session_status.dart';
 import '../../domain/repositories/gnss_position_source.dart';
+import '../../domain/repositories/gnss_source_status.dart';
 import '../../domain/repositories/survey_session_store.dart';
 import '../../domain/repositories/sync_queue_store.dart';
 import '../../domain/repositories/sync_transport.dart';
@@ -140,6 +141,17 @@ class SurveyController extends ChangeNotifier {
 
   bool get isSimulation => source.isSimulation;
 
+  /// Vrai quand le recepteur physique signale un Bluetooth desactive.
+  ///
+  /// Une source simulee n'implemente pas [GnssSourceStatus] : l'alerte reste
+  /// donc invisible en mode simulation.
+  bool get bluetoothDisabled {
+    final status = _source is GnssSourceStatus
+        ? _source as GnssSourceStatus
+        : null;
+    return status?.bluetoothDisabled ?? false;
+  }
+
   bool get hasConnection => _position != null;
 
   int get epochsCollected => _epochs.length;
@@ -190,6 +202,12 @@ class SurveyController extends ChangeNotifier {
   String? get disabledReason {
     if (_loading) return 'Chargement de la mission locale.';
     if (_isAveraging) return 'Mesure en cours, ne bougez pas.';
+    final status = _source is GnssSourceStatus
+        ? _source as GnssSourceStatus
+        : null;
+    if (status?.bluetoothDisabled ?? false) {
+      return status?.error ?? 'Bluetooth desactive.';
+    }
     if (_position == null) {
       return _error ?? 'En attente du recepteur GNSS.';
     }
@@ -235,6 +253,25 @@ class SurveyController extends ChangeNotifier {
       _loading = false;
       notifyListeners();
     }
+  }
+
+  /// Relit l'etat Bluetooth du recepteur, par exemple au retour au premier
+  /// plan apres un passage dans les reglages Android.
+  Future<void> refreshBluetoothState() async {
+    final status = _source is GnssSourceStatus
+        ? _source as GnssSourceStatus
+        : null;
+    if (status == null) return;
+    final wasDisabled = status.bluetoothDisabled;
+    final enabled = await status.refreshBluetoothState();
+    if (enabled && wasDisabled) {
+      try {
+        await _source.start();
+      } catch (_) {
+        _error = 'Impossible de demarrer la source GNSS.';
+      }
+    }
+    notifyListeners();
   }
 
   /// Bascule vers une autre source GNSS sans quitter l'ecran de mesure

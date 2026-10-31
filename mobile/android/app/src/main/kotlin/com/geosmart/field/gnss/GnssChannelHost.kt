@@ -108,6 +108,8 @@ class GnssChannelHost(
                 result.success(true)
             }
 
+            "isBluetoothEnabled" -> result.success(connector.isEnabled())
+
             "startScan" -> withPermissions(result) { performScan(result) }
 
             "connectDevice" -> {
