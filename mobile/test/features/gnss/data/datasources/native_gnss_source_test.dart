@@ -151,8 +151,51 @@ void main() {
     await gnss.start();
     await pumpEventQueue();
 
-    expect(calls, ['requestPermissions', 'connectDevice']);
+    expect(calls, [
+      'isBluetoothEnabled',
+      'requestPermissions',
+      'connectDevice',
+    ]);
     expect(gnss.devices, isEmpty);
+
+    await gnss.stop();
+  });
+
+  test('signale un Bluetooth desactive sans chercher de recepteur', () async {
+    final calls = <String>[];
+    messenger.setMockMethodCallHandler(method, (call) async {
+      calls.add(call.method);
+      return call.method != 'isBluetoothEnabled';
+    });
+
+    final gnss = source();
+    await gnss.start();
+    await pumpEventQueue();
+
+    expect(gnss.bluetoothDisabled, isTrue);
+    expect(gnss.error, NativeGnssSource.bluetoothDisabledMessage);
+    expect(calls, ['isBluetoothEnabled']);
+
+    await gnss.stop();
+  });
+
+  test('efface l alerte quand le Bluetooth est reactive', () async {
+    var enabled = false;
+    messenger.setMockMethodCallHandler(method, (call) async {
+      if (call.method == 'isBluetoothEnabled') return enabled;
+      return true;
+    });
+
+    final gnss = source();
+    await gnss.start();
+    expect(gnss.bluetoothDisabled, isTrue);
+
+    enabled = true;
+    final active = await gnss.refreshBluetoothState();
+
+    expect(active, isTrue);
+    expect(gnss.bluetoothDisabled, isFalse);
+    expect(gnss.error, isNull);
 
     await gnss.stop();
   });
@@ -190,7 +233,7 @@ void main() {
     final gnss = source();
     await gnss.scan();
 
-    expect(calls, ['requestPermissions', 'startScan']);
+    expect(calls, ['isBluetoothEnabled', 'requestPermissions', 'startScan']);
     expect(gnss.error, isNull);
 
     await gnss.stop();

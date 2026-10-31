@@ -49,6 +49,25 @@ class GnssChannel {
     }
   }
 
+  /// Vrai quand l'adaptateur Bluetooth est actif.
+  ///
+  /// Renvoie `true` si le natif ne sait pas repondre, pour ne pas afficher une
+  /// alerte a tort sur une plateforme sans pont Bluetooth.
+  Future<bool> isBluetoothEnabled() async {
+    try {
+      final result = await _method.invokeMethod<bool>('isBluetoothEnabled');
+      return result ?? true;
+    } on PlatformException catch (error) {
+      debugPrint(
+        'GnssChannel.isBluetoothEnabled: ${error.code} ${error.message}',
+      );
+      return true;
+    } on MissingPluginException catch (error) {
+      debugPrint('GnssChannel.isBluetoothEnabled: $error');
+      return true;
+    }
+  }
+
   /// Appareils appaires puis a proximite. Liste vide si le natif echoue.
   Future<List<GnssDevice>> startScan() async {
     try {

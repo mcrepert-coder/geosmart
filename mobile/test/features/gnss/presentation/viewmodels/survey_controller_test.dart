@@ -114,6 +114,54 @@ void main() {
     });
   });
 
+  group('SurveyController Bluetooth', () {
+    test('expose un Bluetooth desactive et sa raison', () async {
+      final native = FakeStatusGnssSource(bluetoothDisabled: true);
+      final nativeController = SurveyController(
+        store: FakeSurveySessionStore(session: session),
+        source: native,
+        sessionId: session.id,
+      );
+      await nativeController.start();
+
+      expect(nativeController.isSimulation, isFalse);
+      expect(nativeController.bluetoothDisabled, isTrue);
+      expect(nativeController.disabledReason, contains('Bluetooth'));
+
+      nativeController.dispose();
+    });
+
+    test('relit l etat Bluetooth apres le retour au premier plan', () async {
+      final native = FakeStatusGnssSource(bluetoothDisabled: true);
+      final nativeController = SurveyController(
+        store: FakeSurveySessionStore(session: session),
+        source: native,
+        sessionId: session.id,
+      );
+      await nativeController.start();
+      expect(nativeController.bluetoothDisabled, isTrue);
+
+      native.setBluetoothEnabled(true);
+      await nativeController.refreshBluetoothState();
+
+      expect(native.refreshCalls, 3);
+      expect(native.started, isTrue);
+      expect(nativeController.bluetoothDisabled, isFalse);
+      expect(nativeController.disabledReason, contains('recepteur GNSS'));
+
+      nativeController.dispose();
+    });
+
+    test('la simulation ne porte aucune alerte Bluetooth', () async {
+      expect(controller.isSimulation, isTrue);
+      expect(controller.bluetoothDisabled, isFalse);
+
+      await controller.refreshBluetoothState();
+
+      expect(controller.bluetoothDisabled, isFalse);
+    });
+  });
+
   group('SurveyController RG-01', () {
     test('refuse Float avec une raison ecrite', () async {
       source.emit(position(quality: GnssFixQuality.float));

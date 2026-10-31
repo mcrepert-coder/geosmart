@@ -61,6 +61,28 @@ void main() {
     return (controller, source);
   }
 
+  Future<(SurveyController, FakeStatusGnssSource)> pumpStatusPage(
+    WidgetTester tester, {
+    bool bluetoothDisabled = true,
+  }) async {
+    final source = FakeStatusGnssSource(bluetoothDisabled: bluetoothDisabled);
+    final controller = SurveyController(
+      store: FakeSurveySessionStore(session: session),
+      source: source,
+      sessionId: session.id,
+    );
+    addTearDown(controller.dispose);
+    await controller.start();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GeoSmartTheme.light,
+        home: GnssPage(controller: controller, animateQuality: false),
+      ),
+    );
+    await tester.pump();
+    return (controller, source);
+  }
+
   SurveyPoint point(int number) {
     return SurveyPoint.fromPosition(
       id: 'point-$number',
@@ -114,6 +136,50 @@ void main() {
     expect(
       find.text('Donnees simulees, pas de precision RTK annoncee.'),
       findsOneWidget,
+    );
+
+    await unmount(tester);
+  });
+
+  testWidgets('signale un Bluetooth desactive sur la page de mesure', (
+    tester,
+  ) async {
+    final (_, source) = await pumpStatusPage(tester);
+
+    expect(
+      find.textContaining('Bluetooth desactive. Activez-le'),
+      findsOneWidget,
+    );
+
+    source.setBluetoothEnabled(true);
+    await tester.tap(find.text('Reverifier'));
+    await tester.pump();
+
+    expect(
+      find.textContaining('Bluetooth desactive. Activez-le'),
+      findsNothing,
+    );
+
+    await unmount(tester);
+  });
+
+  testWidgets('reverifie le Bluetooth au retour au premier plan', (
+    tester,
+  ) async {
+    final (_, source) = await pumpStatusPage(tester);
+    expect(source.refreshCalls, 1);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    source.setBluetoothEnabled(true);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+
+    expect(source.refreshCalls, 3);
+    expect(source.started, isTrue);
+    expect(
+      find.textContaining('Bluetooth desactive. Activez-le'),
+      findsNothing,
     );
 
     await unmount(tester);

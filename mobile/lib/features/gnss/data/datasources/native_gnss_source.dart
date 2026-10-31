@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../domain/entities/gnss_device.dart';
 import '../../domain/entities/gnss_position.dart';
 import '../../domain/repositories/gnss_position_source.dart';
+import '../../domain/repositories/gnss_source_status.dart';
 import '../../infrastructure/gnss_channel.dart';
 import 'nmea_position_decoder.dart';
 
@@ -13,7 +14,10 @@ import 'nmea_position_decoder.dart';
 /// Sans adresse connue, [start] cherche un recepteur dans les appareils
 /// appaires et a proximite. Sans appareil reconnu, aucune position n'arrive :
 /// l'ecran de mesure reste en attente au lieu d'inventer une position.
-class NativeGnssSource implements GnssPositionSource {
+class NativeGnssSource implements GnssPositionSource, GnssSourceStatus {
+  /// Message affiche tant que l'adaptateur Bluetooth est desactive.
+  static const String bluetoothDisabledMessage =
+      'Bluetooth desactive. Activez-le pour recevoir les positions.';
   NativeGnssSource({
     GnssChannel? channel,
     NmeaPositionDecoder? decoder,
@@ -31,6 +35,7 @@ class NativeGnssSource implements GnssPositionSource {
   List<GnssDevice> _devices = const [];
   String? _address;
   String? _error;
+  bool _bluetoothDisabled = false;
   bool _started = false;
 
   /// Adresse MAC du recepteur connecte, nulle avant connexion.
@@ -40,7 +45,11 @@ class NativeGnssSource implements GnssPositionSource {
   List<GnssDevice> get devices => List.unmodifiable(_devices);
 
   /// Dernier refus ou echec lisible, nul quand la source fonctionne.
+  @override
   String? get error => _error;
+
+  @override
+  bool get bluetoothDisabled => _bluetoothDisabled;
 
   @override
   bool get isSimulation => false;
@@ -48,9 +57,26 @@ class NativeGnssSource implements GnssPositionSource {
   @override
   Stream<GnssPosition> get positions => _positions.stream;
 
+  /// Relit l'etat de l'adaptateur Bluetooth du telephone.
+  @override
+  Future<bool> refreshBluetoothState() async {
+    final enabled = await _channel.isBluetoothEnabled();
+    _bluetoothDisabled = !enabled;
+    if (!enabled) {
+      _error = bluetoothDisabledMessage;
+    } else if (_error == bluetoothDisabledMessage) {
+      _error = null;
+    }
+    return enabled;
+  }
+
   /// Recherche les recepteurs autour du telephone.
   Future<List<GnssDevice>> scan() async {
     _error = null;
+    if (!await refreshBluetoothState()) {
+      _devices = const [];
+      return devices;
+    }
     if (!await _channel.requestBluetoothPermissions()) {
       _error = 'Les autorisations Bluetooth sont refusees.';
       _devices = const [];
@@ -63,6 +89,11 @@ class NativeGnssSource implements GnssPositionSource {
   /// Connecte une adresse connue et retient la cible des prochains demarrages.
   Future<bool> connect(String address) async {
     _error = null;
+    if (!await refreshBluetoothState()) return false;
+    return _connect(address);
+  }
+
+  Future<bool> _connect(String address) async {
     if (!await _channel.requestBluetoothPermissions()) {
       _error = 'Les autorisations Bluetooth sont refusees.';
       return false;
@@ -92,8 +123,13 @@ class NativeGnssSource implements GnssPositionSource {
       },
     );
 
+    if (!await refreshBluetoothState()) {
+      _started = false;
+      return;
+    }
+
     if (_address != null) {
-      if (!await connect(_address!)) _started = false;
+      if (!await _connect(_address!)) _started = false;
       return;
     }
     final found = await scan();
@@ -107,7 +143,7 @@ class NativeGnssSource implements GnssPositionSource {
       _started = false;
       return;
     }
-    if (!await connect(target.address)) _started = false;
+    if (!await _connect(target.address)) _started = false;
   }
 
   @override
