@@ -156,7 +156,7 @@ class _BornagePageState extends State<BornagePage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Les photos seront disponibles quand leur lieu de stockage sera décidé.',
+                    'Les photos seront stockées sur le serveur dans une prochaine version.',
                     style: TextStyle(color: colors.textMuted, fontSize: 14),
                   ),
                 ),
