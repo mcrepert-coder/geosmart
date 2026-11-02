@@ -156,7 +156,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Bornage contradictoire'), findsOneWidget);
     expect(
-      find.textContaining('Les photos seront disponibles'),
+      find.textContaining('Les photos seront stockées sur le serveur'),
       findsOneWidget,
     );
 
