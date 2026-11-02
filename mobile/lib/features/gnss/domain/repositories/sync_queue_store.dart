@@ -47,6 +47,9 @@ abstract interface class SyncQueueStore {
 
   Future<int> pendingCount();
 
+  /// Missions refusees lors d'un envoi, avec la raison du refus.
+  Future<List<SyncQueueEntry>> rejected();
+
   Future<void> markSynced(String sessionId);
 
   Future<void> markRejected(String sessionId, String error);
@@ -55,4 +58,7 @@ abstract interface class SyncQueueStore {
   Future<void> markFailed(String sessionId, String error);
 
   Future<void> markPending(String sessionId);
+
+  /// Retire une mission de la file, par exemple quand elle est rouverte.
+  Future<void> remove(String sessionId);
 }

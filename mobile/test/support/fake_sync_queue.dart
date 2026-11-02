@@ -32,6 +32,12 @@ class FakeSyncQueueStore implements SyncQueueStore {
   Future<int> pendingCount() async => (await pending()).length;
 
   @override
+  Future<List<SyncQueueEntry>> rejected() async => [
+    for (final entry in entries.values)
+      if (entry.status == SyncQueueStatus.rejected) entry,
+  ];
+
+  @override
   Future<void> markSynced(String sessionId) async {
     _replace(sessionId, SyncQueueStatus.synced, null);
   }
@@ -58,6 +64,11 @@ class FakeSyncQueueStore implements SyncQueueStore {
   @override
   Future<void> markPending(String sessionId) async {
     _replace(sessionId, SyncQueueStatus.pending, null);
+  }
+
+  @override
+  Future<void> remove(String sessionId) async {
+    entries.remove(sessionId);
   }
 
   void _replace(String sessionId, SyncQueueStatus status, String? error) {

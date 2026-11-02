@@ -15,5 +15,8 @@ abstract interface class SurveySessionStore {
 
   Future<void> addPoint(String sessionId, SurveyPoint point);
 
+  /// Remplace une borne existante, par exemple apres une nouvelle mesure.
+  Future<void> updatePoint(String sessionId, SurveyPoint point);
+
   Future<void> removePoint(String pointId);
 }
