@@ -79,6 +79,19 @@ class SurveySessionLocalDataSource
   }
 
   @override
+  Future<void> updatePoint(String sessionId, SurveyPoint point) async {
+    final updated = await _database.update(
+      'survey_points',
+      point.toMap(),
+      where: 'id = ? AND session_id = ?',
+      whereArgs: [point.id, sessionId],
+    );
+    if (updated == 0) {
+      throw StateError('Borne locale introuvable: ${point.id}');
+    }
+  }
+
+  @override
   Future<void> removePoint(String pointId) async {
     await _database.delete(
       'survey_points',
@@ -122,6 +135,18 @@ class SurveySessionLocalDataSource
       [SyncQueueStatus.pending.serialized],
     );
     return Sqflite.firstIntValue(rows) ?? 0;
+  }
+
+  @override
+  Future<List<SyncQueueEntry>> rejected() async {
+    await _ensureQueue();
+    final rows = await _database.query(
+      'survey_sync_queue',
+      where: 'status = ?',
+      whereArgs: [SyncQueueStatus.rejected.serialized],
+      orderBy: 'updated_at DESC',
+    );
+    return rows.map(_entryFromMap).toList();
   }
 
   @override
@@ -180,6 +205,16 @@ class SurveySessionLocalDataSource
         'last_error': null,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       },
+      where: 'session_id = ?',
+      whereArgs: [sessionId],
+    );
+  }
+
+  @override
+  Future<void> remove(String sessionId) async {
+    await _ensureQueue();
+    await _database.delete(
+      'survey_sync_queue',
       where: 'session_id = ?',
       whereArgs: [sessionId],
     );

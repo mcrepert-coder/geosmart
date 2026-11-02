@@ -4,6 +4,7 @@ import 'package:geosmart_mobile/features/gnss/domain/entities/gnss_position.dart
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_point.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_session.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_session_status.dart';
+import 'package:geosmart_mobile/features/gnss/domain/repositories/sync_queue_store.dart';
 import 'package:geosmart_mobile/features/gnss/presentation/viewmodels/survey_controller.dart';
 
 import '../../../../support/fake_survey_store.dart';
@@ -111,6 +112,54 @@ void main() {
       expect(replay.points, hasLength(1));
       expect(replay.points.single.pointName, 'B1');
       replay.dispose();
+    });
+  });
+
+  group('SurveyController Bluetooth', () {
+    test('expose un Bluetooth desactive et sa raison', () async {
+      final native = FakeStatusGnssSource(bluetoothDisabled: true);
+      final nativeController = SurveyController(
+        store: FakeSurveySessionStore(session: session),
+        source: native,
+        sessionId: session.id,
+      );
+      await nativeController.start();
+
+      expect(nativeController.isSimulation, isFalse);
+      expect(nativeController.bluetoothDisabled, isTrue);
+      expect(nativeController.disabledReason, contains('Bluetooth'));
+
+      nativeController.dispose();
+    });
+
+    test('relit l etat Bluetooth apres le retour au premier plan', () async {
+      final native = FakeStatusGnssSource(bluetoothDisabled: true);
+      final nativeController = SurveyController(
+        store: FakeSurveySessionStore(session: session),
+        source: native,
+        sessionId: session.id,
+      );
+      await nativeController.start();
+      expect(nativeController.bluetoothDisabled, isTrue);
+
+      native.setBluetoothEnabled(true);
+      await nativeController.refreshBluetoothState();
+
+      expect(native.refreshCalls, 3);
+      expect(native.started, isTrue);
+      expect(nativeController.bluetoothDisabled, isFalse);
+      expect(nativeController.disabledReason, contains('recepteur GNSS'));
+
+      nativeController.dispose();
+    });
+
+    test('la simulation ne porte aucune alerte Bluetooth', () async {
+      expect(controller.isSimulation, isTrue);
+      expect(controller.bluetoothDisabled, isFalse);
+
+      await controller.refreshBluetoothState();
+
+      expect(controller.bluetoothDisabled, isFalse);
     });
   });
 
@@ -268,6 +317,273 @@ void main() {
     });
   });
 
+  group('SurveyController reprise et suppression', () {
+    late FakeSurveySessionStore localStore;
+    late ManualGnssSource localSource;
+    late SurveyController localController;
+    late List<SurveyEvent> localEvents;
+
+    SurveyPoint existingPoint() {
+      return SurveyPoint.fromPosition(
+        id: 'point-1',
+        clientId: 'client-point-1',
+        projectId: session.projectId,
+        surveyorId: session.surveyorId,
+        pointNumber: 1,
+        pointName: 'B1',
+        position: position(),
+      );
+    }
+
+    setUp(() async {
+      localStore = FakeSurveySessionStore(
+        session: session,
+        points: [existingPoint()],
+      );
+      localSource = ManualGnssSource();
+      localController = SurveyController(
+        store: localStore,
+        source: localSource,
+        sessionId: session.id,
+        idGenerator: () => 'new-id',
+        clock: () => DateTime.utc(2026, 10, 30, 10),
+      );
+      localEvents = [];
+      localController.events.listen(localEvents.add);
+      await localController.start();
+      await settle();
+    });
+
+    tearDown(() {
+      localController.dispose();
+    });
+
+    test('reprend la mesure d une borne existante', () async {
+      localSource.emit(position());
+      await settle();
+
+      localController.startRemeasure('point-1');
+
+      expect(localController.isAveraging, isTrue);
+      expect(localController.isRemeasuring, isTrue);
+      expect(localController.remeasuringPoint?.pointName, 'B1');
+
+      for (var i = 0; i < 10; i++) {
+        localSource.emit(position(latitude: 6.14, longitude: 1.25));
+        await settle();
+      }
+
+      expect(localController.isAveraging, isFalse);
+      expect(localController.isRemeasuring, isFalse);
+      expect(localController.points, hasLength(1));
+      final point = localController.points.single;
+      expect(point.id, 'point-1');
+      expect(point.pointName, 'B1');
+      expect(point.pointNumber, 1);
+      expect(point.latitude, closeTo(6.14, 0.0000001));
+      expect(localStore.updateCalls, 1);
+      expect(localStore.addCalls, 0);
+      expect(localEvents.whereType<PointUpdated>(), hasLength(1));
+    });
+
+    test('refuse de reprendre une mesure sans RTK Fixed', () async {
+      localController.startRemeasure('point-1');
+      await settle();
+
+      expect(localController.isAveraging, isFalse);
+      expect(localController.error, contains('recepteur GNSS'));
+      expect(localEvents.whereType<SurveyError>(), hasLength(1));
+    });
+
+    test('supprime une borne existante', () async {
+      final deleted = await localController.deletePoint('point-1');
+      await settle();
+
+      expect(deleted, isTrue);
+      expect(localController.points, isEmpty);
+      expect(localStore.removeCalls, 1);
+      expect(localEvents.whereType<PointDeleted>(), hasLength(1));
+    });
+
+    test('reouvre une mission terminee apres suppression', () async {
+      final completedSession = session.copyWith(
+        status: SurveySessionStatus.completed,
+        perimeterMeters: 12.5,
+        areaSquareMeters: 8.0,
+        completedAt: DateTime.utc(2026, 10, 30, 10),
+      );
+      final queue = FakeSyncQueueStore();
+      final completedStore = FakeSurveySessionStore(
+        session: completedSession,
+        points: [existingPoint()],
+      );
+      await queue.enqueue(completedSession);
+      final completed = SurveyController(
+        store: completedStore,
+        source: ManualGnssSource(),
+        sessionId: session.id,
+        queue: queue,
+      );
+      addTearDown(completed.dispose);
+      await completed.start();
+      expect(completed.session!.status, SurveySessionStatus.completed);
+      expect(completed.pendingSyncCount, 1);
+
+      expect(await completed.deletePoint('point-1'), isTrue);
+
+      expect(completed.session!.status, SurveySessionStatus.inProgress);
+      expect(completed.session!.perimeterMeters, isNull);
+      expect(completed.session!.areaSquareMeters, isNull);
+      expect(completed.session!.completedAt, isNull);
+      expect(completed.pendingSyncCount, 0);
+      expect(queue.entries, isEmpty);
+    });
+
+    test('reouvre une mission terminee apres remesure', () async {
+      final completedSession = session.copyWith(
+        status: SurveySessionStatus.completed,
+        perimeterMeters: 12.5,
+        areaSquareMeters: 8.0,
+        completedAt: DateTime.utc(2026, 10, 30, 10),
+      );
+      final localSource = ManualGnssSource();
+      final localStore = FakeSurveySessionStore(
+        session: completedSession,
+        points: [existingPoint()],
+      );
+      final completed = SurveyController(
+        store: localStore,
+        source: localSource,
+        sessionId: session.id,
+        clock: () => DateTime.utc(2026, 10, 30, 11),
+      );
+      addTearDown(completed.dispose);
+      await completed.start();
+      localSource.emit(position());
+      await settle();
+
+      completed.startRemeasure('point-1');
+      for (var i = 0; i < 10; i++) {
+        localSource.emit(position(latitude: 6.14));
+        await settle();
+      }
+
+      expect(completed.session!.status, SurveySessionStatus.inProgress);
+      expect(completed.session!.perimeterMeters, isNull);
+      expect(completed.session!.areaSquareMeters, isNull);
+      expect(completed.session!.completedAt, isNull);
+      expect(localStore.updateCalls, 1);
+    });
+
+    test('refuse de modifier une mission synchronisee', () async {
+      final synced = SurveyController(
+        store: FakeSurveySessionStore(
+          session: session.copyWith(status: SurveySessionStatus.synced),
+          points: [existingPoint()],
+        ),
+        source: ManualGnssSource(),
+        sessionId: session.id,
+      );
+      addTearDown(synced.dispose);
+      await synced.start();
+
+      expect(await synced.deletePoint('point-1'), isFalse);
+      expect(synced.points, hasLength(1));
+      expect(synced.error, contains('synchronisee'));
+    });
+  });
+
+  group('SurveyController synchronisation manuelle', () {
+    late FakeSyncQueueStore queue;
+    late FakeSyncTransport transport;
+
+    SurveyPoint point(int number) {
+      return SurveyPoint.fromPosition(
+        id: 'point-$number',
+        clientId: 'client-point-$number',
+        projectId: session.projectId,
+        surveyorId: session.surveyorId,
+        pointNumber: number,
+        pointName: 'B$number',
+        position: position(
+          latitude: 6.13192 + number / 100000,
+          longitude: 1.22281 + number / 100000,
+        ),
+      );
+    }
+
+    SurveySession completedSession() {
+      return session.copyWith(
+        status: SurveySessionStatus.completed,
+        points: [point(1), point(2), point(3)],
+        perimeterMeters: 12.5,
+        areaSquareMeters: 8.0,
+        completedAt: DateTime.utc(2026, 10, 30, 10),
+      );
+    }
+
+    setUp(() {
+      queue = FakeSyncQueueStore();
+      transport = FakeSyncTransport();
+    });
+
+    test('envoie une mission terminee absente de la file', () async {
+      final completed = completedSession();
+      final manual = SurveyController(
+        store: FakeSurveySessionStore(
+          session: completed,
+          points: completed.points,
+        ),
+        source: ManualGnssSource(),
+        sessionId: session.id,
+        queue: queue,
+        syncTransport: transport,
+      );
+      addTearDown(manual.dispose);
+      await manual.start();
+      expect(manual.pendingSyncCount, 0);
+
+      await manual.syncCurrentMission();
+      await settle();
+
+      expect(transport.sent, hasLength(1));
+      expect(manual.session!.status, SurveySessionStatus.synced);
+      expect(manual.pendingSyncCount, 0);
+    });
+
+    test('remet une mission refusee puis l envoie', () async {
+      final completed = completedSession();
+      queue.entries[session.id] = SyncQueueEntry(
+        sessionId: session.id,
+        clientId: session.clientId,
+        status: SyncQueueStatus.rejected,
+        attempts: 1,
+        enqueuedAt: DateTime.utc(2026, 10, 30, 9, 30),
+        lastError: 'refus serveur',
+      );
+      final manual = SurveyController(
+        store: FakeSurveySessionStore(
+          session: completed,
+          points: completed.points,
+        ),
+        source: ManualGnssSource(),
+        sessionId: session.id,
+        queue: queue,
+        syncTransport: transport,
+      );
+      addTearDown(manual.dispose);
+      await manual.start();
+      expect(manual.rejectedSyncCount, 1);
+
+      await manual.syncCurrentMission();
+      await settle();
+
+      expect(transport.sent, hasLength(1));
+      expect(manual.session!.status, SurveySessionStatus.synced);
+      expect(manual.rejectedSyncCount, 0);
+    });
+  });
+
   group('SurveyController fin de mission', () {
     late FakeSyncQueueStore queue;
     late FakeSyncTransport transport;
@@ -387,6 +703,60 @@ void main() {
       expect(offline.canSyncNow, isFalse);
       expect(offline.syncError, contains('non configuree'));
       expect(offlineEvents.whereType<SyncUnavailable>(), hasLength(1));
+    });
+
+    test('relit les missions refusees au demarrage', () async {
+      queue.entries[session.id] = SyncQueueEntry(
+        sessionId: session.id,
+        clientId: session.clientId,
+        status: SyncQueueStatus.rejected,
+        attempts: 1,
+        enqueuedAt: DateTime.utc(2026, 10, 30, 9, 30),
+        lastError: 'La mission contient moins de trois bornes.',
+      );
+      final reloaded = SurveyController(
+        store: FakeSurveySessionStore(session: session),
+        source: ManualGnssSource(),
+        sessionId: session.id,
+        queue: queue,
+      );
+      addTearDown(reloaded.dispose);
+
+      await reloaded.start();
+
+      expect(reloaded.rejectedSyncCount, 1);
+      expect(
+        reloaded.rejectedSyncEntries.single.lastError,
+        contains('trois bornes'),
+      );
+    });
+
+    test('remet une mission refusee en file', () async {
+      queue.entries[session.id] = SyncQueueEntry(
+        sessionId: session.id,
+        clientId: session.clientId,
+        status: SyncQueueStatus.rejected,
+        attempts: 1,
+        enqueuedAt: DateTime.utc(2026, 10, 30, 9, 30),
+        lastError: 'La mission contient moins de trois bornes.',
+      );
+      final retried = SurveyController(
+        store: FakeSurveySessionStore(session: session),
+        source: ManualGnssSource(),
+        sessionId: session.id,
+        queue: queue,
+      );
+      addTearDown(retried.dispose);
+      await retried.start();
+      expect(retried.rejectedSyncCount, 1);
+
+      await retried.retryRejected(session.id);
+      await settle();
+
+      expect(retried.rejectedSyncCount, 0);
+      expect(retried.pendingSyncCount, 1);
+      expect(queue.entries[session.id]!.status, SyncQueueStatus.pending);
+      expect(queue.entries[session.id]!.lastError, isNull);
     });
 
     test('bascule de source et remet la position a zero', () async {

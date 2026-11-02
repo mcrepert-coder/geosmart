@@ -257,5 +257,16 @@ void main() {
       expect(session().isCompleted, isTrue);
       expect(session(status: SurveySessionStatus.synced).isCompleted, isTrue);
     });
+
+    test('reopen remet une mission terminee en cours sans mesures', () {
+      final reopened = session().reopen();
+
+      expect(reopened.status, SurveySessionStatus.inProgress);
+      expect(reopened.perimeterMeters, isNull);
+      expect(reopened.areaSquareMeters, isNull);
+      expect(reopened.completedAt, isNull);
+      expect(reopened.points, hasLength(3));
+      expect(reopened.canSync, isFalse);
+    });
   });
 }

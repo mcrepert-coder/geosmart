@@ -37,6 +37,23 @@ void main() {
     expect(await channel().requestBluetoothPermissions(), isFalse);
   });
 
+  test('isBluetoothEnabled lit l etat de l adaptateur', () async {
+    messenger.setMockMethodCallHandler(method, (call) async {
+      expect(call.method, 'isBluetoothEnabled');
+      return false;
+    });
+
+    expect(await channel().isBluetoothEnabled(), isFalse);
+  });
+
+  test('isBluetoothEnabled ne signale rien si le natif echoue', () async {
+    messenger.setMockMethodCallHandler(method, (call) async {
+      throw PlatformException(code: 'BLUETOOTH_UNAVAILABLE');
+    });
+
+    expect(await channel().isBluetoothEnabled(), isTrue);
+  });
+
   test('startScan lit les appareils et ecarte les adresses vides', () async {
     messenger.setMockMethodCallHandler(method, (call) async {
       expect(call.method, 'startScan');

@@ -152,6 +152,48 @@ void main() {
     test('refuse de mettre a jour une mission inconnue', () async {
       expect(() => store.saveSession(session), throwsStateError);
     });
+
+    test('remplace une borne existante', () async {
+      await store.createSession(session);
+      await store.addPoint(session.id, point(number: 1));
+      final updated = SurveyPoint.fromPosition(
+        id: 'point-1',
+        clientId: 'client-point-1',
+        projectId: 'project-1',
+        surveyorId: 'surveyor-1',
+        pointNumber: 1,
+        pointName: 'B1',
+        position: GnssPosition(
+          latitude: 6.2,
+          longitude: 1.3,
+          altitude: 14.0,
+          accuracy: 0.01,
+          fixQuality: GnssFixQuality.fixed,
+          satellitesCount: 20,
+          pdop: 1.2,
+          recordedAt: DateTime.utc(2026, 10, 30, 11),
+        ),
+      );
+
+      await store.updatePoint(session.id, updated);
+
+      final points = await store.pointsFor(session.id);
+      expect(points, hasLength(1));
+      expect(points.single.latitude, 6.2);
+      expect(points.single.longitude, 1.3);
+      expect(points.single.pointName, 'B1');
+      expect(points.single.pointNumber, 1);
+      expect(points.single.satellitesCount, 20);
+    });
+
+    test('refuse de remplacer une borne inconnue', () async {
+      await store.createSession(session);
+
+      expect(
+        () => store.updatePoint(session.id, point(number: 1)),
+        throwsStateError,
+      );
+    });
   });
 
   group('SurveySessionLocalDataSource - file d envoi', () {
@@ -202,6 +244,26 @@ void main() {
       expect(await store.pendingCount(), 0);
     });
 
+    test('retire une mission de la file', () async {
+      await store.enqueue(completed);
+
+      await store.remove(session.id);
+
+      expect(await store.pendingCount(), 0);
+      expect(await store.rejected(), isEmpty);
+    });
+
+    test('relit une mission refusee avec sa raison', () async {
+      await store.enqueue(completed);
+      await store.markRejected(session.id, 'refus serveur');
+
+      final entry = (await store.rejected()).single;
+
+      expect(entry.sessionId, session.id);
+      expect(entry.status, SyncQueueStatus.rejected);
+      expect(entry.lastError, 'refus serveur');
+    });
+
     test('markPending remet une mission refusee en attente', () async {
       await store.enqueue(completed);
       await store.markRejected(session.id, 'refus serveur');
@@ -209,6 +271,8 @@ void main() {
       await store.markPending(session.id);
 
       expect(await store.pendingCount(), 1);
+      expect(await store.rejected(), isEmpty);
+      expect((await store.pending()).single.lastError, isNull);
     });
   });
 }

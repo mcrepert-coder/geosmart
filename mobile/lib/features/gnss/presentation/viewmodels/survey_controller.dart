@@ -11,6 +11,7 @@ import '../../domain/entities/survey_point.dart';
 import '../../domain/entities/survey_session.dart';
 import '../../domain/entities/survey_session_status.dart';
 import '../../domain/repositories/gnss_position_source.dart';
+import '../../domain/repositories/gnss_source_status.dart';
 import '../../domain/repositories/survey_session_store.dart';
 import '../../domain/repositories/sync_queue_store.dart';
 import '../../domain/repositories/sync_transport.dart';
@@ -32,6 +33,20 @@ class MeasurementCancelled extends SurveyEvent {
   const MeasurementCancelled(this.reason);
 
   final String reason;
+}
+
+/// Une borne existante a ete remesuree et remplacee localement.
+class PointUpdated extends SurveyEvent {
+  const PointUpdated(this.point);
+
+  final SurveyPoint point;
+}
+
+/// Une borne existante a ete supprimee de la mission locale.
+class PointDeleted extends SurveyEvent {
+  const PointDeleted(this.point);
+
+  final SurveyPoint point;
 }
 
 class SurveyError extends SurveyEvent {
@@ -110,6 +125,7 @@ class SurveyController extends ChangeNotifier {
   List<SurveyPoint> _points = const [];
   GnssPosition? _position;
   final List<GnssPosition> _epochs = [];
+  String? _remeasuringPointId;
   StreamSubscription<GnssPosition>? _subscription;
   bool _loading = true;
   bool _isAveraging = false;
@@ -118,6 +134,7 @@ class SurveyController extends ChangeNotifier {
   bool _isFinishing = false;
   bool _isSyncing = false;
   int _pendingSyncCount = 0;
+  List<SyncQueueEntry> _rejectedSyncEntries = const [];
   String? _error;
   String? _syncError;
 
@@ -138,7 +155,55 @@ class SurveyController extends ChangeNotifier {
 
   bool get isAveraging => _isAveraging;
 
+  /// Borne en cours de remesure, nulle pour une nouvelle borne.
+  SurveyPoint? get remeasuringPoint {
+    final pointId = _remeasuringPointId;
+    if (pointId == null) return null;
+    for (final point in _points) {
+      if (point.id == pointId) return point;
+    }
+    return null;
+  }
+
+  bool get isRemeasuring => remeasuringPoint != null;
+
+  /// Les bornes restent modifiables, meme apres la fin du leve. Une mission
+  /// deja synchronisee est verrouillee.
+  bool get canEditPoints =>
+      !_loading &&
+      !_isFinishing &&
+      !_isSyncing &&
+      !_isAveraging &&
+      _session != null &&
+      _session!.status != SurveySessionStatus.synced;
+
+  String get _editBlockedReason {
+    if (_loading) return 'Chargement de la mission locale.';
+    if (_isAveraging) {
+      return 'Mesure en cours, annulez-la pour modifier les bornes.';
+    }
+    if (_isFinishing) return 'La fin de mission est en cours.';
+    if (_isSyncing) return 'La synchronisation est en cours.';
+    if (_session == null) return 'Mission introuvable sur l\'appareil.';
+    if (_session!.status == SurveySessionStatus.synced) {
+      return 'La mission est synchronisee, les bornes ne peuvent plus etre '
+          'modifiees.';
+    }
+    return 'Les bornes ne peuvent pas etre modifiees pour le moment.';
+  }
+
   bool get isSimulation => source.isSimulation;
+
+  /// Vrai quand le recepteur physique signale un Bluetooth desactive.
+  ///
+  /// Une source simulee n'implemente pas [GnssSourceStatus] : l'alerte reste
+  /// donc invisible en mode simulation.
+  bool get bluetoothDisabled {
+    final status = _source is GnssSourceStatus
+        ? _source as GnssSourceStatus
+        : null;
+    return status?.bluetoothDisabled ?? false;
+  }
 
   bool get hasConnection => _position != null;
 
@@ -156,6 +221,12 @@ class SurveyController extends ChangeNotifier {
   bool get isSyncing => _isSyncing;
 
   int get pendingSyncCount => _pendingSyncCount;
+
+  /// Missions refusees lors d'un envoi, avec la raison du refus.
+  List<SyncQueueEntry> get rejectedSyncEntries =>
+      List.unmodifiable(_rejectedSyncEntries);
+
+  int get rejectedSyncCount => _rejectedSyncEntries.length;
 
   String? get syncError => _syncError;
 
@@ -190,6 +261,12 @@ class SurveyController extends ChangeNotifier {
   String? get disabledReason {
     if (_loading) return 'Chargement de la mission locale.';
     if (_isAveraging) return 'Mesure en cours, ne bougez pas.';
+    final status = _source is GnssSourceStatus
+        ? _source as GnssSourceStatus
+        : null;
+    if (status?.bluetoothDisabled ?? false) {
+      return status?.error ?? 'Bluetooth desactive.';
+    }
     if (_position == null) {
       return _error ?? 'En attente du recepteur GNSS.';
     }
@@ -223,11 +300,7 @@ class SurveyController extends ChangeNotifier {
         _session = _session!.copyWith(points: _points);
         _subscription = _source.positions.listen(_onPosition);
         await _source.start();
-        try {
-          _pendingSyncCount = await queue?.pendingCount() ?? 0;
-        } catch (_) {
-          _pendingSyncCount = 0;
-        }
+        await _refreshQueueState();
       }
     } catch (_) {
       _error = 'Impossible de charger la mission locale.';
@@ -235,6 +308,25 @@ class SurveyController extends ChangeNotifier {
       _loading = false;
       notifyListeners();
     }
+  }
+
+  /// Relit l'etat Bluetooth du recepteur, par exemple au retour au premier
+  /// plan apres un passage dans les reglages Android.
+  Future<void> refreshBluetoothState() async {
+    final status = _source is GnssSourceStatus
+        ? _source as GnssSourceStatus
+        : null;
+    if (status == null) return;
+    final wasDisabled = status.bluetoothDisabled;
+    final enabled = await status.refreshBluetoothState();
+    if (enabled && wasDisabled) {
+      try {
+        await _source.start();
+      } catch (_) {
+        _error = 'Impossible de demarrer la source GNSS.';
+      }
+    }
+    notifyListeners();
   }
 
   /// Bascule vers une autre source GNSS sans quitter l'ecran de mesure
@@ -262,6 +354,30 @@ class SurveyController extends ChangeNotifier {
   /// Demarre la moyenne des dix epoques (RG-01).
   void startMeasurement() {
     if (!canRecord) return;
+    _remeasuringPointId = null;
+    _epochs.clear();
+    _isAveraging = true;
+    notifyListeners();
+  }
+
+  /// Reprend la mesure d'une borne deja enregistree : la moyenne des dix
+  /// epoques remplacera ses coordonnees en conservant son numero et son nom.
+  void startRemeasure(String pointId) {
+    if (!canEditPoints) {
+      _fail(_editBlockedReason);
+      return;
+    }
+    if (!_points.any((point) => point.id == pointId)) {
+      _fail('Borne introuvable sur l appareil.');
+      return;
+    }
+    if (!canRecord) {
+      _fail(
+        disabledReason ?? 'Attendez le RTK Fixed pour reprendre la mesure.',
+      );
+      return;
+    }
+    _remeasuringPointId = pointId;
     _epochs.clear();
     _isAveraging = true;
     notifyListeners();
@@ -276,17 +392,33 @@ class SurveyController extends ChangeNotifier {
 
   /// Supprime une borne enregistree, par exemple apres le toast `Annuler`.
   Future<void> undoPoint(String pointId) async {
+    await deletePoint(pointId);
+  }
+
+  /// Supprime une borne deja enregistree, tant que la mission n'est pas
+  /// terminee. La mission locale est mise a jour avant la vue.
+  Future<bool> deletePoint(String pointId) async {
+    if (!canEditPoints) {
+      _fail(_editBlockedReason);
+      return false;
+    }
     final index = _points.indexWhere((point) => point.id == pointId);
-    if (index < 0) return;
+    if (index < 0) return false;
+    final removed = _points[index];
     try {
       await store.removePoint(pointId);
       _points = [..._points]..removeAt(index);
       _session = _session?.copyWith(points: _points);
+      await _reopenCompletedSession();
+      _error = null;
+      _events.add(PointDeleted(removed));
       notifyListeners();
+      return true;
     } catch (_) {
       _error = 'La borne n\'a pas pu etre supprimee.';
       _events.add(const SurveyError("La borne n'a pas pu etre supprimee."));
       notifyListeners();
+      return false;
     }
   }
 
@@ -309,14 +441,17 @@ class SurveyController extends ChangeNotifier {
   void _cancelMeasurement(String reason) {
     _isAveraging = false;
     _epochs.clear();
+    _remeasuringPointId = null;
     _events.add(MeasurementCancelled(reason));
   }
 
   Future<void> _finishMeasurement() async {
     if (_session == null) return;
+    final target = remeasuringPoint;
     final epochs = List<GnssPosition>.from(_epochs);
     _isAveraging = false;
     _epochs.clear();
+    _remeasuringPointId = null;
     if (epochs.length < epochsRequired) {
       notifyListeners();
       return;
@@ -336,6 +471,34 @@ class SurveyController extends ChangeNotifier {
       instrument: last.instrument,
       recordedAt: _clock().toUtc(),
     );
+
+    if (target != null) {
+      final updated = SurveyPoint.fromPosition(
+        id: target.id,
+        clientId: target.clientId,
+        projectId: target.projectId,
+        surveyorId: target.surveyorId,
+        pointNumber: target.pointNumber,
+        pointName: target.pointName,
+        position: averaged,
+      );
+      try {
+        await store.updatePoint(_session!.id, updated);
+        _points = [
+          for (final point in _points)
+            if (point.id == updated.id) updated else point,
+        ];
+        _session = _session!.copyWith(points: _points);
+        await _reopenCompletedSession();
+        _error = null;
+        _events.add(PointUpdated(updated));
+      } catch (_) {
+        _error = "La borne n'a pas pu etre mise a jour.";
+        _events.add(const SurveyError("La borne n'a pas pu etre mise a jour."));
+      }
+      notifyListeners();
+      return;
+    }
 
     final number = (_points.isEmpty ? 0 : _points.last.pointNumber) + 1;
     final point = SurveyPoint.fromPosition(
@@ -390,7 +553,7 @@ class SurveyController extends ChangeNotifier {
       await store.saveSession(completed);
       _session = completed;
       await queue?.enqueue(completed);
-      _pendingSyncCount = await queue?.pendingCount() ?? 0;
+      await _refreshQueueState();
       _events.add(MissionCompleted(completed));
       notifyListeners();
       if (canSyncNow) await syncNow();
@@ -402,6 +565,30 @@ class SurveyController extends ChangeNotifier {
       _isFinishing = false;
       notifyListeners();
     }
+  }
+
+  /// Met la mission courante en file si elle est terminee, puis rejoue la
+  /// file d'envoi. Une mission refusee repasse en attente avant l'envoi.
+  Future<void> syncCurrentMission() async {
+    final queueStore = queue;
+    final session = _session;
+    if (queueStore != null && session != null && session.canSync) {
+      try {
+        await queueStore.enqueue(session);
+        final rejected = await queueStore.rejected();
+        if (rejected.any((entry) => entry.sessionId == session.id)) {
+          await queueStore.markPending(session.id);
+        }
+        await _refreshQueueState();
+        notifyListeners();
+      } catch (_) {
+        _syncError = 'La mission n\'a pas pu etre mise en file.';
+        _events.add(SurveyError(_syncError!));
+        notifyListeners();
+        return;
+      }
+    }
+    await syncNow();
   }
 
   /// Rejoue la file d'envoi des missions terminees.
@@ -426,7 +613,7 @@ class SurveyController extends ChangeNotifier {
         transport: transport,
       );
       final result = await processor.flush();
-      _pendingSyncCount = result.remaining;
+      await _refreshQueueState();
       _syncError = result.hasFailures
           ? 'Certaines missions n\'ont pas pu etre envoyees.'
           : null;
@@ -439,6 +626,54 @@ class SurveyController extends ChangeNotifier {
     } finally {
       _isSyncing = false;
       notifyListeners();
+    }
+  }
+
+  /// Remet une mission refusee dans la file, puis l'envoie si un serveur est
+  /// configure. La correction de la mission reste a la charge de l'operateur.
+  Future<void> retryRejected(String sessionId) async {
+    final queueStore = queue;
+    if (queueStore == null) return;
+    try {
+      await queueStore.markPending(sessionId);
+      await _refreshQueueState();
+      notifyListeners();
+    } catch (_) {
+      _syncError = 'La mission n\'a pas pu etre remise en file.';
+      _events.add(SurveyError(_syncError!));
+      notifyListeners();
+      return;
+    }
+    if (canSyncNow) await syncNow();
+  }
+
+  /// Une borne modifiee apres la cloture rouvre la mission : les mesures
+  /// calculees sont effacees et la mission sort de la file d'envoi.
+  Future<void> _reopenCompletedSession() async {
+    final current = _session;
+    if (current == null || current.status != SurveySessionStatus.completed) {
+      return;
+    }
+    final reopened = current.reopen();
+    await store.saveSession(reopened);
+    _session = reopened;
+    await queue?.remove(current.id);
+    await _refreshQueueState();
+  }
+
+  Future<void> _refreshQueueState() async {
+    final queueStore = queue;
+    if (queueStore == null) {
+      _pendingSyncCount = 0;
+      _rejectedSyncEntries = const [];
+      return;
+    }
+    try {
+      _pendingSyncCount = await queueStore.pendingCount();
+      _rejectedSyncEntries = await queueStore.rejected();
+    } catch (_) {
+      _pendingSyncCount = 0;
+      _rejectedSyncEntries = const [];
     }
   }
 
