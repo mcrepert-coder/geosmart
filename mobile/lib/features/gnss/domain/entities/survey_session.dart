@@ -131,6 +131,24 @@ class SurveySession {
     );
   }
 
+  /// Rouvre une mission terminee pour corriger ses bornes.
+  ///
+  /// Les mesures calculees et la date de fin sont effacees : elles seront
+  /// recalculees a la prochaine cloture. Une mission deja synchronisee ne
+  /// doit pas etre rouverte.
+  SurveySession reopen() {
+    return SurveySession(
+      id: id,
+      clientId: clientId,
+      projectId: projectId,
+      surveyorId: surveyorId,
+      title: title,
+      status: SurveySessionStatus.inProgress,
+      points: points,
+      createdAt: createdAt,
+    );
+  }
+
   /// Termine le leve en calculant perimetre et surface en UTM 31N (EF-107).
   ///
   /// Leve une [StateError] si la mission ne contient pas au moins trois

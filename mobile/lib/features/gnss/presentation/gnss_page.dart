@@ -9,6 +9,7 @@ import '../domain/entities/gnss_fix_quality.dart';
 import '../domain/entities/gnss_position.dart';
 import '../domain/entities/survey_point.dart';
 import '../domain/entities/survey_session_status.dart';
+import '../domain/repositories/sync_queue_store.dart';
 import '../domain/services/survey_measurements.dart';
 import '../domain/services/utm31n.dart';
 import 'ntrip_page.dart';
@@ -102,6 +103,22 @@ class _GnssPageState extends State<GnssPage> with WidgetsBindingObserver {
             duration: const Duration(seconds: 5),
           ),
         );
+      case PointUpdated(:final point):
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Borne ${point.pointName} remise a jour sur l\'appareil',
+            ),
+          ),
+        );
+      case PointDeleted(:final point):
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Borne ${point.pointName} supprimee de la mission'),
+          ),
+        );
       case MeasurementCancelled(:final reason):
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(SnackBar(content: Text(reason)));
@@ -173,6 +190,27 @@ class _GnssPageState extends State<GnssPage> with WidgetsBindingObserver {
     if (confirmed == true) await _controller.finishMission();
   }
 
+  Future<void> _confirmDeletePoint(SurveyPoint point) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Supprimer la borne ${point.pointName} ?'),
+        content: const Text('La borne sera retiree de la mission locale.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await _controller.deletePoint(point.id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = _night ? GeoSmartTheme.dark : GeoSmartTheme.light;
@@ -201,6 +239,14 @@ class _GnssPageState extends State<GnssPage> with WidgetsBindingObserver {
                 ],
               ),
               actions: [
+                if (_controller.session?.canSync ?? false)
+                  IconButton(
+                    tooltip: 'Synchroniser la mission',
+                    icon: const Icon(Icons.cloud_upload_outlined),
+                    onPressed: _controller.isSyncing
+                        ? null
+                        : _controller.syncCurrentMission,
+                  ),
                 IconButton(
                   tooltip: 'Choisir le recepteur',
                   icon: const Icon(Icons.sensors_outlined),
@@ -266,7 +312,12 @@ class _GnssPageState extends State<GnssPage> with WidgetsBindingObserver {
                               padding: const EdgeInsets.only(
                                 bottom: GeoSmartDimens.space2,
                               ),
-                              child: _PointTile(point: point, colors: colors),
+                              child: _PointTile(
+                                point: point,
+                                colors: colors,
+                                controller: _controller,
+                                onDelete: () => _confirmDeletePoint(point),
+                              ),
                             ),
                         if (_controller.session?.isCompleted ?? false) ...[
                           const SizedBox(height: GeoSmartDimens.space4),
@@ -285,6 +336,13 @@ class _GnssPageState extends State<GnssPage> with WidgetsBindingObserver {
                         if (_controller.pendingSyncCount > 0) ...[
                           const SizedBox(height: GeoSmartDimens.space3),
                           _PendingSyncCard(
+                            controller: _controller,
+                            colors: colors,
+                          ),
+                        ],
+                        if (_controller.rejectedSyncCount > 0) ...[
+                          const SizedBox(height: GeoSmartDimens.space3),
+                          _RejectedSyncCard(
                             controller: _controller,
                             colors: colors,
                           ),
@@ -707,11 +765,20 @@ class _EmptyPoints extends StatelessWidget {
   }
 }
 
+enum _PointAction { remeasure, delete }
+
 class _PointTile extends StatelessWidget {
-  const _PointTile({required this.point, required this.colors});
+  const _PointTile({
+    required this.point,
+    required this.colors,
+    required this.controller,
+    required this.onDelete,
+  });
 
   final SurveyPoint point;
   final GeoSmartColors colors;
+  final SurveyController controller;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -758,6 +825,27 @@ class _PointTile extends StatelessWidget {
           Text(
             formatTime(point.recordedAt),
             style: GeoSmartText.dataSmall(colors),
+          ),
+          PopupMenuButton<_PointAction>(
+            tooltip: 'Actions sur ${point.pointName}',
+            onSelected: (action) {
+              switch (action) {
+                case _PointAction.remeasure:
+                  controller.startRemeasure(point.id);
+                case _PointAction.delete:
+                  onDelete();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: _PointAction.remeasure,
+                child: Text('Reprendre la mesure'),
+              ),
+              PopupMenuItem(
+                value: _PointAction.delete,
+                child: Text('Supprimer la borne'),
+              ),
+            ],
           ),
         ],
       ),
@@ -885,7 +973,7 @@ class _MissionSummaryCard extends StatelessWidget {
             value: '${session.points.length}',
             colors: colors,
           ),
-          if (controller.pendingSyncCount > 0) ...[
+          if (session.canSync || controller.pendingSyncCount > 0) ...[
             const SizedBox(height: GeoSmartDimens.space3),
             SizedBox(
               width: double.infinity,
@@ -893,7 +981,7 @@ class _MissionSummaryCard extends StatelessWidget {
               child: FilledButton(
                 onPressed: controller.isSyncing || !controller.canSyncNow
                     ? null
-                    : controller.syncNow,
+                    : controller.syncCurrentMission,
                 style: FilledButton.styleFrom(
                   backgroundColor: colors.primary,
                   foregroundColor: colors.onPrimary,
@@ -958,6 +1046,114 @@ class _PendingSyncCard extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _RejectedSyncCard extends StatelessWidget {
+  const _RejectedSyncCard({required this.controller, required this.colors});
+
+  final SurveyController controller;
+  final GeoSmartColors colors;
+
+  String _titleFor(SyncQueueEntry entry) {
+    final session = controller.session;
+    return session?.id == entry.sessionId ? session!.title : entry.sessionId;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = controller.rejectedSyncEntries;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(GeoSmartDimens.space3),
+      decoration: BoxDecoration(
+        color: colors.dangerSoft,
+        borderRadius: BorderRadius.circular(GeoSmartDimens.radiusMd),
+        border: Border.all(color: colors.danger.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.error_outline, size: 18, color: colors.danger),
+              const SizedBox(width: GeoSmartDimens.space2),
+              Expanded(
+                child: Text(
+                  entries.length == 1
+                      ? '1 mission refusee par la file d envoi.'
+                      : '${entries.length} missions refusees par la file '
+                            'd envoi.',
+                  style: GeoSmartText.caption.copyWith(color: colors.danger),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: GeoSmartDimens.space1),
+          Text(
+            'Corrigez la mission puis remettez-la en file.',
+            style: GeoSmartText.caption.copyWith(color: colors.textMuted),
+          ),
+          for (final entry in entries) ...[
+            const SizedBox(height: GeoSmartDimens.space2),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _RejectedEntryLabel(
+                    title: _titleFor(entry),
+                    entry: entry,
+                    colors: colors,
+                  ),
+                ),
+                const SizedBox(width: GeoSmartDimens.space2),
+                TextButton(
+                  onPressed: controller.isSyncing
+                      ? null
+                      : () => unawaited(
+                          controller.retryRejected(entry.sessionId),
+                        ),
+                  child: const Text('Remettre en file'),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RejectedEntryLabel extends StatelessWidget {
+  const _RejectedEntryLabel({
+    required this.title,
+    required this.entry,
+    required this.colors,
+  });
+
+  final String title;
+  final SyncQueueEntry entry;
+  final GeoSmartColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: GeoSmartText.caption.copyWith(
+            color: colors.text,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (entry.lastError != null)
+          Text(
+            entry.lastError!,
+            style: GeoSmartText.caption.copyWith(color: colors.danger),
+          ),
+      ],
     );
   }
 }
@@ -1108,13 +1304,16 @@ class _BottomAction extends StatelessWidget {
   }
 
   Widget _measurementInProgress(GeoSmartColors colors) {
+    final target = controller.remeasuringPoint;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Row(
           children: [
             Text(
-              'Mesure en cours',
+              target == null
+                  ? 'Mesure en cours'
+                  : 'Reprise de ${target.pointName}',
               style: GeoSmartText.bodyStrong.copyWith(color: colors.text),
             ),
             const Spacer(),

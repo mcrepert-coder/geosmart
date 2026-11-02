@@ -18,6 +18,8 @@ class FakeSurveySessionStore implements SurveySessionStore {
   final List<SurveyPoint> points = [];
   bool failAdds = false;
   int addCalls = 0;
+  int updateCalls = 0;
+  int removeCalls = 0;
 
   @override
   Future<void> createSession(SurveySession value) async {
@@ -48,7 +50,16 @@ class FakeSurveySessionStore implements SurveySessionStore {
   }
 
   @override
+  Future<void> updatePoint(String sessionId, SurveyPoint point) async {
+    updateCalls++;
+    final index = points.indexWhere((existing) => existing.id == point.id);
+    if (index < 0) throw StateError('Borne introuvable');
+    points[index] = point;
+  }
+
+  @override
   Future<void> removePoint(String pointId) async {
+    removeCalls++;
     points.removeWhere((point) => point.id == pointId);
   }
 }

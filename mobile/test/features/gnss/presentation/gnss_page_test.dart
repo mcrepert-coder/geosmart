@@ -7,10 +7,12 @@ import 'package:geosmart_mobile/features/gnss/domain/entities/gnss_position.dart
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_point.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_session.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/survey_session_status.dart';
+import 'package:geosmart_mobile/features/gnss/domain/repositories/sync_queue_store.dart';
 import 'package:geosmart_mobile/features/gnss/presentation/gnss_page.dart';
 import 'package:geosmart_mobile/features/gnss/presentation/viewmodels/survey_controller.dart';
 
 import '../../../support/fake_survey_store.dart';
+import '../../../support/fake_sync_queue.dart';
 
 void main() {
   final session = SurveySession(
@@ -295,6 +297,243 @@ void main() {
     expect(controller.session!.status, SurveySessionStatus.completed);
     expect(controller.session!.perimeterMeters, isNotNull);
     expect(controller.session!.areaSquareMeters, isNotNull);
+
+    await unmount(tester);
+  });
+
+  testWidgets('remet une mission refusee en file depuis la mesure', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final queue = FakeSyncQueueStore();
+    queue.entries[session.id] = SyncQueueEntry(
+      sessionId: session.id,
+      clientId: session.clientId,
+      status: SyncQueueStatus.rejected,
+      attempts: 1,
+      enqueuedAt: DateTime.utc(2026, 10, 30, 9, 30),
+      lastError: 'La mission contient moins de trois bornes.',
+    );
+    final controller = SurveyController(
+      store: FakeSurveySessionStore(session: session),
+      source: ManualGnssSource(),
+      sessionId: session.id,
+      queue: queue,
+    );
+    addTearDown(controller.dispose);
+    await controller.start();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GeoSmartTheme.light,
+        home: GnssPage(controller: controller, animateQuality: false),
+      ),
+    );
+    await tester.pump();
+
+    await tester.scrollUntilVisible(
+      find.text('Remettre en file'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('1 mission refusee par la file d envoi.'), findsOneWidget);
+    expect(
+      find.text('La mission contient moins de trois bornes.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Remettre en file'));
+    await tester.pump();
+
+    expect(queue.entries[session.id]!.status, SyncQueueStatus.pending);
+    expect(controller.rejectedSyncCount, 0);
+    expect(find.text('1 mission refusee par la file d envoi.'), findsNothing);
+
+    await unmount(tester);
+  });
+
+  testWidgets('reprend la mesure d une borne existante', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final source = ManualGnssSource();
+    final store = FakeSurveySessionStore(session: session, points: [point(1)]);
+    final controller = SurveyController(
+      store: store,
+      source: source,
+      sessionId: session.id,
+      clock: () => DateTime.utc(2026, 10, 30, 10),
+    );
+    addTearDown(controller.dispose);
+    await controller.start();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GeoSmartTheme.light,
+        home: GnssPage(controller: controller, animateQuality: false),
+      ),
+    );
+    await tester.pump();
+
+    source.emit(position());
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Actions sur B1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reprendre la mesure'));
+    await tester.pump();
+
+    expect(find.text('Reprise de B1'), findsOneWidget);
+
+    for (var i = 0; i < 10; i++) {
+      source.emit(position(latitude: 6.14));
+      await pumpFrames(tester);
+    }
+    await tester.pump();
+
+    expect(controller.points, hasLength(1));
+    expect(controller.points.single.latitude, closeTo(6.14, 0.0000001));
+    expect(store.updateCalls, 1);
+    expect(find.text('Borne B1 remise a jour sur l\'appareil'), findsOneWidget);
+
+    await unmount(tester);
+  });
+
+  testWidgets('supprime une borne apres confirmation', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final source = ManualGnssSource();
+    final store = FakeSurveySessionStore(session: session, points: [point(1)]);
+    final controller = SurveyController(
+      store: store,
+      source: source,
+      sessionId: session.id,
+    );
+    addTearDown(controller.dispose);
+    await controller.start();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GeoSmartTheme.light,
+        home: GnssPage(controller: controller, animateQuality: false),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Actions sur B1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Supprimer la borne'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Supprimer la borne B1 ?'), findsOneWidget);
+
+    await tester.tap(find.text('Supprimer'));
+    await tester.pumpAndSettle();
+
+    expect(controller.points, isEmpty);
+    expect(store.removeCalls, 1);
+    expect(find.text('Aucune borne enregistree'), findsOneWidget);
+
+    await unmount(tester);
+  });
+
+  testWidgets('supprime une borne d une mission terminee', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final completedSession = session.copyWith(
+      status: SurveySessionStatus.completed,
+      perimeterMeters: 12.5,
+      areaSquareMeters: 8.0,
+      completedAt: DateTime.utc(2026, 10, 30, 10),
+    );
+    final store = FakeSurveySessionStore(
+      session: completedSession,
+      points: [point(1)],
+    );
+    final controller = SurveyController(
+      store: store,
+      source: ManualGnssSource(),
+      sessionId: session.id,
+    );
+    addTearDown(controller.dispose);
+    await controller.start();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GeoSmartTheme.light,
+        home: GnssPage(controller: controller, animateQuality: false),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Actions sur B1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Supprimer la borne'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Supprimer'));
+    await tester.pumpAndSettle();
+
+    expect(controller.points, isEmpty);
+    expect(controller.session!.status, SurveySessionStatus.inProgress);
+    expect(store.removeCalls, 1);
+
+    await unmount(tester);
+  });
+
+  testWidgets('synchronise manuellement une mission terminee', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final completedSession = session.copyWith(
+      status: SurveySessionStatus.completed,
+      points: [point(1), point(2), point(3)],
+      perimeterMeters: 12.5,
+      areaSquareMeters: 8.0,
+      completedAt: DateTime.utc(2026, 10, 30, 10),
+    );
+    final queue = FakeSyncQueueStore();
+    final transport = FakeSyncTransport();
+    final controller = SurveyController(
+      store: FakeSurveySessionStore(
+        session: completedSession,
+        points: completedSession.points,
+      ),
+      source: ManualGnssSource(),
+      sessionId: session.id,
+      queue: queue,
+      syncTransport: transport,
+    );
+    addTearDown(controller.dispose);
+    await controller.start();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GeoSmartTheme.light,
+        home: GnssPage(controller: controller, animateQuality: false),
+      ),
+    );
+    await tester.pump();
+
+    await tester.scrollUntilVisible(
+      find.text('Synchroniser maintenant'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Synchroniser maintenant'));
+    await tester.pumpAndSettle();
+
+    expect(transport.sent, hasLength(1));
+    expect(controller.session!.status, SurveySessionStatus.synced);
+    expect(find.text('Synchronisee'), findsOneWidget);
 
     await unmount(tester);
   });
