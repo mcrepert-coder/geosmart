@@ -18,6 +18,14 @@ enum SurveySessionStatus {
   /// Indique si la mission peut etre envoyee au serveur.
   bool get canSync => this == SurveySessionStatus.completed;
 
+  /// Indique si la mission locale peut etre supprimee.
+  ///
+  /// Seules les missions non synchronisees et non terminees (brouillon ou en cours)
+  /// peuvent etre supprimees.
+  bool get canDelete =>
+      this == SurveySessionStatus.draft ||
+      this == SurveySessionStatus.inProgress;
+
   /// Echec ferme : un statut absent ou inconnu devient [draft].
   static SurveySessionStatus fromString(String? value) {
     final v = value?.trim().toUpperCase();

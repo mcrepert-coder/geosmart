@@ -29,6 +29,7 @@ class MissionsController extends ChangeNotifier {
   final DateTime Function() _clock;
 
   List<SurveySession> _missions = const [];
+  List<SurveySession> _trash = const [];
   bool _loading = true;
   String? _error;
   bool _disposed = false;
@@ -42,17 +43,24 @@ class MissionsController extends ChangeNotifier {
 
   List<SurveySession> get missions => List.unmodifiable(_missions);
 
+  List<SurveySession> get trash => List.unmodifiable(_trash);
+
+  int get trashCount => _trash.length;
+
   bool get isLoading => _loading;
 
   String? get error => _error;
 
-  /// Relit les missions locales, de la plus recente a la plus ancienne.
+  /// Relit les missions locales et la corbeille, en purgeant les elements
+  /// de corbeille plus vieux que sept jours.
   Future<void> load() async {
     _loading = true;
     _error = null;
     _notify();
     try {
+      await store.purgeExpiredTrash(now: _clock().toUtc());
       _missions = await store.listSessions();
+      _trash = await store.listTrashSessions();
     } catch (_) {
       _error = 'Les missions n ont pas pu etre lues.';
     } finally {
@@ -94,6 +102,98 @@ class MissionsController extends ChangeNotifier {
       _error = 'La mission n a pas pu etre creee.';
       _notify();
       return null;
+    }
+  }
+
+  /// Deplace une mission non synchronisee dans la corbeille locale.
+  ///
+  /// La mission y reste conservee sept jours avant purge automatique.
+  /// Renvoie `false` et renseigne [error] si la mission ne peut pas etre
+  /// deplacee ou si l'ecriture echoue.
+  Future<bool> deleteMission(String sessionId) async {
+    final session = _missions.where((m) => m.id == sessionId).firstOrNull;
+    if (session == null) {
+      _error = "Mission introuvable sur l'appareil.";
+      _notify();
+      return false;
+    }
+    if (!session.canDelete) {
+      _error =
+          'Seules les missions en brouillon ou en cours peuvent etre supprimees.';
+      _notify();
+      return false;
+    }
+    try {
+      final now = _clock().toUtc();
+      await store.moveToTrash(sessionId, deletedAt: now);
+      _missions = _missions.where((m) => m.id != sessionId).toList();
+      _trash = [
+        session.copyWith(deletedAt: now),
+        ..._trash.where((m) => m.id != sessionId),
+      ];
+      _error = null;
+      _notify();
+      return true;
+    } catch (_) {
+      _error = 'La mission n a pas pu etre supprimee.';
+      _notify();
+      return false;
+    }
+  }
+
+  /// Restaure une mission placee dans la corbeille.
+  Future<bool> restoreMission(String sessionId) async {
+    final session = _trash.where((m) => m.id == sessionId).firstOrNull;
+    if (session == null) {
+      _error = 'Mission introuvable dans la corbeille.';
+      _notify();
+      return false;
+    }
+    try {
+      await store.restoreSession(sessionId);
+      _trash = _trash.where((m) => m.id != sessionId).toList();
+      final restored = session.copyWith(deletedAt: null);
+      _missions = [restored, ..._missions.where((m) => m.id != sessionId)]
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _error = null;
+      _notify();
+      return true;
+    } catch (_) {
+      _error = 'La mission n a pas pu etre restauree.';
+      _notify();
+      return false;
+    }
+  }
+
+  /// Supprime definitivement une mission de la corbeille.
+  Future<bool> permanentlyDelete(String sessionId) async {
+    try {
+      await store.deleteSession(sessionId);
+      _trash = _trash.where((m) => m.id != sessionId).toList();
+      _error = null;
+      _notify();
+      return true;
+    } catch (_) {
+      _error = 'La suppression definitive a echoue.';
+      _notify();
+      return false;
+    }
+  }
+
+  /// Supprime definitivement toutes les missions de la corbeille.
+  Future<bool> emptyTrash() async {
+    try {
+      for (final session in [..._trash]) {
+        await store.deleteSession(session.id);
+      }
+      _trash = const [];
+      _error = null;
+      _notify();
+      return true;
+    } catch (_) {
+      _error = 'La corbeille n a pas pu etre videe.';
+      _notify();
+      return false;
     }
   }
 

@@ -16,9 +16,23 @@ class SurveySessionLocalDataSource
 
   final Database _database;
   bool _queueReady = false;
+  bool _trashReady = false;
+
+  Future<void> _ensureTrash() async {
+    if (_trashReady) return;
+    try {
+      await _database.execute(
+        'ALTER TABLE survey_sessions ADD COLUMN deleted_at TEXT',
+      );
+    } catch (_) {
+      // Colonne deja existante.
+    }
+    _trashReady = true;
+  }
 
   @override
   Future<void> createSession(SurveySession session) async {
+    await _ensureTrash();
     await _database.insert(
       'survey_sessions',
       session.toMap(),
@@ -28,6 +42,7 @@ class SurveySessionLocalDataSource
 
   @override
   Future<SurveySession?> loadSession(String id) async {
+    await _ensureTrash();
     final rows = await _database.query(
       'survey_sessions',
       where: 'id = ?',
@@ -40,9 +55,27 @@ class SurveySessionLocalDataSource
 
   @override
   Future<List<SurveySession>> listSessions() async {
+    await _ensureTrash();
     final rows = await _database.query(
       'survey_sessions',
+      where: 'deleted_at IS NULL',
       orderBy: 'created_at DESC',
+    );
+    final sessions = <SurveySession>[];
+    for (final row in rows) {
+      final id = row['id'] as String;
+      sessions.add(SurveySession.fromMap(row, points: await pointsFor(id)));
+    }
+    return sessions;
+  }
+
+  @override
+  Future<List<SurveySession>> listTrashSessions() async {
+    await _ensureTrash();
+    final rows = await _database.query(
+      'survey_sessions',
+      where: 'deleted_at IS NOT NULL',
+      orderBy: 'deleted_at DESC',
     );
     final sessions = <SurveySession>[];
     for (final row in rows) {
@@ -112,6 +145,81 @@ class SurveySessionLocalDataSource
       where: 'id = ?',
       whereArgs: [pointId],
     );
+  }
+
+  @override
+  Future<void> deleteSession(String sessionId) async {
+    await _database.transaction((transaction) async {
+      await transaction.delete(
+        'survey_points',
+        where: 'session_id = ?',
+        whereArgs: [sessionId],
+      );
+      if (_queueReady) {
+        await transaction.delete(
+          'survey_sync_queue',
+          where: 'session_id = ?',
+          whereArgs: [sessionId],
+        );
+      }
+      final deleted = await transaction.delete(
+        'survey_sessions',
+        where: 'id = ?',
+        whereArgs: [sessionId],
+      );
+      if (deleted == 0) {
+        throw StateError('Mission locale introuvable: $sessionId');
+      }
+    });
+  }
+
+  @override
+  Future<void> moveToTrash(String sessionId, {DateTime? deletedAt}) async {
+    await _ensureTrash();
+    final timestamp = (deletedAt ?? DateTime.now().toUtc()).toIso8601String();
+    final updated = await _database.update(
+      'survey_sessions',
+      {'deleted_at': timestamp},
+      where: 'id = ? AND deleted_at IS NULL',
+      whereArgs: [sessionId],
+    );
+    if (updated == 0) {
+      throw StateError('Mission introuvable ou deja en corbeille: $sessionId');
+    }
+  }
+
+  @override
+  Future<void> restoreSession(String sessionId) async {
+    await _ensureTrash();
+    final updated = await _database.update(
+      'survey_sessions',
+      {'deleted_at': null},
+      where: 'id = ? AND deleted_at IS NOT NULL',
+      whereArgs: [sessionId],
+    );
+    if (updated == 0) {
+      throw StateError('Mission introuvable dans la corbeille: $sessionId');
+    }
+  }
+
+  @override
+  Future<int> purgeExpiredTrash({
+    Duration maxAge = const Duration(days: 7),
+    DateTime? now,
+  }) async {
+    await _ensureTrash();
+    final reference = now ?? DateTime.now().toUtc();
+    final cutoff = reference.subtract(maxAge).toIso8601String();
+    final expired = await _database.query(
+      'survey_sessions',
+      columns: ['id'],
+      where: 'deleted_at IS NOT NULL AND deleted_at < ?',
+      whereArgs: [cutoff],
+    );
+    for (final row in expired) {
+      await deleteSession(row['id'] as String);
+    }
+    return expired.length;
   }
 
   @override

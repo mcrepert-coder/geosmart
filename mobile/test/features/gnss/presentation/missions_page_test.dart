@@ -216,4 +216,104 @@ void main() {
 
     expect(find.byType(NewMissionPage), findsOneWidget);
   });
+
+  testWidgets(
+    'affiche le bouton supprimer pour draft et inProgress, mais pas pour synced',
+    (tester) async {
+      final store = FakeMultiSessionStore(
+        sessions: [
+          mission('draft-1', title: 'Brouillon', status: SurveySessionStatus.draft),
+          mission(
+            'in-progress-1',
+            title: 'En cours',
+            status: SurveySessionStatus.inProgress,
+          ),
+          mission(
+            'synced-1',
+            title: 'Synchronisee',
+            status: SurveySessionStatus.synced,
+          ),
+        ],
+      );
+      final survey = SurveyController(
+        store: store,
+        source: ManualGnssSource(),
+        sessionId: 'draft-1',
+      );
+      addTearDown(survey.dispose);
+
+      await pumpPage(tester, store: store, survey: survey);
+
+      expect(find.byKey(const Key('delete-mission-draft-1')), findsOneWidget);
+      expect(
+        find.byKey(const Key('delete-mission-in-progress-1')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('delete-mission-synced-1')), findsNothing);
+    },
+  );
+
+  testWidgets('deplace une mission dans la corbeille apres confirmation', (
+    tester,
+  ) async {
+    final store = FakeMultiSessionStore(
+      sessions: [
+        mission('draft-1', title: 'Mission Test', status: SurveySessionStatus.draft),
+      ],
+    );
+    final survey = SurveyController(
+      store: store,
+      source: ManualGnssSource(),
+      sessionId: 'draft-1',
+    );
+    addTearDown(survey.dispose);
+
+    await pumpPage(tester, store: store, survey: survey);
+
+    expect(find.text('Mission Test'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('delete-mission-draft-1')));
+    await tester.pump();
+
+    expect(find.text('Deplacer Mission Test dans la corbeille ?'), findsOneWidget);
+
+    // Annuler d'abord
+    await tester.tap(find.text('Annuler'));
+    await tester.pump();
+    expect(find.text('Mission Test'), findsOneWidget);
+    expect(store.trashCalls, 0);
+
+    // Rouvrir et confirmer
+    await tester.tap(find.byKey(const Key('delete-mission-draft-1')));
+    await tester.pump();
+    await tester.tap(find.text('Deplacer'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Mission Test'), findsNothing);
+    expect(find.text('Aucune mission'), findsOneWidget);
+    expect(store.trashCalls, 1);
+  });
+
+  testWidgets('l icone corbeille ouvre la page TrashPage', (tester) async {
+    final store = FakeMultiSessionStore(
+      sessions: [
+        mission('draft-1', title: 'Mission Active'),
+      ],
+    );
+    final survey = SurveyController(
+      store: store,
+      source: ManualGnssSource(),
+      sessionId: 'draft-1',
+    );
+    addTearDown(survey.dispose);
+
+    await pumpPage(tester, store: store, survey: survey);
+
+    await tester.tap(find.byKey(const Key('open-trash-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Corbeille'), findsOneWidget);
+  });
 }

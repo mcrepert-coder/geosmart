@@ -8,6 +8,7 @@ import '../domain/entities/survey_session.dart';
 import '../domain/entities/survey_session_status.dart';
 import 'gnss_page.dart';
 import 'new_mission_page.dart';
+import 'trash_page.dart';
 import 'viewmodels/missions_controller.dart';
 import 'viewmodels/survey_controller.dart';
 
@@ -100,6 +101,48 @@ class _MissionsPageState extends State<MissionsPage> {
     await _openMission(created);
   }
 
+  Future<void> _openTrash() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TrashPage(missions: _missions),
+      ),
+    );
+    if (!mounted) return;
+    await _missions.load();
+  }
+
+  Future<void> _confirmDeleteMission(SurveySession mission) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Deplacer ${mission.title} dans la corbeille ?'),
+        content: const Text(
+          'La mission sera conservee pendant 7 jours dans la corbeille '
+          'avant d etre supprimee definitivement.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Deplacer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final success = await _missions.deleteMission(mission.id);
+    if (!mounted) return;
+    if (success) {
+      _showToast('Mission deplacee dans la corbeille');
+    } else if (_missions.error != null) {
+      _showToast(_missions.error!);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = GeoSmartColors.of(context);
@@ -123,6 +166,19 @@ class _MissionsPageState extends State<MissionsPage> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            key: const Key('open-trash-button'),
+            tooltip: 'Corbeille',
+            onPressed: _openTrash,
+            icon: Badge(
+              isLabelVisible: _missions.trashCount > 0,
+              label: Text('${_missions.trashCount}'),
+              child: const Icon(Icons.delete_outline),
+            ),
+          ),
+          const SizedBox(width: GeoSmartDimens.space2),
+        ],
       ),
       body: _buildBody(colors, missions),
       floatingActionButton: showFab
@@ -182,6 +238,9 @@ class _MissionsPageState extends State<MissionsPage> {
               mission: mission,
               colors: colors,
               onTap: () => _openMission(mission),
+              onDelete: mission.canDelete
+                  ? () => _confirmDeleteMission(mission)
+                  : null,
             );
           },
         );
@@ -195,11 +254,13 @@ class _MissionCard extends StatelessWidget {
     required this.mission,
     required this.colors,
     required this.onTap,
+    this.onDelete,
   });
 
   final SurveySession mission;
   final GeoSmartColors colors;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -258,19 +319,48 @@ class _MissionCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: GeoSmartDimens.space1),
-              _MissionMeta(
-                icon: Icons.place_outlined,
-                text: points > 1 ? '$points bornes' : '$points borne',
-                colors: colors,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _MissionMeta(
+                          icon: Icons.place_outlined,
+                          text: points > 1 ? '$points bornes' : '$points borne',
+                          colors: colors,
+                        ),
+                        if (area != null) ...[
+                          const SizedBox(height: GeoSmartDimens.space1),
+                          _MissionMeta(
+                            icon: Icons.square_foot,
+                            text: '${formatDecimal(area)} m2',
+                            colors: colors,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (onDelete != null)
+                    IconButton(
+                      key: Key('delete-mission-${mission.id}'),
+                      icon: Icon(
+                        Icons.delete_outline,
+                        size: 20,
+                        color: colors.danger,
+                      ),
+                      tooltip: 'Supprimer la mission',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
+                      onPressed: onDelete,
+                    ),
+                ],
               ),
-              if (area != null) ...[
-                const SizedBox(height: GeoSmartDimens.space1),
-                _MissionMeta(
-                  icon: Icons.square_foot,
-                  text: '${formatDecimal(area)} m2',
-                  colors: colors,
-                ),
-              ],
             ],
           ),
         ),

@@ -15,7 +15,12 @@ class FakeMultiSessionStore implements SurveySessionStore {
 
   final Map<String, SurveySession> _sessions = {};
   bool failCreate = false;
+  bool failDelete = false;
   int createCalls = 0;
+  int deleteCalls = 0;
+  int trashCalls = 0;
+  int restoreCalls = 0;
+  int purgeCalls = 0;
 
   List<SurveySession> get stored => List.unmodifiable(_sessions.values);
 
@@ -35,7 +40,7 @@ class FakeMultiSessionStore implements SurveySessionStore {
 
   @override
   Future<List<SurveySession>> listSessions() async {
-    final sorted = _sessions.values.toList()
+    final sorted = _sessions.values.where((s) => !s.inTrash).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return [
       for (final session in sorted)
@@ -83,5 +88,67 @@ class FakeMultiSessionStore implements SurveySessionStore {
       ];
       _sessions[entry.key] = entry.value.copyWith(points: points);
     }
+  }
+
+  @override
+  Future<void> deleteSession(String sessionId) async {
+    deleteCalls++;
+    if (failDelete) throw StateError('Suppression refusee');
+    if (!_sessions.containsKey(sessionId)) {
+      throw StateError('Mission locale introuvable: $sessionId');
+    }
+    _sessions.remove(sessionId);
+  }
+
+  @override
+  Future<void> moveToTrash(String sessionId, {DateTime? deletedAt}) async {
+    trashCalls++;
+    final session = _sessions[sessionId];
+    if (session == null || session.inTrash) {
+      throw StateError('Mission introuvable ou deja en corbeille: $sessionId');
+    }
+    _sessions[sessionId] = session.copyWith(
+      deletedAt: deletedAt ?? DateTime.now().toUtc(),
+    );
+  }
+
+  @override
+  Future<void> restoreSession(String sessionId) async {
+    restoreCalls++;
+    final session = _sessions[sessionId];
+    if (session == null || !session.inTrash) {
+      throw StateError('Mission introuvable dans la corbeille: $sessionId');
+    }
+    _sessions[sessionId] = session.copyWith(deletedAt: null);
+  }
+
+  @override
+  Future<List<SurveySession>> listTrashSessions() async {
+    final sorted = _sessions.values.where((s) => s.inTrash).toList()
+      ..sort((a, b) => (b.deletedAt ?? b.createdAt).compareTo(a.deletedAt ?? a.createdAt));
+    return [
+      for (final session in sorted)
+        session.copyWith(points: [...session.points]),
+    ];
+  }
+
+  @override
+  Future<int> purgeExpiredTrash({
+    Duration maxAge = const Duration(days: 7),
+    DateTime? now,
+  }) async {
+    purgeCalls++;
+    final reference = now ?? DateTime.now().toUtc();
+    final expiredIds = [
+      for (final session in _sessions.values)
+        if (session.inTrash &&
+            session.deletedAt != null &&
+            reference.difference(session.deletedAt!) > maxAge)
+          session.id,
+    ];
+    for (final id in expiredIds) {
+      _sessions.remove(id);
+    }
+    return expiredIds.length;
   }
 }
