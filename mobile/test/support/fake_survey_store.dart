@@ -34,6 +34,15 @@ class FakeSurveySessionStore implements SurveySessionStore {
   }
 
   @override
+  Future<List<SurveySession>> listSessions() async {
+    final current = session;
+    if (current == null) return const [];
+    return [
+      current.copyWith(points: [...points]),
+    ];
+  }
+
+  @override
   Future<void> saveSession(SurveySession value) async {
     session = value;
   }

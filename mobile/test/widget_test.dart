@@ -61,6 +61,12 @@ void main() {
     addTearDown(controller.dispose);
     await controller.start();
     await tester.pumpWidget(GeoSmartApp(controller: controller));
+    await pumpFrames(tester);
+
+    expect(find.text('Mes missions'), findsOneWidget);
+    await tester.tap(find.text('Leve parcelle A'));
+    await pumpFrames(tester);
+    await tester.pump(const Duration(milliseconds: 500));
 
     source.emit(position());
     await pumpFrames(tester);

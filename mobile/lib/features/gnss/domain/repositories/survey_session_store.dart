@@ -8,6 +8,9 @@ abstract interface class SurveySessionStore {
 
   Future<SurveySession?> loadSession(String id);
 
+  /// Liste les missions locales, de la plus recente a la plus ancienne.
+  Future<List<SurveySession>> listSessions();
+
   /// Met a jour la mission seule, sans toucher a ses bornes.
   Future<void> saveSession(SurveySession session);
 

@@ -218,15 +218,28 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('T4 bascule en theme nuit', (tester) async {
-    await pumpPage(tester);
-
-    await tester.tap(find.byTooltip('Theme nuit'));
+  testWidgets('suit le theme choisi dans les parametres', (tester) async {
+    final source = ManualGnssSource();
+    final controller = SurveyController(
+      store: FakeSurveySessionStore(session: session),
+      source: source,
+      sessionId: session.id,
+    );
+    addTearDown(controller.dispose);
+    await controller.start();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GeoSmartTheme.light,
+        darkTheme: GeoSmartTheme.dark,
+        themeMode: ThemeMode.dark,
+        home: GnssPage(controller: controller, animateQuality: false),
+      ),
+    );
     await tester.pump();
 
     final context = tester.element(find.text("Mesure d'une borne"));
     expect(Theme.of(context).brightness, Brightness.dark);
-    expect(find.byTooltip('Theme jour'), findsOneWidget);
+    expect(find.byTooltip('Theme nuit'), findsNothing);
 
     await unmount(tester);
   });

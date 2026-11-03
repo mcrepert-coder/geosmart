@@ -72,6 +72,36 @@ void main() {
       expect(loaded.points, isEmpty);
     });
 
+    test('liste les missions de la plus recente a la plus ancienne', () async {
+      final older = session.copyWith(
+        id: 'session-0',
+        clientId: 'client-session-0',
+        title: 'Leve parcelle 0',
+        createdAt: DateTime.utc(2026, 10, 28, 9),
+      );
+      final newer = session.copyWith(
+        id: 'session-2',
+        clientId: 'client-session-2',
+        title: 'Leve parcelle 2',
+        createdAt: DateTime.utc(2026, 10, 31, 9),
+      );
+      await store.createSession(older);
+      await store.createSession(session);
+      await store.createSession(newer);
+      await store.addPoint(session.id, point(number: 1));
+
+      final sessions = await store.listSessions();
+
+      expect(sessions.map((value) => value.id), [
+        'session-2',
+        'session-1',
+        'session-0',
+      ]);
+      expect(sessions[1].title, 'Leve parcelle A');
+      expect(sessions[1].points, hasLength(1));
+      expect(sessions[2].points, isEmpty);
+    });
+
     test('ajoute une borne et passe la mission en cours', () async {
       await store.createSession(session);
 

@@ -39,6 +39,20 @@ class SurveySessionLocalDataSource
   }
 
   @override
+  Future<List<SurveySession>> listSessions() async {
+    final rows = await _database.query(
+      'survey_sessions',
+      orderBy: 'created_at DESC',
+    );
+    final sessions = <SurveySession>[];
+    for (final row in rows) {
+      final id = row['id'] as String;
+      sessions.add(SurveySession.fromMap(row, points: await pointsFor(id)));
+    }
+    return sessions;
+  }
+
+  @override
   Future<void> saveSession(SurveySession session) async {
     final updated = await _database.update(
       'survey_sessions',
