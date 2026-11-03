@@ -85,73 +85,59 @@ class _GnssPageState extends State<GnssPage> with WidgetsBindingObserver {
     if (mounted) setState(() {});
   }
 
+  /// Duree maximale d'un message en bas de l'ecran.
+  static const _toastDuration = Duration(seconds: 3);
+
+  /// Remplace le message courant pour eviter qu'une file de messages ne
+  /// s'accumule, puis le referme automatiquement apres [_toastDuration].
+  void _showToast(String message, {SnackBarAction? action}) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: action,
+        duration: _toastDuration,
+        persist: false,
+      ),
+    );
+  }
+
   void _onEvent(SurveyEvent event) {
     if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
     switch (event) {
       case PointRecorded(:final point):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              "Borne ${point.pointName} enregistree sur l'appareil",
-            ),
-            action: SnackBarAction(
-              label: 'Annuler',
-              onPressed: () => unawaited(_controller.undoPoint(point.id)),
-            ),
-            duration: const Duration(seconds: 5),
+        _showToast(
+          "Borne ${point.pointName} enregistree sur l'appareil",
+          action: SnackBarAction(
+            label: 'Annuler',
+            onPressed: () => unawaited(_controller.undoPoint(point.id)),
           ),
         );
       case PointUpdated(:final point):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              'Borne ${point.pointName} remise a jour sur l\'appareil',
-            ),
-          ),
-        );
+        _showToast('Borne ${point.pointName} remise a jour sur l\'appareil');
       case PointDeleted(:final point):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Borne ${point.pointName} supprimee de la mission'),
-          ),
-        );
+        _showToast('Borne ${point.pointName} supprimee de la mission');
       case MeasurementCancelled(:final reason):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(SnackBar(content: Text(reason)));
+        _showToast(reason);
       case SurveyError(:final message):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(SnackBar(content: Text(message)));
+        _showToast(message);
       case MissionCompleted(:final session):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              'Mission terminee : perimetre '
-              '${formatDecimal(session.perimeterMeters ?? 0)} m, surface '
-              '${formatDecimal(session.areaSquareMeters ?? 0)} m2.',
-            ),
-          ),
+        _showToast(
+          'Mission terminee : perimetre '
+          '${formatDecimal(session.perimeterMeters ?? 0)} m, surface '
+          '${formatDecimal(session.areaSquareMeters ?? 0)} m2.',
         );
       case SyncFinished(:final result):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              result.sent > 0
-                  ? '${result.sent} mission(s) envoyee(s).'
-                  : result.hasFailures
-                  ? 'Envoi impossible, la mission reste sur l\'appareil.'
-                  : 'Aucune mission en attente.',
-            ),
-          ),
+        _showToast(
+          result.sent > 0
+              ? '${result.sent} mission(s) envoyee(s).'
+              : result.hasFailures
+              ? 'Envoi impossible, la mission reste sur l\'appareil.'
+              : 'Aucune mission en attente.',
         );
       case SyncUnavailable(:final message):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(SnackBar(content: Text(message)));
+        _showToast(message);
     }
   }
 
