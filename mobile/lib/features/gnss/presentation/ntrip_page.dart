@@ -206,7 +206,9 @@ class _StatusCard extends StatelessWidget {
       NtripStatus.error => (colors.danger, colors.dangerSoft),
       NtripStatus.idle => (colors.textMuted, colors.surfaceSunken),
     };
-    final detail = controller.error ?? _detail(controller.status);
+    // Le bandeau affiche toujours une phrase simple en francais. Le detail
+    // technique de l'erreur reste disponible dans le formulaire.
+    final detail = _detail(controller.status);
 
     return Container(
       padding: const EdgeInsets.all(GeoSmartDimens.space4),
@@ -252,10 +254,14 @@ class _StatusCard extends StatelessWidget {
   String _detail(NtripStatus status) {
     return switch (status) {
       NtripStatus.streaming =>
-        'Les octets RTCM sont injectes dans le recepteur.',
-      NtripStatus.connecting => 'Ouverture du flux aupres du caster.',
-      NtripStatus.error => 'La reconnexion automatique reste active.',
-      NtripStatus.idle => 'Renseignez le caster puis connectez-vous.',
+        'Les corrections RTCM sont recues et envoyees au recepteur.',
+      NtripStatus.connecting => 'Connexion au caster en cours.',
+      NtripStatus.error =>
+        'La connexion a echoue. Une nouvelle tentative est lancee '
+            'automatiquement.',
+      NtripStatus.idle =>
+        'Aucune correction RTCM recue. Renseignez le caster puis '
+            'connectez-vous.',
     };
   }
 }
