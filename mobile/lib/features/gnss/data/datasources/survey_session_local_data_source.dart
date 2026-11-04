@@ -87,6 +87,7 @@ class SurveySessionLocalDataSource
 
   @override
   Future<void> saveSession(SurveySession session) async {
+    await _ensureTrash();
     final updated = await _database.update(
       'survey_sessions',
       session.toMap(),

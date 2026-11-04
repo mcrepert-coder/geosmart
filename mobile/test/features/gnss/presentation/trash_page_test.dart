@@ -154,9 +154,17 @@ void main() {
     await tester.tap(find.byKey(const Key('empty-trash-button')));
     await tester.pump();
 
+    await tester.tap(find.text('Vider la corbeille ?'));
+    await tester.pump();
+
     expect(find.text('Vider la corbeille ?'), findsOneWidget);
 
-    await tester.tap(find.text('Vider'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Vider'),
+      ),
+    );
     await tester.pump();
     await tester.pump();
 

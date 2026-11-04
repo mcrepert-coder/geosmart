@@ -195,8 +195,6 @@ void main() {
       expect(restored.canDelete, isFalse);
       expect(restored.canSync, isFalse);
     });
-      expect(restored.canSync, isTrue);
-    });
 
     test('complete termine la mission avec les mesures calculees', () {
       final updated =

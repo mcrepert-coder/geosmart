@@ -222,7 +222,11 @@ void main() {
     (tester) async {
       final store = FakeMultiSessionStore(
         sessions: [
-          mission('draft-1', title: 'Brouillon', status: SurveySessionStatus.draft),
+          mission(
+            'draft-1',
+            title: 'Brouillon',
+            status: SurveySessionStatus.draft,
+          ),
           mission(
             'in-progress-1',
             title: 'En cours',
@@ -258,7 +262,11 @@ void main() {
   ) async {
     final store = FakeMultiSessionStore(
       sessions: [
-        mission('draft-1', title: 'Mission Test', status: SurveySessionStatus.draft),
+        mission(
+          'draft-1',
+          title: 'Mission Test',
+          status: SurveySessionStatus.draft,
+        ),
       ],
     );
     final survey = SurveyController(
@@ -275,7 +283,10 @@ void main() {
     await tester.tap(find.byKey(const Key('delete-mission-draft-1')));
     await tester.pump();
 
-    expect(find.text('Deplacer Mission Test dans la corbeille ?'), findsOneWidget);
+    expect(
+      find.text('Deplacer Mission Test dans la corbeille ?'),
+      findsOneWidget,
+    );
 
     // Annuler d'abord
     await tester.tap(find.text('Annuler'));
@@ -297,9 +308,7 @@ void main() {
 
   testWidgets('l icone corbeille ouvre la page TrashPage', (tester) async {
     final store = FakeMultiSessionStore(
-      sessions: [
-        mission('draft-1', title: 'Mission Active'),
-      ],
+      sessions: [mission('draft-1', title: 'Mission Active')],
     );
     final survey = SurveyController(
       store: store,

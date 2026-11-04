@@ -168,7 +168,7 @@ class _TrashPageState extends State<TrashPage> {
                 : ListView.separated(
                     padding: const EdgeInsets.all(GeoSmartDimens.space4),
                     itemCount: trash.length,
-                    separatorBuilder: (_, __) =>
+                    separatorBuilder: (_, _) =>
                         const SizedBox(height: GeoSmartDimens.space3),
                     itemBuilder: (context, index) {
                       final session = trash[index];
@@ -340,4 +340,3 @@ class _EmptyTrash extends StatelessWidget {
     );
   }
 }
-

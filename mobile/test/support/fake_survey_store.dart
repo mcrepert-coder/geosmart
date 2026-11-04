@@ -107,7 +107,9 @@ class FakeSurveySessionStore implements SurveySessionStore {
   Future<List<SurveySession>> listTrashSessions() async {
     final current = session;
     if (current == null || !current.inTrash) return const [];
-    return [current.copyWith(points: [...points])];
+    return [
+      current.copyWith(points: [...points]),
+    ];
   }
 
   @override

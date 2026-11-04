@@ -103,6 +103,7 @@ class FakeMultiSessionStore implements SurveySessionStore {
   @override
   Future<void> moveToTrash(String sessionId, {DateTime? deletedAt}) async {
     trashCalls++;
+    if (failDelete) throw StateError('Suppression refusee');
     final session = _sessions[sessionId];
     if (session == null || session.inTrash) {
       throw StateError('Mission introuvable ou deja en corbeille: $sessionId');
@@ -125,7 +126,10 @@ class FakeMultiSessionStore implements SurveySessionStore {
   @override
   Future<List<SurveySession>> listTrashSessions() async {
     final sorted = _sessions.values.where((s) => s.inTrash).toList()
-      ..sort((a, b) => (b.deletedAt ?? b.createdAt).compareTo(a.deletedAt ?? a.createdAt));
+      ..sort(
+        (a, b) =>
+            (b.deletedAt ?? b.createdAt).compareTo(a.deletedAt ?? a.createdAt),
+      );
     return [
       for (final session in sorted)
         session.copyWith(points: [...session.points]),

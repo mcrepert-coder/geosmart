@@ -109,40 +109,46 @@ void main() {
       expect(controller.missions, isEmpty);
     });
 
-    test('deplace une mission en brouillon ou en cours dans la corbeille', () async {
-      final store = FakeMultiSessionStore(
-        sessions: [
-          mission(
-            'draft-1',
-            title: 'Mission Brouillon',
-            createdAt: DateTime.utc(2026, 10, 28),
-            status: SurveySessionStatus.draft,
-          ),
-          mission(
-            'in-progress-1',
-            title: 'Mission En cours',
-            createdAt: DateTime.utc(2026, 10, 29),
-            status: SurveySessionStatus.inProgress,
-          ),
-        ],
-      );
-      final controller = MissionsController(
-        store: store,
-        clock: () => DateTime.utc(2026, 10, 31, 12),
-      );
-      addTearDown(controller.dispose);
-      await controller.load();
+    test(
+      'deplace une mission en brouillon ou en cours dans la corbeille',
+      () async {
+        final store = FakeMultiSessionStore(
+          sessions: [
+            mission(
+              'draft-1',
+              title: 'Mission Brouillon',
+              createdAt: DateTime.utc(2026, 10, 28),
+              status: SurveySessionStatus.draft,
+            ),
+            mission(
+              'in-progress-1',
+              title: 'Mission En cours',
+              createdAt: DateTime.utc(2026, 10, 29),
+              status: SurveySessionStatus.inProgress,
+            ),
+          ],
+        );
+        final controller = MissionsController(
+          store: store,
+          clock: () => DateTime.utc(2026, 10, 31, 12),
+        );
+        addTearDown(controller.dispose);
+        await controller.load();
 
-      final deleted = await controller.deleteMission('draft-1');
+        final deleted = await controller.deleteMission('draft-1');
 
-      expect(deleted, isTrue);
-      expect(controller.error, isNull);
-      expect(controller.missions.map((m) => m.id), ['in-progress-1']);
-      expect(controller.trash.map((m) => m.id), ['draft-1']);
-      expect(controller.trashCount, 1);
-      expect(controller.trash.first.deletedAt, DateTime.utc(2026, 10, 31, 12));
-      expect(store.trashCalls, 1);
-    });
+        expect(deleted, isTrue);
+        expect(controller.error, isNull);
+        expect(controller.missions.map((m) => m.id), ['in-progress-1']);
+        expect(controller.trash.map((m) => m.id), ['draft-1']);
+        expect(controller.trashCount, 1);
+        expect(
+          controller.trash.first.deletedAt,
+          DateTime.utc(2026, 10, 31, 12),
+        );
+        expect(store.trashCalls, 1);
+      },
+    );
 
     test('restaure une mission placee dans la corbeille', () async {
       final store = FakeMultiSessionStore(
@@ -217,46 +223,49 @@ void main() {
       expect(store.deleteCalls, 2);
     });
 
-    test('load purge automatiquement les missions en corbeille depuis plus de 7 jours', () async {
-      final clockTime = DateTime.utc(2026, 11, 10, 12);
-      final store = FakeMultiSessionStore(
-        sessions: [
-          // En corbeille depuis 8 jours (> 7 jours)
-          SurveySession(
-            id: 'old-trash',
-            clientId: 'client-old',
-            projectId: 'p1',
-            surveyorId: 's1',
-            title: 'Vieille corbeille',
-            status: SurveySessionStatus.draft,
-            createdAt: DateTime.utc(2026, 10, 20),
-            deletedAt: clockTime.subtract(const Duration(days: 8)),
-          ),
-          // En corbeille depuis 3 jours (< 7 jours)
-          SurveySession(
-            id: 'recent-trash',
-            clientId: 'client-recent',
-            projectId: 'p1',
-            surveyorId: 's1',
-            title: 'Corbeille recente',
-            status: SurveySessionStatus.draft,
-            createdAt: DateTime.utc(2026, 10, 25),
-            deletedAt: clockTime.subtract(const Duration(days: 3)),
-          ),
-        ],
-      );
-      final controller = MissionsController(
-        store: store,
-        clock: () => clockTime,
-      );
-      addTearDown(controller.dispose);
+    test(
+      'load purge automatiquement les missions en corbeille depuis plus de 7 jours',
+      () async {
+        final clockTime = DateTime.utc(2026, 11, 10, 12);
+        final store = FakeMultiSessionStore(
+          sessions: [
+            // En corbeille depuis 8 jours (> 7 jours)
+            SurveySession(
+              id: 'old-trash',
+              clientId: 'client-old',
+              projectId: 'p1',
+              surveyorId: 's1',
+              title: 'Vieille corbeille',
+              status: SurveySessionStatus.draft,
+              createdAt: DateTime.utc(2026, 10, 20),
+              deletedAt: clockTime.subtract(const Duration(days: 8)),
+            ),
+            // En corbeille depuis 3 jours (< 7 jours)
+            SurveySession(
+              id: 'recent-trash',
+              clientId: 'client-recent',
+              projectId: 'p1',
+              surveyorId: 's1',
+              title: 'Corbeille recente',
+              status: SurveySessionStatus.draft,
+              createdAt: DateTime.utc(2026, 10, 25),
+              deletedAt: clockTime.subtract(const Duration(days: 3)),
+            ),
+          ],
+        );
+        final controller = MissionsController(
+          store: store,
+          clock: () => clockTime,
+        );
+        addTearDown(controller.dispose);
 
-      await controller.load();
+        await controller.load();
 
-      expect(store.purgeCalls, 1);
-      expect(controller.trash.map((m) => m.id), ['recent-trash']);
-      expect(controller.trashCount, 1);
-    });
+        expect(store.purgeCalls, 1);
+        expect(controller.trash.map((m) => m.id), ['recent-trash']);
+        expect(controller.trashCount, 1);
+      },
+    );
 
     test('refuse de supprimer une mission terminee ou synchronisee', () async {
       final store = FakeMultiSessionStore(
@@ -290,18 +299,21 @@ void main() {
       expect(store.deleteCalls, 0);
     });
 
-    test('signale une erreur si la mission a supprimer est introuvable', () async {
-      final store = FakeMultiSessionStore();
-      final controller = MissionsController(store: store);
-      addTearDown(controller.dispose);
-      await controller.load();
+    test(
+      'signale une erreur si la mission a supprimer est introuvable',
+      () async {
+        final store = FakeMultiSessionStore();
+        final controller = MissionsController(store: store);
+        addTearDown(controller.dispose);
+        await controller.load();
 
-      final deleted = await controller.deleteMission('inconnue');
+        final deleted = await controller.deleteMission('inconnue');
 
-      expect(deleted, isFalse);
-      expect(controller.error, contains('introuvable'));
-      expect(store.deleteCalls, 0);
-    });
+        expect(deleted, isFalse);
+        expect(controller.error, contains('introuvable'));
+        expect(store.deleteCalls, 0);
+      },
+    );
 
     test('signale un echec de suppression locale', () async {
       final store = FakeMultiSessionStore(

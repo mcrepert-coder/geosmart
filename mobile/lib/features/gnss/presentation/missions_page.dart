@@ -103,9 +103,7 @@ class _MissionsPageState extends State<MissionsPage> {
 
   Future<void> _openTrash() async {
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => TrashPage(missions: _missions),
-      ),
+      MaterialPageRoute<void>(builder: (_) => TrashPage(missions: _missions)),
     );
     if (!mounted) return;
     await _missions.load();
