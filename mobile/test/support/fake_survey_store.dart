@@ -20,6 +20,10 @@ class FakeSurveySessionStore implements SurveySessionStore {
   int addCalls = 0;
   int updateCalls = 0;
   int removeCalls = 0;
+  int deleteCalls = 0;
+  int trashCalls = 0;
+  int restoreCalls = 0;
+  int purgeCalls = 0;
 
   @override
   Future<void> createSession(SurveySession value) async {
@@ -31,6 +35,15 @@ class FakeSurveySessionStore implements SurveySessionStore {
     final current = session;
     if (current == null || current.id != id) return null;
     return current.copyWith(points: [...points]);
+  }
+
+  @override
+  Future<List<SurveySession>> listSessions() async {
+    final current = session;
+    if (current == null || current.inTrash) return const [];
+    return [
+      current.copyWith(points: [...points]),
+    ];
   }
 
   @override
@@ -61,6 +74,60 @@ class FakeSurveySessionStore implements SurveySessionStore {
   Future<void> removePoint(String pointId) async {
     removeCalls++;
     points.removeWhere((point) => point.id == pointId);
+  }
+
+  @override
+  Future<void> deleteSession(String sessionId) async {
+    deleteCalls++;
+    if (session?.id == sessionId) {
+      session = null;
+      points.clear();
+    }
+  }
+
+  @override
+  Future<void> moveToTrash(String sessionId, {DateTime? deletedAt}) async {
+    trashCalls++;
+    if (session?.id == sessionId) {
+      session = session?.copyWith(
+        deletedAt: deletedAt ?? DateTime.now().toUtc(),
+      );
+    }
+  }
+
+  @override
+  Future<void> restoreSession(String sessionId) async {
+    restoreCalls++;
+    if (session?.id == sessionId) {
+      session = session?.copyWith(deletedAt: null);
+    }
+  }
+
+  @override
+  Future<List<SurveySession>> listTrashSessions() async {
+    final current = session;
+    if (current == null || !current.inTrash) return const [];
+    return [
+      current.copyWith(points: [...points]),
+    ];
+  }
+
+  @override
+  Future<int> purgeExpiredTrash({
+    Duration maxAge = const Duration(days: 7),
+    DateTime? now,
+  }) async {
+    purgeCalls++;
+    final current = session;
+    if (current == null || !current.inTrash) return 0;
+    final reference = now ?? DateTime.now().toUtc();
+    if (current.deletedAt != null &&
+        reference.difference(current.deletedAt!) > maxAge) {
+      session = null;
+      points.clear();
+      return 1;
+    }
+    return 0;
   }
 }
 

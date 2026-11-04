@@ -111,7 +111,8 @@ class SurveyController extends ChangeNotifier {
 
   GnssPositionSource get source => _source;
 
-  final String sessionId;
+  /// Mission affichee par le controleur. Elle change via [openSession].
+  String sessionId;
 
   /// Nombre d'epoques moyennes avant l'enregistrement d'une borne.
   final int epochsRequired;
@@ -299,6 +300,49 @@ class SurveyController extends ChangeNotifier {
           ..sort((a, b) => a.pointNumber.compareTo(b.pointNumber));
         _session = _session!.copyWith(points: _points);
         _subscription = _source.positions.listen(_onPosition);
+        await _source.start();
+        await _refreshQueueState();
+      }
+    } catch (_) {
+      _error = 'Impossible de charger la mission locale.';
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Ouvre une autre mission locale sans recreer la source GNSS.
+  ///
+  /// L'abonnement precedent est annule et l'etat de mesure est remis a zero.
+  /// La source partagee n'est pas arretee : le meme recepteur continue de
+  /// fournir ses positions pour la mission nouvellement ouverte.
+  Future<void> openSession(String id) async {
+    sessionId = id;
+    _session = null;
+    _points = const [];
+    _position = null;
+    _epochs.clear();
+    _remeasuringPointId = null;
+    _isAveraging = false;
+    _isFinishing = false;
+    _isSyncing = false;
+    _error = null;
+    _syncError = null;
+    _pendingSyncCount = 0;
+    _rejectedSyncEntries = const [];
+    _loading = true;
+    notifyListeners();
+    try {
+      final session = await store.loadSession(id);
+      if (session == null) {
+        _error = "Mission introuvable sur l'appareil.";
+      } else {
+        _session = session;
+        _points = [...session.points]
+          ..sort((a, b) => a.pointNumber.compareTo(b.pointNumber));
+        _session = _session!.copyWith(points: _points);
+        _subscription ??= _source.positions.listen(_onPosition);
+        _started = true;
         await _source.start();
         await _refreshQueueState();
       }

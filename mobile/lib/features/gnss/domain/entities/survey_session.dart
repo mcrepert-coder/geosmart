@@ -20,6 +20,7 @@ class SurveySession {
     this.perimeterMeters,
     this.areaSquareMeters,
     this.completedAt,
+    this.deletedAt,
   });
 
   /// Identifiant local de la mission.
@@ -55,8 +56,17 @@ class SurveySession {
   /// Date de fin du leve, renseignee au passage a [SurveySessionStatus.completed].
   final DateTime? completedAt;
 
+  /// Date de mise a la corbeille locale (nullable).
+  final DateTime? deletedAt;
+
   /// Nombre minimal de bornes pour former une parcelle.
   static const minimumPoints = 3;
+
+  /// La mission est actuellement placee dans la corbeille.
+  bool get inTrash => deletedAt != null;
+
+  /// La mission peut etre restauree depuis la corbeille.
+  bool get canRestore => inTrash;
 
   /// Toutes les bornes sont en RTK Fixed (RG-01).
   bool get allPointsValidated =>
@@ -72,8 +82,9 @@ class SurveySession {
   /// La mission peut etre envoyee au serveur.
   ///
   /// Elle doit etre terminee, contenir au moins trois bornes toutes validees,
-  /// et avoir son perimetre et sa surface calcules.
+  /// avoir son perimetre et sa surface calcules, et ne pas etre en corbeille.
   bool get canSync =>
+      !inTrash &&
       status.canSync &&
       hasMinimumPoints &&
       allPointsValidated &&
@@ -86,7 +97,10 @@ class SurveySession {
 
   /// La mission peut passer a `COMPLETED` avec ses mesures calculees.
   bool get canComplete =>
-      !isCompleted && hasMinimumPoints && allPointsValidated;
+      !inTrash && !isCompleted && hasMinimumPoints && allPointsValidated;
+
+  /// La mission peut etre supprimee localement (brouillon ou en cours, hors corbeille).
+  bool get canDelete => !inTrash && status.canDelete;
 
   /// Cree une copie de la mission avec les champs fournis.
   SurveySession copyWith({
@@ -101,6 +115,7 @@ class SurveySession {
     double? areaSquareMeters,
     DateTime? createdAt,
     DateTime? completedAt,
+    Object? deletedAt = _unspecified,
   }) {
     return SurveySession(
       id: id ?? this.id,
@@ -114,8 +129,13 @@ class SurveySession {
       areaSquareMeters: areaSquareMeters ?? this.areaSquareMeters,
       createdAt: createdAt ?? this.createdAt,
       completedAt: completedAt ?? this.completedAt,
+      deletedAt: identical(deletedAt, _unspecified)
+          ? this.deletedAt
+          : deletedAt as DateTime?,
     );
   }
+
+  static const Object _unspecified = Object();
 
   /// Termine le leve et enregistre les mesures calculees.
   SurveySession complete({
@@ -181,6 +201,7 @@ class SurveySession {
       'area_square_meters': areaSquareMeters,
       'created_at': createdAt.toIso8601String(),
       'completed_at': completedAt?.toIso8601String(),
+      'deleted_at': deletedAt?.toIso8601String(),
     };
   }
 
@@ -190,6 +211,7 @@ class SurveySession {
     List<SurveyPoint> points = const [],
   }) {
     final completedAt = map['completed_at'] as String?;
+    final deletedAt = map['deleted_at'] as String?;
     return SurveySession(
       id: map['id'] as String,
       clientId: map['client_id'] as String,
@@ -202,6 +224,7 @@ class SurveySession {
       areaSquareMeters: (map['area_square_meters'] as num?)?.toDouble(),
       createdAt: DateTime.parse(map['created_at'] as String),
       completedAt: completedAt == null ? null : DateTime.parse(completedAt),
+      deletedAt: deletedAt == null ? null : DateTime.parse(deletedAt),
     );
   }
 

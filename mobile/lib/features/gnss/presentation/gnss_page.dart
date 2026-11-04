@@ -45,7 +45,6 @@ class GnssPage extends StatefulWidget {
 class _GnssPageState extends State<GnssPage> with WidgetsBindingObserver {
   late final StreamSubscription<SurveyEvent> _events;
   GnssFixQuality? _lastQuality;
-  bool _night = false;
 
   SurveyController get _controller => widget.controller;
 
@@ -85,73 +84,59 @@ class _GnssPageState extends State<GnssPage> with WidgetsBindingObserver {
     if (mounted) setState(() {});
   }
 
+  /// Duree maximale d'un message en bas de l'ecran.
+  static const _toastDuration = Duration(seconds: 3);
+
+  /// Remplace le message courant pour eviter qu'une file de messages ne
+  /// s'accumule, puis le referme automatiquement apres [_toastDuration].
+  void _showToast(String message, {SnackBarAction? action}) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: action,
+        duration: _toastDuration,
+        persist: false,
+      ),
+    );
+  }
+
   void _onEvent(SurveyEvent event) {
     if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
     switch (event) {
       case PointRecorded(:final point):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              "Borne ${point.pointName} enregistree sur l'appareil",
-            ),
-            action: SnackBarAction(
-              label: 'Annuler',
-              onPressed: () => unawaited(_controller.undoPoint(point.id)),
-            ),
-            duration: const Duration(seconds: 5),
+        _showToast(
+          "Borne ${point.pointName} enregistree sur l'appareil",
+          action: SnackBarAction(
+            label: 'Annuler',
+            onPressed: () => unawaited(_controller.undoPoint(point.id)),
           ),
         );
       case PointUpdated(:final point):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              'Borne ${point.pointName} remise a jour sur l\'appareil',
-            ),
-          ),
-        );
+        _showToast('Borne ${point.pointName} remise a jour sur l\'appareil');
       case PointDeleted(:final point):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Borne ${point.pointName} supprimee de la mission'),
-          ),
-        );
+        _showToast('Borne ${point.pointName} supprimee de la mission');
       case MeasurementCancelled(:final reason):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(SnackBar(content: Text(reason)));
+        _showToast(reason);
       case SurveyError(:final message):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(SnackBar(content: Text(message)));
+        _showToast(message);
       case MissionCompleted(:final session):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              'Mission terminee : perimetre '
-              '${formatDecimal(session.perimeterMeters ?? 0)} m, surface '
-              '${formatDecimal(session.areaSquareMeters ?? 0)} m2.',
-            ),
-          ),
+        _showToast(
+          'Mission terminee : perimetre '
+          '${formatDecimal(session.perimeterMeters ?? 0)} m, surface '
+          '${formatDecimal(session.areaSquareMeters ?? 0)} m2.',
         );
       case SyncFinished(:final result):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              result.sent > 0
-                  ? '${result.sent} mission(s) envoyee(s).'
-                  : result.hasFailures
-                  ? 'Envoi impossible, la mission reste sur l\'appareil.'
-                  : 'Aucune mission en attente.',
-            ),
-          ),
+        _showToast(
+          result.sent > 0
+              ? '${result.sent} mission(s) envoyee(s).'
+              : result.hasFailures
+              ? 'Envoi impossible, la mission reste sur l\'appareil.'
+              : 'Aucune mission en attente.',
         );
       case SyncUnavailable(:final message):
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(SnackBar(content: Text(message)));
+        _showToast(message);
     }
   }
 
@@ -213,149 +198,119 @@ class _GnssPageState extends State<GnssPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final theme = _night ? GeoSmartTheme.dark : GeoSmartTheme.light;
-    return Theme(
-      data: theme,
-      child: Builder(
-        builder: (context) {
-          final colors = GeoSmartColors.of(context);
-          return Scaffold(
-            appBar: AppBar(
-              toolbarHeight: 64,
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    "Mesure d'une borne",
-                    style: GeoSmartText.h2.copyWith(color: colors.text),
-                  ),
-                  Text(
-                    _controller.session?.title ?? 'Mission locale',
-                    style: GeoSmartText.caption.copyWith(
-                      color: colors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                if (_controller.session?.canSync ?? false)
-                  IconButton(
-                    tooltip: 'Synchroniser la mission',
-                    icon: const Icon(Icons.cloud_upload_outlined),
-                    onPressed: _controller.isSyncing
-                        ? null
-                        : _controller.syncCurrentMission,
-                  ),
-                IconButton(
-                  tooltip: 'Choisir le recepteur',
-                  icon: const Icon(Icons.sensors_outlined),
-                  onPressed: _openSourcePage,
-                ),
-                IconButton(
-                  tooltip: 'Corrections NTRIP',
-                  icon: const Icon(Icons.satellite_alt_outlined),
-                  onPressed: _openNtripPage,
-                ),
-                IconButton(
-                  tooltip: _night ? 'Theme jour' : 'Theme nuit',
-                  icon: Icon(
-                    _night
-                        ? Icons.light_mode_outlined
-                        : Icons.dark_mode_outlined,
-                  ),
-                  onPressed: () => setState(() => _night = !_night),
-                ),
-              ],
+    final colors = GeoSmartColors.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        toolbarHeight: 64,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "Mesure d'une borne",
+              style: GeoSmartText.h2.copyWith(color: colors.text),
             ),
-            body: SafeArea(
-              child: Column(
+            Text(
+              _controller.session?.title ?? 'Mission locale',
+              style: GeoSmartText.caption.copyWith(color: colors.textMuted),
+            ),
+          ],
+        ),
+        actions: [
+          if (_controller.session?.canSync ?? false)
+            IconButton(
+              tooltip: 'Synchroniser la mission',
+              icon: const Icon(Icons.cloud_upload_outlined),
+              onPressed: _controller.isSyncing
+                  ? null
+                  : _controller.syncCurrentMission,
+            ),
+          IconButton(
+            tooltip: 'Choisir le recepteur',
+            icon: const Icon(Icons.sensors_outlined),
+            onPressed: _openSourcePage,
+          ),
+          IconButton(
+            tooltip: 'Corrections NTRIP',
+            icon: const Icon(Icons.satellite_alt_outlined),
+            onPressed: _openNtripPage,
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            if (_controller.bluetoothDisabled)
+              _BluetoothBanner(
+                colors: colors,
+                onRefresh: () => unawaited(_controller.refreshBluetoothState()),
+              ),
+            if (_controller.isSimulation) _SimulationBanner(colors: colors),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(GeoSmartDimens.space4),
                 children: [
-                  if (_controller.bluetoothDisabled)
-                    _BluetoothBanner(
+                  _QualityBanner(
+                    position: _controller.position,
+                    colors: colors,
+                    animate: widget.animateQuality,
+                  ),
+                  const SizedBox(height: GeoSmartDimens.space3),
+                  _MetricsGrid(position: _controller.position, colors: colors),
+                  const SizedBox(height: GeoSmartDimens.space3),
+                  _CoordinatesCard(
+                    position: _controller.position,
+                    colors: colors,
+                  ),
+                  const SizedBox(height: GeoSmartDimens.space6),
+                  Text(
+                    'Bornes relevees (${_controller.points.length})',
+                    style: GeoSmartText.h3.copyWith(color: colors.text),
+                  ),
+                  const SizedBox(height: GeoSmartDimens.space3),
+                  if (_controller.points.isEmpty)
+                    _EmptyPoints(colors: colors)
+                  else
+                    for (final point in _controller.points)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: GeoSmartDimens.space2,
+                        ),
+                        child: _PointTile(
+                          point: point,
+                          colors: colors,
+                          controller: _controller,
+                          onDelete: () => _confirmDeletePoint(point),
+                        ),
+                      ),
+                  if (_controller.session?.isCompleted ?? false) ...[
+                    const SizedBox(height: GeoSmartDimens.space4),
+                    _MissionSummaryCard(
+                      controller: _controller,
                       colors: colors,
-                      onRefresh: () =>
-                          unawaited(_controller.refreshBluetoothState()),
                     ),
-                  if (_controller.isSimulation)
-                    _SimulationBanner(colors: colors),
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.all(GeoSmartDimens.space4),
-                      children: [
-                        _QualityBanner(
-                          position: _controller.position,
-                          colors: colors,
-                          animate: widget.animateQuality,
-                        ),
-                        const SizedBox(height: GeoSmartDimens.space3),
-                        _MetricsGrid(
-                          position: _controller.position,
-                          colors: colors,
-                        ),
-                        const SizedBox(height: GeoSmartDimens.space3),
-                        _CoordinatesCard(
-                          position: _controller.position,
-                          colors: colors,
-                        ),
-                        const SizedBox(height: GeoSmartDimens.space6),
-                        Text(
-                          'Bornes relevees (${_controller.points.length})',
-                          style: GeoSmartText.h3.copyWith(color: colors.text),
-                        ),
-                        const SizedBox(height: GeoSmartDimens.space3),
-                        if (_controller.points.isEmpty)
-                          _EmptyPoints(colors: colors)
-                        else
-                          for (final point in _controller.points)
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: GeoSmartDimens.space2,
-                              ),
-                              child: _PointTile(
-                                point: point,
-                                colors: colors,
-                                controller: _controller,
-                                onDelete: () => _confirmDeletePoint(point),
-                              ),
-                            ),
-                        if (_controller.session?.isCompleted ?? false) ...[
-                          const SizedBox(height: GeoSmartDimens.space4),
-                          _MissionSummaryCard(
-                            controller: _controller,
-                            colors: colors,
-                          ),
-                        ] else if (_controller.canFinishMission) ...[
-                          const SizedBox(height: GeoSmartDimens.space4),
-                          _FinishMissionCard(
-                            colors: colors,
-                            busy: _controller.isFinishing,
-                            onFinish: _confirmFinish,
-                          ),
-                        ],
-                        if (_controller.pendingSyncCount > 0) ...[
-                          const SizedBox(height: GeoSmartDimens.space3),
-                          _PendingSyncCard(
-                            controller: _controller,
-                            colors: colors,
-                          ),
-                        ],
-                        if (_controller.rejectedSyncCount > 0) ...[
-                          const SizedBox(height: GeoSmartDimens.space3),
-                          _RejectedSyncCard(
-                            controller: _controller,
-                            colors: colors,
-                          ),
-                        ],
-                      ],
+                  ] else if (_controller.canFinishMission) ...[
+                    const SizedBox(height: GeoSmartDimens.space4),
+                    _FinishMissionCard(
+                      colors: colors,
+                      busy: _controller.isFinishing,
+                      onFinish: _confirmFinish,
                     ),
-                  ),
-                  _BottomAction(controller: _controller, colors: colors),
+                  ],
+                  if (_controller.pendingSyncCount > 0) ...[
+                    const SizedBox(height: GeoSmartDimens.space3),
+                    _PendingSyncCard(controller: _controller, colors: colors),
+                  ],
+                  if (_controller.rejectedSyncCount > 0) ...[
+                    const SizedBox(height: GeoSmartDimens.space3),
+                    _RejectedSyncCard(controller: _controller, colors: colors),
+                  ],
                 ],
               ),
             ),
-          );
-        },
+            _BottomAction(controller: _controller, colors: colors),
+          ],
+        ),
       ),
     );
   }

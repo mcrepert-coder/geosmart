@@ -78,6 +78,13 @@ void main() {
       expect(SurveySessionStatus.inProgress.canSync, isFalse);
       expect(SurveySessionStatus.synced.canSync, isFalse);
     });
+
+    test('seuls draft et inProgress autorisent la suppression locale', () {
+      expect(SurveySessionStatus.draft.canDelete, isTrue);
+      expect(SurveySessionStatus.inProgress.canDelete, isTrue);
+      expect(SurveySessionStatus.completed.canDelete, isFalse);
+      expect(SurveySessionStatus.synced.canDelete, isFalse);
+    });
   });
 
   group('SurveySession - pret pour la synchronisation', () {
@@ -172,7 +179,21 @@ void main() {
       expect(restored.areaSquareMeters, 1024.0);
       expect(restored.createdAt, createdAt);
       expect(restored.completedAt, completedAt);
-      expect(restored.canSync, isTrue);
+      expect(restored.deletedAt, isNull);
+      expect(restored.inTrash, isFalse);
+    });
+
+    test('toMap et fromMap preservent la date de corbeille', () {
+      final inTrash = session().copyWith(deletedAt: completedAt);
+      final map = inTrash.toMap();
+      expect(map['deleted_at'], completedAt.toIso8601String());
+
+      final restored = SurveySession.fromMap(map);
+      expect(restored.deletedAt, completedAt);
+      expect(restored.inTrash, isTrue);
+      expect(restored.canRestore, isTrue);
+      expect(restored.canDelete, isFalse);
+      expect(restored.canSync, isFalse);
     });
 
     test('complete termine la mission avec les mesures calculees', () {
@@ -256,6 +277,13 @@ void main() {
       expect(session().canComplete, isFalse);
       expect(session().isCompleted, isTrue);
       expect(session(status: SurveySessionStatus.synced).isCompleted, isTrue);
+    });
+
+    test('canDelete autorise la suppression pour draft et inProgress', () {
+      expect(session(status: SurveySessionStatus.draft).canDelete, isTrue);
+      expect(session(status: SurveySessionStatus.inProgress).canDelete, isTrue);
+      expect(session(status: SurveySessionStatus.completed).canDelete, isFalse);
+      expect(session(status: SurveySessionStatus.synced).canDelete, isFalse);
     });
 
     test('reopen remet une mission terminee en cours sans mesures', () {

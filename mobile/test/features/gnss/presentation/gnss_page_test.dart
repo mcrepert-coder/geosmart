@@ -143,6 +143,37 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('fait disparaitre le message d enregistrement apres 3 secondes', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final (controller, source) = await pumpPage(tester);
+    source.emit(position());
+    await tester.pump();
+
+    await tester.tap(find.text('Enregistrer la borne'));
+    for (var i = 0; i < 10; i++) {
+      source.emit(position());
+      await pumpFrames(tester);
+    }
+    await tester.pumpAndSettle();
+
+    const message = "Borne B1 enregistree sur l'appareil";
+    expect(controller.points, hasLength(1));
+    expect(find.text(message), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    expect(find.text(message), findsNothing);
+
+    await unmount(tester);
+  });
+
   testWidgets('signale un Bluetooth desactive sur la page de mesure', (
     tester,
   ) async {
@@ -187,15 +218,28 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('T4 bascule en theme nuit', (tester) async {
-    await pumpPage(tester);
-
-    await tester.tap(find.byTooltip('Theme nuit'));
+  testWidgets('suit le theme choisi dans les parametres', (tester) async {
+    final source = ManualGnssSource();
+    final controller = SurveyController(
+      store: FakeSurveySessionStore(session: session),
+      source: source,
+      sessionId: session.id,
+    );
+    addTearDown(controller.dispose);
+    await controller.start();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: GeoSmartTheme.light,
+        darkTheme: GeoSmartTheme.dark,
+        themeMode: ThemeMode.dark,
+        home: GnssPage(controller: controller, animateQuality: false),
+      ),
+    );
     await tester.pump();
 
     final context = tester.element(find.text("Mesure d'une borne"));
     expect(Theme.of(context).brightness, Brightness.dark);
-    expect(find.byTooltip('Theme jour'), findsOneWidget);
+    expect(find.byTooltip('Theme nuit'), findsNothing);
 
     await unmount(tester);
   });
@@ -439,6 +483,12 @@ void main() {
     expect(controller.points, isEmpty);
     expect(store.removeCalls, 1);
     expect(find.text('Aucune borne enregistree'), findsOneWidget);
+    expect(find.text('Borne B1 supprimee de la mission'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Borne B1 supprimee de la mission'), findsNothing);
 
     await unmount(tester);
   });

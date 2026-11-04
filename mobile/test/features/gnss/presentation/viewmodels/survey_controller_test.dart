@@ -7,6 +7,7 @@ import 'package:geosmart_mobile/features/gnss/domain/entities/survey_session_sta
 import 'package:geosmart_mobile/features/gnss/domain/repositories/sync_queue_store.dart';
 import 'package:geosmart_mobile/features/gnss/presentation/viewmodels/survey_controller.dart';
 
+import '../../../../support/fake_multi_session_store.dart';
 import '../../../../support/fake_survey_store.dart';
 import '../../../../support/fake_sync_queue.dart';
 
@@ -775,6 +776,86 @@ void main() {
       next.emit(position(latitude: 6.14));
       await settle();
       expect(mission.position?.latitude, 6.14);
+    });
+  });
+
+  group('SurveyController changement de mission', () {
+    SurveySession other({
+      required String id,
+      required String title,
+      List<SurveyPoint> points = const [],
+    }) {
+      return SurveySession(
+        id: id,
+        clientId: 'client-$id',
+        projectId: 'project-1',
+        surveyorId: 'surveyor-1',
+        title: title,
+        points: points,
+        createdAt: DateTime.utc(2026, 10, 31, 8),
+      );
+    }
+
+    test('ouvre une autre mission sans arreter la source', () async {
+      final existing = SurveyPoint.fromPosition(
+        id: 'point-b1',
+        clientId: 'client-point-b1',
+        projectId: 'project-1',
+        surveyorId: 'surveyor-1',
+        pointNumber: 1,
+        pointName: 'B1',
+        position: position(),
+      );
+      final multiStore = FakeMultiSessionStore(
+        sessions: [
+          session,
+          other(id: 'session-2', title: 'Leve parcelle B', points: [existing]),
+        ],
+      );
+      final missionSource = ManualGnssSource();
+      final switched = SurveyController(
+        store: multiStore,
+        source: missionSource,
+        sessionId: session.id,
+      );
+      addTearDown(switched.dispose);
+      await switched.start();
+      missionSource.emit(position());
+      await settle();
+      expect(switched.position, isNotNull);
+
+      await switched.openSession('session-2');
+      await settle();
+
+      expect(switched.sessionId, 'session-2');
+      expect(switched.session?.title, 'Leve parcelle B');
+      expect(switched.points.single.pointName, 'B1');
+      expect(switched.position, isNull);
+      expect(missionSource.started, isTrue);
+
+      missionSource.emit(position(latitude: 6.14));
+      await settle();
+      expect(switched.position?.latitude, 6.14);
+    });
+
+    test('signale une mission absente sans perdre la source', () async {
+      final multiStore = FakeMultiSessionStore(sessions: [session]);
+      final missionSource = ManualGnssSource();
+      final switched = SurveyController(
+        store: multiStore,
+        source: missionSource,
+        sessionId: session.id,
+      );
+      addTearDown(switched.dispose);
+      await switched.start();
+
+      await switched.openSession('inconnue');
+      await settle();
+
+      expect(switched.sessionId, 'inconnue');
+      expect(switched.session, isNull);
+      expect(switched.error, contains('introuvable'));
+      expect(missionSource.started, isTrue);
     });
   });
 }

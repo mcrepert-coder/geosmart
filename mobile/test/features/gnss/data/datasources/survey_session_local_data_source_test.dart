@@ -72,6 +72,36 @@ void main() {
       expect(loaded.points, isEmpty);
     });
 
+    test('liste les missions de la plus recente a la plus ancienne', () async {
+      final older = session.copyWith(
+        id: 'session-0',
+        clientId: 'client-session-0',
+        title: 'Leve parcelle 0',
+        createdAt: DateTime.utc(2026, 10, 28, 9),
+      );
+      final newer = session.copyWith(
+        id: 'session-2',
+        clientId: 'client-session-2',
+        title: 'Leve parcelle 2',
+        createdAt: DateTime.utc(2026, 10, 31, 9),
+      );
+      await store.createSession(older);
+      await store.createSession(session);
+      await store.createSession(newer);
+      await store.addPoint(session.id, point(number: 1));
+
+      final sessions = await store.listSessions();
+
+      expect(sessions.map((value) => value.id), [
+        'session-2',
+        'session-1',
+        'session-0',
+      ]);
+      expect(sessions[1].title, 'Leve parcelle A');
+      expect(sessions[1].points, hasLength(1));
+      expect(sessions[2].points, isEmpty);
+    });
+
     test('ajoute une borne et passe la mission en cours', () async {
       await store.createSession(session);
 
@@ -128,6 +158,105 @@ void main() {
       final points = await store.pointsFor(session.id);
       expect(points, isEmpty);
     });
+
+    test('deleteSession supprime la mission et ses bornes', () async {
+      await store.createSession(session);
+      await store.addPoint(session.id, point(number: 1));
+      await store.addPoint(session.id, point(number: 2));
+
+      await store.deleteSession(session.id);
+
+      expect(await store.loadSession(session.id), isNull);
+      expect(await store.pointsFor(session.id), isEmpty);
+      expect(await store.listSessions(), isEmpty);
+    });
+
+    test(
+      'deleteSession sur un identifiant inconnu leve une StateError',
+      () async {
+        expect(() => store.deleteSession('inconnu'), throwsStateError);
+      },
+    );
+
+    test(
+      'moveToTrash deplace la mission en corbeille et la masque de listSessions',
+      () async {
+        await store.createSession(session);
+        await store.addPoint(session.id, point(number: 1));
+
+        final deletedAt = DateTime.utc(2026, 11, 1, 10);
+        await store.moveToTrash(session.id, deletedAt: deletedAt);
+
+        expect(await store.listSessions(), isEmpty);
+
+        final trash = await store.listTrashSessions();
+        expect(trash, hasLength(1));
+        expect(trash.single.id, session.id);
+        expect(trash.single.deletedAt, deletedAt);
+        expect(trash.single.points, hasLength(1));
+      },
+    );
+
+    test(
+      'restoreSession retire la mission de la corbeille et la remet dans listSessions',
+      () async {
+        await store.createSession(session);
+        await store.moveToTrash(session.id);
+
+        expect(await store.listSessions(), isEmpty);
+        expect(await store.listTrashSessions(), hasLength(1));
+
+        await store.restoreSession(session.id);
+
+        expect(await store.listTrashSessions(), isEmpty);
+        final active = await store.listSessions();
+        expect(active, hasLength(1));
+        expect(active.single.id, session.id);
+        expect(active.single.deletedAt, isNull);
+      },
+    );
+
+    test(
+      'purgeExpiredTrash supprime les missions depassant le delai de retention',
+      () async {
+        await store.createSession(session);
+        await store.addPoint(session.id, point(number: 1));
+
+        final now = DateTime.utc(2026, 11, 10, 12);
+        // Supprimee il y a 8 jours (expiree)
+        final oldDeletedAt = now.subtract(const Duration(days: 8));
+        await store.moveToTrash(session.id, deletedAt: oldDeletedAt);
+
+        final purged = await store.purgeExpiredTrash(
+          maxAge: const Duration(days: 7),
+          now: now,
+        );
+
+        expect(purged, 1);
+        expect(await store.listTrashSessions(), isEmpty);
+        expect(await store.loadSession(session.id), isNull);
+        expect(await store.pointsFor(session.id), isEmpty);
+      },
+    );
+
+    test(
+      'purgeExpiredTrash conserve les missions supprimees il y a moins de 7 jours',
+      () async {
+        await store.createSession(session);
+        final now = DateTime.utc(2026, 11, 10, 12);
+        // Supprimee il y a 3 jours (non expiree)
+        final recentDeletedAt = now.subtract(const Duration(days: 3));
+        await store.moveToTrash(session.id, deletedAt: recentDeletedAt);
+
+        final purged = await store.purgeExpiredTrash(
+          maxAge: const Duration(days: 7),
+          now: now,
+        );
+
+        expect(purged, 0);
+        expect(await store.listTrashSessions(), hasLength(1));
+      },
+    );
 
     test('met a jour la mission sans toucher aux bornes', () async {
       await store.createSession(session);
