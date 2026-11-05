@@ -1,0 +1,50 @@
+name: Module Beni
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+env:
+  MODULE_DIR: modules/beni
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.MODULE_DIR }}/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ${{ env.MODULE_DIR }}/api/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: node ../tools/smoke-demo.cjs
+      - run: node ../tools/generate-contract.cjs
+      - run: git diff --exit-code -- ../contracts/openapi.json ../contracts/auth.yaml ../contracts/sync.yaml
+      - run: mkdir -p ../artifacts && npm pack --pack-destination ../artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: beni-api-package
+          path: ${{ env.MODULE_DIR }}/artifacts/*.tgz
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - run: bash ./gradlew :beni:assembleRelease :app:assembleDebug
+        working-directory: ${{ env.MODULE_DIR }}/mobile
+      - uses: actions/upload-artifact@v4
+        with:
+          name: beni-android
+          path: |
+            ${{ env.MODULE_DIR }}/mobile/beni/build/outputs/aar/*.aar
+            ${{ env.MODULE_DIR }}/mobile/app/build/outputs/apk/debug/*.apk

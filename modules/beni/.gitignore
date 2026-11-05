@@ -1,0 +1,15 @@
+api/node_modules/
+api/dist/
+api/.env
+mobile/.gradle/
+mobile/.kotlin/
+mobile/local.properties
+mobile/**/build/
+*.log
+*.tgz
+*.apk
+*.aar
+livraison/
+*.zip
+.consumer-check/
+artifacts/

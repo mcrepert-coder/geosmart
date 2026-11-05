@@ -1,0 +1,18 @@
+services:
+  database:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: geosmart_beni
+      POSTGRES_USER: geosmart
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Definir POSTGRES_PASSWORD dans api/.env}
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - beni_database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geosmart -d geosmart_beni"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  beni_database:

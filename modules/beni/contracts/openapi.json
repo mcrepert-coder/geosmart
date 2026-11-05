@@ -1,0 +1,1141 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "GeoSmart - M4 Beni autonome",
+    "version": "0.2.0",
+    "description": "Comptes, roles, carte et synchronisation. Module independant. Synchronisation de missions completes ; contrat metier de mission a confirmer."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:3000",
+      "description": "Demonstration locale"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Etat du serveur",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Succes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "summary": "Creer un compte en attente",
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "Succes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^\\+[1-9]\\d{7,14}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 120
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 12,
+                    "maxLength": 72
+                  }
+                },
+                "required": [
+                  "phone",
+                  "name",
+                  "password"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "description": "Role initial client. Aucune auto-attribution de role. SMS simule dans le lanceur local."
+      }
+    },
+    "/auth/verify": {
+      "post": {
+        "summary": "Verifier le code et obtenir une session inscription",
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "Succes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verified": {
+                      "const": true
+                    },
+                    "onboardingToken": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^\\+[1-9]\\d{7,14}$"
+                  },
+                  "code": {
+                    "type": "string",
+                    "pattern": "^\\d{6}$"
+                  }
+                },
+                "required": [
+                  "phone",
+                  "code"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "description": "Le jeton inscription accede seulement au profil et aux pieces tant que le compte est en attente. Duree une heure."
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Connexion d un compte actif",
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "Succes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^\\+[1-9]\\d{7,14}$"
+                  },
+                  "password": {
+                    "type": "string",
+                    "maxLength": 72
+                  }
+                },
+                "required": [
+                  "phone",
+                  "password"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "summary": "Renouvellement a usage unique",
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "Succes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": {
+                    "type": "string",
+                    "minLength": 32,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "refreshToken"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Invalider le renouvellement de cette session",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Succes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": {
+                    "type": "string",
+                    "minLength": 32,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "refreshToken"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/me": {
+      "get": {
+        "summary": "Profil courant",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        }
+      }
+    },
+    "/users/me/documents": {
+      "post": {
+        "summary": "Ajouter une piece privee de 5 Mo maximum",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Succes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "mime": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "identity",
+                      "professional",
+                      "rccm",
+                      "approval",
+                      "order"
+                    ]
+                  },
+                  "mime": {
+                    "type": "string",
+                    "enum": [
+                      "image/jpeg",
+                      "image/png",
+                      "application/pdf"
+                    ]
+                  },
+                  "base64": {
+                    "type": "string",
+                    "maxLength": 6990508
+                  }
+                },
+                "required": [
+                  "type",
+                  "mime",
+                  "base64"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Lister les metadonnees de ses pieces",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Document"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        }
+      }
+    },
+    "/documents/{id}": {
+      "get": {
+        "summary": "Telecharger une piece (titulaire ou admin)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succes",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Content-Type reel : image/jpeg, image/png ou application/pdf. Reponse attachment, no-store, nosniff. 404 si absent."
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "summary": "Admin : lister les comptes",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/User"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        }
+      }
+    },
+    "/admin/documents": {
+      "get": {
+        "summary": "Admin : lister les metadonnees des justificatifs",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Document"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        }
+      }
+    },
+    "/admin/users/{id}": {
+      "patch": {
+        "summary": "Admin : validation, rejet ou suspension",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "reject",
+                      "suspend"
+                    ]
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "ADMIN",
+                      "GEOMETRE",
+                      "TOPOGRAPHE",
+                      "AGENT_IMMOBILIER",
+                      "CLIENT"
+                    ]
+                  },
+                  "certified": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "fullName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "ordreNumber": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                },
+                "required": [
+                  "action"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "approve : telephone verifie, role et piece identite requis ; piece professionnelle pour agent ; inscription et numero Ordre pour geometre certifie. fullName et ordreNumber sont controles par administration. reject/suspend : motif requis. Modification de soi-meme interdite."
+      }
+    },
+    "/admin/logs": {
+      "get": {
+        "summary": "Admin : journal des actions sensibles",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Succes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "actor": {
+                        "type": "string"
+                      },
+                      "action": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "string"
+                      },
+                      "at": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "previousHash": {
+                        "type": "string"
+                      },
+                      "hash": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        }
+      }
+    },
+    "/sync": {
+      "post": {
+        "summary": "Synchroniser des missions completes",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Succes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "results"
+                  ],
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "clientId",
+                          "status",
+                          "retryable"
+                        ],
+                        "properties": {
+                          "clientId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "status": {
+                            "enum": [
+                              "accepted",
+                              "rejected"
+                            ]
+                          },
+                          "entityId": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "retryable": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "clientId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "entityType": {
+                          "type": "string",
+                          "const": "survey_session"
+                        },
+                        "payload": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "clientId",
+                        "entityType",
+                        "payload"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "items"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "description": "Un element entityType=survey_session contient la mission entiere. Aucun envoi borne par borne. Le schema metier payload, la revision de mission et la conversion en parcelle sont a valider avec Romuald et le module foncier : le schema demo-v1 ne vaut pas contrat commun. POST /sync ne cree aucune parcelle. Les routes, contraintes et reponses de POST /parcels existantes restent du ressort de land.yaml. clientId unique par compte, renvoi identique idempotent, CLIENT_ID_REUSED si charge differente. SURVEY_ADAPTER_NOT_CONFIGURED est temporaire. Voir COMPATIBILITE-EQUIPE.md."
+      }
+    },
+    "/map/parcels": {
+      "get": {
+        "summary": "Carte publique GeoJSON WGS84 en lecture seule",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Succes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureCollection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Donnees invalides"
+          },
+          "401": {
+            "description": "Authentification absente ou invalide"
+          },
+          "403": {
+            "description": "Compte ou role non autorise"
+          },
+          "429": {
+            "description": "Limite par IP : 120 requetes par minute"
+          }
+        },
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "clear",
+                "pending",
+                "disputed"
+              ]
+            }
+          }
+        ],
+        "description": "503 MAP_ADAPTER_NOT_CONFIGURED sans source. En demonstration : demo=true et trois polygones fictifs."
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Role": {
+        "type": "string",
+        "enum": [
+          "ADMIN",
+          "GEOMETRE",
+          "TOPOGRAPHE",
+          "AGENT_IMMOBILIER",
+          "CLIENT"
+        ]
+      },
+      "CurrentUser": {
+        "type": "object",
+        "required": [
+          "id",
+          "phone",
+          "name",
+          "role",
+          "certified",
+          "registeredSurveyor",
+          "accountActive",
+          "status",
+          "verified"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "ordreNumber": {
+            "type": "string",
+            "maxLength": 40,
+            "description": "geometre inscrit a l'Ordre"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "certified": {
+            "type": "boolean"
+          },
+          "registeredSurveyor": {
+            "type": "boolean"
+          },
+          "accountActive": {
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "active",
+              "rejected",
+              "suspended"
+            ]
+          },
+          "verified": {
+            "type": "boolean"
+          }
+        }
+      },
+      "User": {
+        "$ref": "#/components/schemas/CurrentUser"
+      },
+      "Session": {
+        "type": "object",
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "user"
+        ],
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "Document": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "ownerId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FeatureCollection": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "FeatureCollection"
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "Feature"
+                },
+                "geometry": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "Polygon"
+                    },
+                    "coordinates": {
+                      "type": "array",
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "minItems": 2,
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "coordinates"
+                  ],
+                  "additionalProperties": false
+                },
+                "properties": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status",
+                    "label"
+                  ],
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "type",
+                "geometry",
+                "properties"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "demo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "features"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

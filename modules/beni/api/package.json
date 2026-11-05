@@ -1,0 +1,68 @@
+{
+  "name": "@geosmart/beni-module",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "start": "node dist/src/main.js",
+    "demo": "npm run build && node dist/src/demo.js",
+    "bootstrap-admin": "node dist/src/bootstrap-admin.js",
+    "prepack": "npm run build",
+    "pack:module": "npm pack"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.16.0",
+    "zod": "^4.0.0",
+    "@types/pg": "^8.15.0",
+    "@types/express": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.0.0",
+    "pg-mem": "^3.0.5",
+    "typescript": "^5.9.0",
+    "@nestjs/common": "^11.1.0",
+    "@nestjs/core": "^11.1.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "@nestjs/platform-express": "^11.1.0",
+    "yaml": "^2.8.0"
+  },
+    "overrides": {
+    "multer": "2.5.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "description": "Module M4 partage : comptes, roles, administration, carte et synchronisation GeoSmart",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "require": "./dist/src/index.js",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist/src/index.*",
+    "dist/src/beni.module.*",
+    "dist/src/store.*",
+    "dist/src/http.*",
+    "dist/src/auth",
+    "dist/src/admin",
+    "dist/src/sync",
+    "dist/src/map",
+    "migrations",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@nestjs/common": "^11.1.0",
+    "@nestjs/core": "^11.1.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  }
+}
