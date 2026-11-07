@@ -1,0 +1,663 @@
+openapi: 3.0.3
+info:
+  title: GeoSmart - module annonces et biens (listings)
+  version: 0.1.0
+  description: |
+    Proprietaire : Marrich (KOUSSOUGBO Kokou Marrich, delegue et integrateur).
+    Concerne : le site web public (web/, sauf web/parcelle/), l'application mobile
+    (mobile/lib/features/listings/), et Beni (leasing consomme GET /properties/:id
+    pour rattacher une visite a un bien).
+
+    Exigences reprises du cahier des charges : EF-301 a EF-304 et EF-308, RG-05, CA-5, CA-6.
+    - EF-301 : un bien (terrain ou maison) est rattache a une parcelle ; la publication est
+      reservee aux agents immobiliers actifs.
+    - EF-302 : badges "parcelle certifiee" et "agent certifie" visibles sur l'annonce.
+    - EF-303 : recherche avec filtres (type, prix, statut juridique, badge, zone).
+    - EF-304 : site web public (liste des annonces, fiche d'un bien, statut d'une parcelle).
+    - EF-308 : partage WhatsApp (message pre-rempli) et TikTok / Instagram (lien + image).
+    - RG-05 : un client ne publie jamais un bien ; il passe par un agent.
+    - CA-5 : un client qui tente de publier un bien est refuse (403, "passez par un agent").
+    - CA-6 : un agent publie un bien rattache a une parcelle certifiee ; le badge est visible,
+      le bien apparait sur la carte (via la parcelle) et le lien de partage est public.
+
+    Les chemins de ce contrat sont des propositions a valider : les documents du projet
+    decrivent les fonctionnalites mais ne fixent pas les routes HTTP de Listings. Les champs
+    proposes sont marques et les points ouverts sont listes dans x-team-decisions.
+
+    L'authentification s'appuie sur le bearer JWT de contracts/auth.yaml. Le role courant est
+    relu en base a chaque requete (RG-06). Un "agent actif" est un compte de role AGENT dont
+    accountActive = true (etat ACTIF). Toute ecriture (POST, PATCH) exige un agent actif ;
+    un client recoit 403 et un compte suspendu recoit 403 mais peut encore lire.
+
+    Le badge "parcelle certifiee" provient du statut public de la parcelle (contracts/land.yaml,
+    GET /parcels/:id/status, champ certified). Le badge "agent certifie" provient de la
+    certification de l'agent par l'administration (contracts/auth.yaml) ; sa source exacte
+    reste a coordonner (voir x-team-decisions).
+
+    Aucune donnee personnelle de la parcelle (nom, telephone, coordonnees de bornes) n'est
+    exposee ici. Les photos de biens sont publiques ; les pieces d'identite restent privees
+    (module auth). La mention "Ne vaut pas titre foncier" reste portee par la page parcelle.
+  x-dependencies:
+    authentication:
+      contract: contracts/auth.yaml
+      scheme: bearerAuth
+      note: |
+        Role relu en base a chaque requete (RG-06). "Agent actif" = role AGENT et
+        accountActive = true. La source du badge "agent certifie" (validation des pieces
+        professionnelles par l'administrateur) reste a coordonner avec Beni.
+    land:
+      contract: contracts/land.yaml
+      endpoint: GET /parcels/:id/status
+      note: |
+        Un bien est rattache a une parcelle par son identifiant (parcelId, format TG-XXX-#####).
+        Le badge "parcelle certifiee", le statut juridique et la surface sont lus depuis le
+        statut public de la parcelle. Le lien web de verification est /parcelle?id=<parcelId>.
+    leasing:
+      contract: contracts/leasing.yaml
+      endpoint: GET /properties/:id
+      note: |
+        Beni consomme cette route pour rattacher une visite a un bien. L'identifiant du bien
+        est un UUID (propertyId). La forme de la reponse est fixee ci-dessous pour lever
+        l'attente signalee dans contracts/leasing.yaml.
+  x-team-decisions:
+    - id: listings-paths
+      question: Valider les chemins et methodes HTTP proposes avant implementation.
+    - id: property-fields
+      question: |
+        Figer les champs d'un bien : types (TERRAIN, MAISON), transaction (VENTE, LOCATION),
+        prix, devise (XOF / FCFA), periode de loyer eventuelle, et zone (quartier / commune).
+    - id: publication-lifecycle
+      question: |
+        Confirmer les etats d'un bien (BROUILLON, PUBLIE, RETIRE) et leurs transitions.
+        Preciser qui peut retirer un bien (agent auteur et administrateur) et si la
+        publication exige des conditions supplementaires.
+    - id: agent-certified-source
+      question: |
+        Definir ou lire la certification "agent certifie" (validation des pieces
+        professionnelles par l'administration dans auth) et comment elle est rafraichie.
+    - id: parcel-link-freshness
+      question: |
+        Decider si le statut juridique et le badge certifie sont relus en direct depuis land
+        ou mis en cache, et le comportement quand la parcelle est introuvable ou inconnue.
+    - id: photo-storage
+      question: |
+        Confirmer le transport et le stockage des photos publiques (multipart, 5 Mo, JPEG/PNG),
+        la photo principale, l'ordre et la suppression.
+    - id: share-channels
+      question: |
+        Fixer le message WhatsApp pre-rempli et le format "lien + image" pour TikTok et
+        Instagram (EF-308). Le partage peut etre construit cote client depuis publicUrl.
+    - id: search-filters
+      question: |
+        Confirmer l'ensemble des filtres (EF-303), la pagination et le tri par defaut.
+    - id: agent-contact
+      question: |
+        Preciser quelles coordonnees de l'agent sont publiques sur la fiche d'un bien,
+        dans le respect des donnees personnelles.
+
+servers:
+  - url: http://localhost:3001
+
+tags:
+  - name: biens
+  - name: recherche
+  - name: partage
+  - name: photos
+
+paths:
+  /properties:
+    get:
+      tags: [recherche]
+      summary: Rechercher et lister les biens publies (EF-303, EF-304)
+      description: |
+        Public. Ne renvoie que les biens PUBLIE. Filtres : type, transaction, prix, statut
+        juridique de la parcelle, badge certifie, et zone. Aucune donnee personnelle.
+        Chemin propose a valider.
+      x-proposed-path: true
+      security: []
+      parameters:
+        - name: type
+          in: query
+          schema: { $ref: '#/components/schemas/PropertyType' }
+        - name: transaction
+          in: query
+          schema: { $ref: '#/components/schemas/TransactionType' }
+        - name: priceMin
+          in: query
+          description: Prix minimum en FCFA (XOF).
+          schema: { type: integer, minimum: 0 }
+        - name: priceMax
+          in: query
+          description: Prix maximum en FCFA (XOF).
+          schema: { type: integer, minimum: 0 }
+        - name: legalStatus
+          in: query
+          description: Statut juridique de la parcelle rattachee (filtre EF-303).
+          schema: { $ref: '#/components/schemas/LegalStatus' }
+        - name: certified
+          in: query
+          description: Si true, ne renvoie que les biens dont la parcelle est certifiee.
+          schema: { type: boolean }
+        - name: zone
+          in: query
+          description: Quartier ou localite (recherche partielle).
+          schema: { type: string, maxLength: 120 }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: sort
+          in: query
+          description: Tri propose, a valider.
+          schema: { type: string, enum: [recent, price_asc, price_desc], default: recent }
+          x-proposed-field: true
+      responses:
+        '200':
+          description: Page de biens publies
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PropertyPage' }
+        '400': { $ref: '#/components/responses/Validation' }
+    post:
+      tags: [biens]
+      summary: Creer un bien rattache a une parcelle (EF-301, RG-05, CA-5)
+      description: |
+        Role AGENT actif uniquement. Le bien est rattache a une parcelle par parcelId.
+        Un client est refuse (403, "passez par un agent", CA-5). La publication (status PUBLIE)
+        reste reservee a l'agent actif ; les badges sont calcules a la lecture depuis la
+        parcelle et la certification de l'agent. Chemin propose a valider.
+      x-proposed-path: true
+      x-confirmed-capabilities:
+        - AGENT actif peut creer et publier un bien
+        - CLIENT ne peut pas publier (CA-5)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PropertyInput' }
+      responses:
+        '201':
+          description: Bien cree
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Property' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Role insuffisant ou compte non actif (CA-5)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                code: FORBIDDEN
+                message: Un client ne publie pas un bien, passez par un agent.
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /me/properties:
+    get:
+      tags: [biens]
+      summary: Lister ses propres biens (tous etats)
+      description: |
+        Role AGENT. Renvoie les biens de l'agent courant, y compris BROUILLON et RETIRE.
+        Chemin propose a valider.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/PropertyStatus' }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Page des biens de l'agent courant
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PropertyPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /properties/{propertyId}:
+    parameters:
+      - $ref: '#/components/parameters/PropertyId'
+    get:
+      tags: [biens]
+      summary: Fiche publique d'un bien (EF-304)
+      description: |
+        Public. Consomme aussi par Leasing (GET /properties/:id) pour rattacher une visite.
+        Un bien non publie (BROUILLON ou RETIRE) renvoie 404 pour le public. La fiche porte
+        les badges, le statut juridique de la parcelle et le lien de verification.
+        Chemin propose a valider.
+      x-proposed-path: true
+      security: []
+      responses:
+        '200':
+          description: Fiche du bien
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Property' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [biens]
+      summary: Modifier ou retirer son bien
+      description: |
+        Role AGENT actif, auteur du bien (ou ADMINISTRATEUR pour retirer un bien signale).
+        Permet de changer les champs et l'etat (publication / retrait). Un client et un
+        agent non auteur recoivent 403. Chemin propose a valider.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PropertyUpdate' }
+      responses:
+        '200':
+          description: Bien mis a jour
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Property' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /properties/{propertyId}/share:
+    parameters:
+      - $ref: '#/components/parameters/PropertyId'
+    get:
+      tags: [partage]
+      summary: Liens de partage d'un bien (EF-308)
+      description: |
+        Public. Renvoie le lien public du bien, le message WhatsApp pre-rempli et les
+        elements "lien + image" pour TikTok et Instagram. Le bien doit etre PUBLIE.
+        Chemin et forme proposes a valider.
+      x-proposed-path: true
+      security: []
+      responses:
+        '200':
+          description: Elements de partage
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShareLinks' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /properties/{propertyId}/photos:
+    parameters:
+      - $ref: '#/components/parameters/PropertyId'
+    post:
+      tags: [photos]
+      summary: Ajouter une photo publique a un bien
+      description: |
+        Role AGENT actif, auteur du bien. Photo de 5 Mo maximum, au format JPEG ou PNG.
+        Les photos de biens sont publiques (cahier des charges, donnees personnelles).
+        Chemin propose a valider.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/PhotoUpload' }
+      responses:
+        '201':
+          description: Photo ajoutee
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Photo' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+
+  /properties/{propertyId}/photos/{photoId}/content:
+    parameters:
+      - $ref: '#/components/parameters/PropertyId'
+      - $ref: '#/components/parameters/PhotoId'
+    get:
+      tags: [photos]
+      summary: Telecharger une photo d'un bien (public)
+      description: Contenu public de la photo. Chemin propose a valider.
+      x-proposed-path: true
+      security: []
+      responses:
+        '200':
+          description: Image de la photo
+          content:
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/png:
+              schema: { type: string, format: binary }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    PropertyId:
+      name: propertyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+        description: Identifiant du bien.
+    PhotoId:
+      name: photoId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+        description: Identifiant de la photo.
+
+  schemas:
+    PropertyType:
+      type: string
+      description: Type de bien (EF-301).
+      enum: [TERRAIN, MAISON]
+
+    TransactionType:
+      type: string
+      description: Vente ou location (vendre ou louer terrains et maisons).
+      enum: [VENTE, LOCATION]
+
+    PropertyStatus:
+      type: string
+      description: |
+        Etat d'un bien. Seuls les biens PUBLIE sont visibles par le public.
+        Transitions proposees, a valider (x-team-decisions publication-lifecycle).
+      enum: [BROUILLON, PUBLIE, RETIRE]
+      x-proposed-field: true
+
+    Currency:
+      type: string
+      description: Devise des prix. Le projet utilise le FCFA (XOF).
+      enum: [XOF]
+      default: XOF
+
+    LegalStatus:
+      type: string
+      description: |
+        Statut juridique de la parcelle rattachee. Meme enumeration que contracts/land.yaml ;
+        lu depuis le statut public de la parcelle, jamais fixe par Listings.
+      enum: [TITRE, COUTUMIER_NON_TITRE, EN_LITIGE, INCONNU]
+
+    Badges:
+      type: object
+      description: Badges affiches sur l'annonce (EF-302, CA-6).
+      required: [parcelCertified, agentCertified]
+      properties:
+        parcelCertified:
+          type: boolean
+          description: Vient de land GET /parcels/:id/status (champ certified).
+        agentCertified:
+          type: boolean
+          description: |
+            Certification de l'agent par l'administration. Source exacte a coordonner
+            avec auth (x-team-decisions agent-certified-source).
+
+    ParcelSnapshot:
+      type: object
+      description: |
+        Resume public de la parcelle rattachee, sans donnee personnelle. Construit depuis
+        contracts/land.yaml GET /parcels/:id/status. Le lien web de verification est
+        /parcelle?id=<id>.
+      required: [id, legalStatus, certified]
+      properties:
+        id: { type: string, example: TG-AG3-00457 }
+        legalStatus: { $ref: '#/components/schemas/LegalStatus' }
+        certified: { type: boolean }
+        areaM2: { type: number, description: Surface de la parcelle en metres carres. }
+        statusUrl:
+          type: string
+          description: Chemin API du statut public de la parcelle.
+          example: /parcels/TG-AG3-00457/status
+
+    Photo:
+      type: object
+      description: Photo publique d'un bien.
+      required: [id, contentType, sizeBytes, url, uploadedAt]
+      properties:
+        id: { type: string, format: uuid }
+        contentType: { type: string, enum: [image/jpeg, image/png] }
+        sizeBytes: { type: integer, minimum: 1, maximum: 5242880 }
+        url:
+          type: string
+          description: Chemin de telechargement de la photo.
+          example: /properties/8f3b6c2a-9e12-4c56-8a71-3b5e4a2c1d0f/photos/2d9a4c7e-1b3f-4a8d-9c6e-7f2b5a1d0c8e/content
+        uploadedAt: { type: string, format: date-time }
+
+    PhotoUpload:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+          description: Fichier de 5 Mo maximum, au format JPEG ou PNG.
+
+    PropertyInput:
+      type: object
+      description: |
+        Creation d'un bien. Champs proposes a valider (x-team-decisions property-fields).
+        Le bien est rattache a une parcelle existante par parcelId.
+      required: [parcelId, type, transaction, title, price]
+      properties:
+        parcelId:
+          type: string
+          description: Identifiant de la parcelle rattachee (format land TG-XXX-#####).
+          example: TG-AG3-00457
+        type: { $ref: '#/components/schemas/PropertyType' }
+        transaction: { $ref: '#/components/schemas/TransactionType' }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: string, maxLength: 4000 }
+        price:
+          type: integer
+          minimum: 0
+          description: Prix en FCFA (XOF). Pour une location, loyer par periode.
+        currency: { $ref: '#/components/schemas/Currency' }
+        pricePeriod:
+          type: string
+          description: Periode du loyer pour une location (propose, a valider).
+          enum: [MOIS, AN]
+          x-proposed-field: true
+        zone:
+          type: string
+          maxLength: 120
+          description: Quartier ou localite du bien.
+        status:
+          allOf:
+            - $ref: '#/components/schemas/PropertyStatus'
+          description: Etat initial. Par defaut BROUILLON ; PUBLIE pour publier directement.
+
+    PropertyUpdate:
+      type: object
+      description: Modification partielle d'un bien. Au moins un champ doit etre fourni.
+      minProperties: 1
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: string, maxLength: 4000 }
+        price: { type: integer, minimum: 0 }
+        currency: { $ref: '#/components/schemas/Currency' }
+        pricePeriod:
+          type: string
+          enum: [MOIS, AN]
+          x-proposed-field: true
+        zone: { type: string, maxLength: 120 }
+        type: { $ref: '#/components/schemas/PropertyType' }
+        transaction: { $ref: '#/components/schemas/TransactionType' }
+        status: { $ref: '#/components/schemas/PropertyStatus' }
+
+    Property:
+      type: object
+      description: Fiche complete d'un bien (EF-304).
+      required: [id, parcelId, agentId, type, transaction, title, price, currency, status, badges, parcel, photos, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        parcelId: { type: string, example: TG-AG3-00457 }
+        agentId: { type: string, format: uuid, description: Compte agent auteur du bien. }
+        type: { $ref: '#/components/schemas/PropertyType' }
+        transaction: { $ref: '#/components/schemas/TransactionType' }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        price: { type: integer, minimum: 0 }
+        currency: { $ref: '#/components/schemas/Currency' }
+        pricePeriod:
+          type: string
+          enum: [MOIS, AN]
+          nullable: true
+          x-proposed-field: true
+        zone: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/PropertyStatus' }
+        badges: { $ref: '#/components/schemas/Badges' }
+        parcel: { $ref: '#/components/schemas/ParcelSnapshot' }
+        photos:
+          type: array
+          items: { $ref: '#/components/schemas/Photo' }
+        publicUrl:
+          type: string
+          nullable: true
+          description: Lien public de la fiche (pour le partage, EF-308).
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time, nullable: true }
+        publishedAt: { type: string, format: date-time, nullable: true }
+
+    PropertySummary:
+      type: object
+      description: Carte d'un bien dans une liste de recherche (EF-303).
+      required: [id, parcelId, type, transaction, title, price, currency, badges, parcel]
+      properties:
+        id: { type: string, format: uuid }
+        parcelId: { type: string, example: TG-AG3-00457 }
+        type: { $ref: '#/components/schemas/PropertyType' }
+        transaction: { $ref: '#/components/schemas/TransactionType' }
+        title: { type: string }
+        price: { type: integer, minimum: 0 }
+        currency: { $ref: '#/components/schemas/Currency' }
+        pricePeriod:
+          type: string
+          enum: [MOIS, AN]
+          nullable: true
+          x-proposed-field: true
+        zone: { type: string, nullable: true }
+        badges: { $ref: '#/components/schemas/Badges' }
+        parcel: { $ref: '#/components/schemas/ParcelSnapshot' }
+        primaryPhotoUrl: { type: string, nullable: true }
+        publishedAt: { type: string, format: date-time, nullable: true }
+
+    PropertyPage:
+      type: object
+      description: Page de resultats paginee.
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PropertySummary' }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1 }
+        total: { type: integer, minimum: 0 }
+
+    ShareLinks:
+      type: object
+      description: |
+        Elements de partage (EF-308). Forme proposee a valider. WhatsApp fournit un message
+        pre-rempli ; TikTok et Instagram fournissent un lien et une image.
+      required: [publicUrl, whatsapp]
+      properties:
+        publicUrl:
+          type: string
+          description: Lien public de la fiche du bien.
+        whatsapp:
+          type: object
+          required: [url, message]
+          properties:
+            url: { type: string, description: Lien wa.me avec message pre-rempli. }
+            message: { type: string, description: Texte pre-rempli du message. }
+        tiktok:
+          type: object
+          properties:
+            url: { type: string }
+            imageUrl: { type: string }
+        instagram:
+          type: object
+          properties:
+            url: { type: string }
+            imageUrl: { type: string }
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message:
+          type: string
+          description: Message lisible sans detail interne.
+        details: { type: object }
+
+  responses:
+    Validation:
+      description: Donnees de requete invalides
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            code: VALIDATION_ERROR
+            message: Les donnees fournies sont invalides.
+    Unauthorized:
+      description: Jeton absent ou invalide
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            code: UNAUTHORIZED
+            message: Connexion requise.
+    Forbidden:
+      description: Role ou droit d'acces insuffisant (RG-05, CA-5)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            code: FORBIDDEN
+            message: Action non autorisee pour votre role.
+    NotFound:
+      description: Bien, parcelle ou photo introuvable
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            code: NOT_FOUND
+            message: Ressource introuvable.
+    PayloadTooLarge:
+      description: Fichier trop volumineux (maximum 5 Mo)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            code: PAYLOAD_TOO_LARGE
+            message: Le fichier depasse la taille maximale de 5 Mo.
+    UnsupportedMediaType:
+      description: Format de fichier non pris en charge (JPEG ou PNG attendu)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            code: UNSUPPORTED_MEDIA_TYPE
+            message: Format de fichier non pris en charge.
