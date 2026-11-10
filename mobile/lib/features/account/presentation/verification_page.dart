@@ -48,16 +48,17 @@ class _VerificationPageState extends State<VerificationPage> {
             return ListView(
               padding: const EdgeInsets.all(GeoSmartDimens.space4),
               children: [
-                Icon(
-                  Icons.hourglass_top,
-                  size: 48,
-                  color: colors.warning,
-                ),
+                Icon(Icons.hourglass_top, size: 48, color: colors.warning),
                 const SizedBox(height: GeoSmartDimens.space3),
                 Text(
                   'Telephone verifie. Votre demande attend la validation '
                   "d'un administrateur avant la connexion.",
                   style: GeoSmartText.body.copyWith(color: colors.text),
+                ),
+                const SizedBox(height: GeoSmartDimens.space4),
+                OutlinedButton(
+                  onPressed: () => widget.auth.logout(),
+                  child: const Text('Retour a la connexion'),
                 ),
               ],
             );

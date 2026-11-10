@@ -42,13 +42,17 @@ class _LoginPageState extends State<LoginPage> {
     final colors = GeoSmartColors.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text('Connexion', style: GeoSmartText.h2.copyWith(color: colors.text)),
+        title: Text(
+          'Connexion',
+          style: GeoSmartText.h2.copyWith(color: colors.text),
+        ),
       ),
       body: ListenableBuilder(
         listenable: widget.auth,
         builder: (context, _) {
           // Apres inscription, le code SMS est demande (EF-401).
-          if (widget.auth.status == AuthStatus.pendingVerification) {
+          if (widget.auth.status == AuthStatus.pendingVerification ||
+              widget.auth.status == AuthStatus.pendingApproval) {
             return VerificationPage(auth: widget.auth);
           }
           return ListView(
