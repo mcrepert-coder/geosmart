@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
+import { AdminModule } from '../admin/admin.module';
 import { SyncModule } from '../sync/sync.module';
+import { UsersModule } from '../users/users.module';
 import { AccountsService } from './accounts.service';
 import { AuthController } from './auth.controller';
 import { DevAuthGuard } from './dev-auth.guard';
@@ -21,6 +23,8 @@ import { LogSmsSender, SMS_SENDER } from './sms.sender';
       }),
     }),
     SyncModule,
+    UsersModule,
+    AdminModule,
   ],
   controllers: [AuthController],
   providers: [
