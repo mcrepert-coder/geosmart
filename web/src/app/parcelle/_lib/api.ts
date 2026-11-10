@@ -1,4 +1,5 @@
 // Types et appels repris de contracts/land.yaml (routes publiques).
+import { DEMO_MODE_ENABLED } from "@/lib/runtime-config";
 
 export type LegalStatus = "TITRE" | "COUTUMIER_NON_TITRE" | "EN_LITIGE" | "INCONNU";
 
@@ -42,10 +43,14 @@ export type ApiResult<T> =
 export const PARCEL_ID_PATTERN = /^TG-[A-Z0-9]{3}-\d{5,6}$/;
 export const ATTESTATION_PATTERN = /^AT-\d{4}-\d{6}$/;
 
-// Sans NEXT_PUBLIC_API_URL, la page affiche des donnees d'exemple, clairement
-// signalees, en attendant que l'API soit branchee (issue #22).
 const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
-export const DEMO_MODE = API_URL === "";
+export const DEMO_MODE = DEMO_MODE_ENABLED && API_URL === "";
+const API_NOT_CONFIGURED: ApiResult<never> = {
+  ok: false,
+  kind: "network",
+  message:
+    "L’API foncière n’est pas configurée. Définissez NEXT_PUBLIC_API_URL pour consulter les données réelles.",
+};
 
 async function getJson<T>(path: string): Promise<ApiResult<T>> {
   try {
@@ -74,6 +79,7 @@ async function getJson<T>(path: string): Promise<ApiResult<T>> {
 
 export function fetchParcelStatus(id: string): Promise<ApiResult<ParcelPublicStatus>> {
   if (DEMO_MODE) return demoParcel(id);
+  if (!API_URL) return Promise.resolve(API_NOT_CONFIGURED);
   return getJson(`/parcels/${encodeURIComponent(id)}/status`);
 }
 
@@ -82,6 +88,7 @@ export function verifyAttestation(
   hash: string,
 ): Promise<ApiResult<AttestationVerification>> {
   if (DEMO_MODE) return demoAttestation(number, hash);
+  if (!API_URL) return Promise.resolve(API_NOT_CONFIGURED);
   return getJson(
     `/attestations/${encodeURIComponent(number)}/verify?hash=${encodeURIComponent(hash)}`,
   );

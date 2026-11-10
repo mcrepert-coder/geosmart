@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../../app/runtime_config.dart';
 import '../../domain/entities/survey_session.dart';
 import '../../domain/repositories/survey_session_store.dart';
 
@@ -11,8 +12,8 @@ import '../../domain/repositories/survey_session_store.dart';
 class MissionsController extends ChangeNotifier {
   MissionsController({
     required this.store,
-    this.defaultProjectId = 'demo-project',
-    this.defaultSurveyorId = 'demo-surveyor',
+    this.defaultProjectId = projectId,
+    this.defaultSurveyorId = surveyorId,
     String Function()? idGenerator,
     DateTime Function()? clock,
   }) : _idGenerator = idGenerator ?? _defaultId,
@@ -59,7 +60,10 @@ class MissionsController extends ChangeNotifier {
     _notify();
     try {
       await store.purgeExpiredTrash(now: _clock().toUtc());
-      _missions = await store.listSessions();
+      final sessions = await store.listSessions();
+      _missions = sessions
+          .where((mission) => demoModeEnabled || mission.id != demoSessionId)
+          .toList();
       _trash = await store.listTrashSessions();
     } catch (_) {
       _error = 'Les missions n ont pas pu etre lues.';
@@ -76,6 +80,12 @@ class MissionsController extends ChangeNotifier {
     final trimmed = title.trim();
     if (trimmed.isEmpty) {
       _error = 'Le nom de la mission est obligatoire.';
+      _notify();
+      return null;
+    }
+    if (defaultProjectId.trim().isEmpty || defaultSurveyorId.trim().isEmpty) {
+      _error =
+          'Configurez GEOSMART_PROJECT_ID et GEOSMART_SURVEYOR_ID avant de creer une mission.';
       _notify();
       return null;
     }
