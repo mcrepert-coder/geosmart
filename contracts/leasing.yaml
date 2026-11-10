@@ -32,8 +32,9 @@ info:
       endpoint: GET /properties/:id
       note: |
         La responsabilite de Beni indique que Leasing consomme cette route pour rattacher
-        une visite a un bien. Le contrat listings.yaml n'existe pas encore dans le depot ;
-        sa forme exacte et l'identifiant du bien restent a coordonner avec Marrich.
+        une visite a un bien. contracts/listings.yaml definit maintenant GET
+        /properties/{propertyId}, avec un identifiant UUID et une reponse Property. Le nom
+        du champ de reference a inclure dans une demande de visite reste a coordonner.
     land:
       contract: contracts/land.yaml
       note: |
@@ -266,7 +267,8 @@ components:
       description: |
         Les champs du formulaire de demande ne sont pas specifies. Le bien concerne peut
         etre resolu via GET /properties/:id selon la dependance documentee par Beni ; le
-        nom et le format du champ de reference restent a valider.
+        nom du champ de reference reste a valider ; son identifiant est un UUID selon
+        contracts/listings.yaml.
       additionalProperties: true
 
     Visit:
