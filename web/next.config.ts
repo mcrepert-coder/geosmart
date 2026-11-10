@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
   output: "standalone",
   cacheComponents: true,
   partialPrefetching: true,
+  async rewrites() {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "");
+    if (!apiUrl) return [];
+    return [{ source: "/listings-api/:path*", destination: `${apiUrl}/:path*` }];
+  },
   turbopack: {
     rules: {
       "*.css": {

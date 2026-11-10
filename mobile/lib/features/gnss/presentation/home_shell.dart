@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/geosmart_theme.dart';
+import '../../listings/presentation/listings_page.dart';
 import 'missions_page.dart';
 import 'settings_page.dart';
 import 'viewmodels/survey_controller.dart';
@@ -33,6 +34,7 @@ class _HomeShellState extends State<HomeShell> {
         children: [
           MissionsPage(survey: widget.survey),
           SettingsPage(theme: widget.theme),
+          const ListingsPage(),
         ],
       ),
       bottomNavigationBar: DecoratedBox(
@@ -58,6 +60,11 @@ class _HomeShellState extends State<HomeShell> {
               icon: Icon(Icons.settings_outlined),
               selectedIcon: Icon(Icons.settings),
               label: 'Parametres',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.search_outlined),
+              selectedIcon: Icon(Icons.search),
+              label: 'Catalogue',
             ),
           ],
         ),
