@@ -1,13 +1,31 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { JwtModule } from '@nestjs/jwt';
+import { AccountsService } from './accounts.service';
+import { AuthController } from './auth.controller';
 import { DevAuthGuard } from './dev-auth.guard';
+import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles';
+import { LogSmsSender, SMS_SENDER } from './sms.sender';
 
-// L'ordre compte : l'utilisateur est pose avant la verification du role.
+// L'ordre compte : le jeton est verifie et le compte relu en base (RG-06),
+// puis l'utilisateur de test de developpement, puis la verification du role.
 @Module({
+  imports: [
+    JwtModule.registerAsync({
+      useFactory: () => ({
+        secret: process.env.JWT_SECRET,
+      }),
+    }),
+  ],
+  controllers: [AuthController],
   providers: [
+    AccountsService,
+    { provide: SMS_SENDER, useClass: LogSmsSender },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: DevAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
+  exports: [AccountsService],
 })
 export class AuthModule {}
