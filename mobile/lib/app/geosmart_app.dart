@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../features/account/presentation/login_page.dart';
+import '../features/account/presentation/verification_page.dart';
+import '../features/account/presentation/viewmodels/auth_controller.dart';
 import '../features/gnss/presentation/home_shell.dart';
 import '../features/gnss/presentation/viewmodels/survey_controller.dart';
 import '../features/gnss/presentation/viewmodels/theme_controller.dart';
+import '../features/leasing/data/leasing_api.dart';
+import '../features/sync/presentation/viewmodels/sync_controller.dart';
+import 'authenticated_home_shell.dart';
 import 'theme/geosmart_theme.dart';
 
 /// Application GeoSmart Field (MVVM).
@@ -16,9 +22,18 @@ class GeoSmartApp extends StatefulWidget {
     super.key,
     required this.controller,
     this.themeController,
-  });
+    this.auth,
+    this.leasingApi,
+    this.syncController,
+  }) : assert(
+         auth == null || (leasingApi != null && syncController != null),
+         'LeasingApi and SyncController are required when auth is enabled.',
+       );
 
   final SurveyController controller;
+  final AuthController? auth;
+  final LeasingApi? leasingApi;
+  final SyncController? syncController;
 
   /// Controleur de theme injecte par les tests. Par defaut, l'application en
   /// cree un sur le theme clair.
@@ -55,8 +70,32 @@ class _GeoSmartAppState extends State<GeoSmartApp> {
         darkTheme: GeoSmartTheme.dark,
         themeMode: _theme.mode,
         debugShowCheckedModeBanner: false,
-        home: HomeShell(survey: widget.controller, theme: _theme),
+        home: widget.auth == null
+            ? HomeShell(survey: widget.controller, theme: _theme)
+            : _authHome(),
       ),
+    );
+  }
+
+  Widget _authHome() {
+    final auth = widget.auth!;
+    return ListenableBuilder(
+      listenable: auth,
+      builder: (context, _) => switch (auth.status) {
+        AuthStatus.loading => const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+        AuthStatus.signedOut => LoginPage(auth: auth),
+        AuthStatus.pendingVerification ||
+        AuthStatus.pendingApproval => VerificationPage(auth: auth),
+        AuthStatus.signedIn => AuthenticatedHomeShell(
+          survey: widget.controller,
+          theme: _theme,
+          auth: auth,
+          leasingApi: widget.leasingApi!,
+          syncController: widget.syncController!,
+        ),
+      },
     );
   }
 }

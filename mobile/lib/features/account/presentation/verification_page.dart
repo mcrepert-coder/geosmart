@@ -59,6 +59,11 @@ class _VerificationPageState extends State<VerificationPage> {
                   "d'un administrateur avant la connexion.",
                   style: GeoSmartText.body.copyWith(color: colors.text),
                 ),
+                const SizedBox(height: GeoSmartDimens.space4),
+                OutlinedButton(
+                  onPressed: () => widget.auth.logout(),
+                  child: const Text('Retour a la connexion'),
+                ),
               ],
             );
           }

@@ -42,7 +42,10 @@ class _LoginPageState extends State<LoginPage> {
     final colors = GeoSmartColors.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text('Connexion', style: GeoSmartText.h2.copyWith(color: colors.text)),
+        title: Text(
+          'Connexion',
+          style: GeoSmartText.h2.copyWith(color: colors.text),
+        ),
       ),
       body: ListenableBuilder(
         listenable: widget.auth,

@@ -1,16 +1,27 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:http/http.dart' as http;
 
 import 'app/database/local_database.dart';
 import 'app/geosmart_app.dart';
 import 'app/runtime_config.dart';
+import 'features/account/data/auth_api.dart';
+import 'features/account/data/sqflite_session_store.dart';
+import 'features/account/presentation/viewmodels/auth_controller.dart';
 import 'features/gnss/data/datasources/native_gnss_source.dart';
 import 'features/gnss/data/datasources/simulated_gnss_source.dart';
 import 'features/gnss/data/datasources/survey_session_local_data_source.dart';
 import 'features/gnss/domain/entities/survey_session.dart';
 import 'features/gnss/domain/repositories/gnss_position_source.dart';
 import 'features/gnss/presentation/viewmodels/survey_controller.dart';
+import 'features/leasing/data/leasing_api.dart';
+import 'features/sync/data/sync_api.dart';
+import 'features/sync/domain/sync_processor.dart';
+import 'features/sync/presentation/viewmodels/sync_controller.dart';
+
+/// Identifiant de la mission de demonstration creee au premier lancement.
+const String demoSessionId = 'demo-session';
 
 /// Le recepteur Bluetooth est le defaut. Pour essayer la simulation sans
 /// materiel : `flutter run --dart-define=GEOSMART_GNSS_SIMULATION=true`.
@@ -24,6 +35,25 @@ Future<void> main() async {
 
   final database = await LocalDatabase.open();
   final store = SurveySessionLocalDataSource(database);
+  final client = http.Client();
+  final accountStore = SqfliteSessionStore(database);
+  await accountStore.ensureTable();
+  final auth = AuthController(
+    api: AuthApi(client, baseUrl: apiBaseUrl),
+    store: accountStore,
+  );
+  await auth.bootstrap();
+  final leasingApi = LeasingApi(
+    client,
+    baseUrl: apiBaseUrl,
+    token: auth.accessToken,
+  );
+  final syncApi = SyncApi(client, baseUrl: apiBaseUrl, token: auth.accessToken);
+  final syncController = SyncController(
+    queue: store,
+    sessions: store,
+    processor: SyncProcessor(sessions: store, queue: store, api: syncApi),
+  );
 
   SurveySession? session;
   if (demoModeEnabled) {
@@ -50,6 +80,13 @@ Future<void> main() async {
     sessionId: session?.id ?? '',
   );
 
-  runApp(GeoSmartApp(controller: controller));
+  runApp(
+    GeoSmartApp(
+      controller: controller,
+      auth: auth,
+      leasingApi: leasingApi,
+      syncController: syncController,
+    ),
+  );
   unawaited(controller.start());
 }
