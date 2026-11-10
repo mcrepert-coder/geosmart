@@ -50,10 +50,11 @@ Docker Compose lance l'API NestJS depuis `api/`, le site Next.js et PostgreSQL a
 
 ```powershell
 Copy-Item .env.docker.example .env
+# Remplacer POSTGRES_PASSWORD et JWT_SECRET par des valeurs aleatoires.
 docker compose up --build
 ```
 
-Le site est disponible sur `http://localhost:3000`, l'API sur `http://localhost:3001` et PostgreSQL sur le port `5433` (hote). Les ports peuvent etre changes dans `.env`. Les valeurs d'exemple sont reservees au developpement local : remplacez les secrets avant tout deploiement.
+Le site est disponible sur `http://localhost:3000`, l'API sur `http://localhost:3001` et PostgreSQL sur le port `5433` (hote). Les ports peuvent etre changes dans `.env`. Compose refuse de demarrer si les secrets requis ne sont pas remplaces. Utilisez des secrets differents pour chaque environnement, jamais ceux d'exemple.
 
 Pour arreter les services sans supprimer les donnees, utilisez `docker compose down`. Pour supprimer aussi le volume de la base locale, utilisez `docker compose down -v`.
 

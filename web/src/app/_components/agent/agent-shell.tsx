@@ -4,8 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeft, Megaphone, Wallet } from "lucide-react";
 import { LogoMark } from "../logo";
+import { DemoUnavailable } from "../demo-unavailable";
 import { ROLE_LABEL, type AccountStatus } from "@/lib/data";
 import { setAgentSession, useDemoStore } from "@/lib/demo-store";
+import { DEMO_MODE_ENABLED } from "@/lib/runtime-config";
 
 const STATUS_BADGE: Record<AccountStatus, string> = {
   ACTIF: "gs-badge--success",
@@ -31,6 +33,19 @@ function initials(name: string): string {
 }
 
 export function AgentShell({ children }: { children: React.ReactNode }) {
+  if (!DEMO_MODE_ENABLED) {
+    return (
+      <DemoUnavailable title="Espace agent non connecté">
+        Les annonces de l’espace agent ne sont pas encore reliées à
+        l’authentification ni à l’API Listings. Aucune donnée fictive ni action
+        locale ne sera affichée.
+      </DemoUnavailable>
+    );
+  }
+  return <AgentDemoShell>{children}</AgentDemoShell>;
+}
+
+function AgentDemoShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { accounts, agentSessionId } = useDemoStore();
   const agentProfiles = accounts.filter(

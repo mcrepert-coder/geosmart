@@ -17,7 +17,7 @@ export type Property = {
   legalStatus: LegalStatus;
   parcelCertified: boolean;
   agentCertified: boolean;
-  agentName: string;
+  agentName?: string;
   description: string;
   coords: { x: number; y: number };
   photoHue: [string, string];

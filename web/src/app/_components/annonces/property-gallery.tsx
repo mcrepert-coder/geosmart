@@ -7,15 +7,26 @@ import type { Property } from "@/lib/data";
 import { photosFor } from "@/lib/photos";
 import { CertBadge } from "../badges";
 import { ParcelThumb } from "./parcel-thumb";
+import { LISTINGS_DEMO_ENABLED } from "@/lib/listings-api";
 
-type Slide = { kind: "photo"; src: string; label: string } | { kind: "plan"; label: string };
+type Slide =
+  | { kind: "photo"; src: string; label: string }
+  | { kind: "plan"; label: string }
+  | { kind: "empty"; label: string };
 
 export function PropertyGallery({ property }: { property: Property }) {
   const [a, b] = photosFor(property);
   const slides: Slide[] = [
-    { kind: "photo", src: a, label: "Vue principale" },
-    { kind: "photo", src: b, label: "Vue extérieure" },
-    { kind: "plan", label: "Emprise levée RTK" },
+    ...(a ? [{ kind: "photo" as const, src: a, label: "Vue principale" }] : []),
+    ...(b && b !== a
+      ? [{ kind: "photo" as const, src: b, label: "Vue extérieure" }]
+      : []),
+    ...(LISTINGS_DEMO_ENABLED
+      ? [{ kind: "plan" as const, label: "Emprise levée RTK" }]
+      : []),
+    ...(!a && !LISTINGS_DEMO_ENABLED
+      ? [{ kind: "empty" as const, label: "Aucune photo disponible" }]
+      : []),
   ];
   const [index, setIndex] = useState(0);
 
@@ -47,8 +58,12 @@ export function PropertyGallery({ property }: { property: Property }) {
             className="object-cover"
             priority={index === 0}
           />
-        ) : (
+        ) : slide.kind === "plan" ? (
           <ParcelThumb property={property} />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-[var(--surface-sunken)] text-sm text-[var(--text-muted)]">
+            Aucune photo disponible
+          </div>
         )}
         <div className="absolute left-4 top-4">
           <CertBadge certified={property.parcelCertified} kind="parcelle" />
@@ -87,8 +102,12 @@ export function PropertyGallery({ property }: { property: Property }) {
           >
             {s.kind === "photo" ? (
               <Image src={s.src} alt="" fill sizes="120px" className="object-cover" />
-            ) : (
+            ) : s.kind === "plan" ? (
               <ParcelThumb property={property} />
+            ) : (
+              <div className="flex h-full items-center justify-center bg-[var(--surface-sunken)] text-[11px] text-[var(--text-muted)]">
+                Sans photo
+              </div>
             )}
           </button>
         ))}

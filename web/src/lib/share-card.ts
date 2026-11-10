@@ -105,14 +105,25 @@ export async function downloadShareCard(
   const [W, H] = DIMS[format];
   const u = H / 1920;
   const M = 72;
-  const img = await loadImage(primaryPhoto(p));
+  const photo = primaryPhoto(p);
+  const img = photo ? await loadImage(photo) : null;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("canvas");
 
-  cover(ctx, img, W, H);
+  if (img) {
+    cover(ctx, img, W, H);
+  } else {
+    ctx.fillStyle = "#6b746f";
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `600 ${32 * u}px ${SANS}`;
+    ctx.textAlign = "center";
+    ctx.fillText("Photo non disponible", W / 2, H / 2);
+    ctx.textAlign = "left";
+  }
 
   let g = ctx.createLinearGradient(0, 0, 0, H * 0.4);
   g.addColorStop(0, "rgba(8,20,28,0.72)");

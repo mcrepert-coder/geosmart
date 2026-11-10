@@ -6,6 +6,8 @@ import { Check, FileText, Upload, X } from "lucide-react";
 import { ROLE_LABEL, type Role } from "@/lib/data";
 import { addAccount } from "@/lib/demo-store";
 import { AuthCode, DEMO_CODE, PhoneField, formatPhone } from "./auth-code";
+import { DemoUnavailable } from "./demo-unavailable";
+import { DEMO_MODE_ENABLED } from "@/lib/runtime-config";
 
 const ROLE_DESC: Record<Role, string> = {
   GEOMETRE: "Levés certifiés · attestation d'inscription à l'Ordre exigée.",
@@ -52,6 +54,18 @@ function Stepper({ step }: { step: number }) {
 }
 
 export function DevenirAgentScreen() {
+  if (!DEMO_MODE_ENABLED) {
+    return (
+      <DemoUnavailable title="Inscription non disponible">
+        Le dépôt de dossier n’est pas encore relié à un service sécurisé de
+        comptes et de stockage de pièces. Les fichiers ne seront pas enregistrés.
+      </DemoUnavailable>
+    );
+  }
+  return <DemoRegistrationScreen />;
+}
+
+function DemoRegistrationScreen() {
   const [step, setStep] = useState(0);
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState("");

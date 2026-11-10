@@ -11,7 +11,11 @@ void main() {
     WidgetTester tester,
     FakeMultiSessionStore store,
   ) async {
-    final missions = MissionsController(store: store);
+    final missions = MissionsController(
+      store: store,
+      defaultProjectId: 'project-test',
+      defaultSurveyorId: 'surveyor-test',
+    );
     addTearDown(missions.dispose);
     await tester.pumpWidget(
       MaterialApp(

@@ -81,7 +81,7 @@ export function PropertyDrawer({
                 )}
               </p>
               <h2 className="gs-h3 mt-1">{property.title}</h2>
-              <p className="text-[13px] text-[var(--text-muted)]">{property.zone} · Lomé, Togo</p>
+              <p className="text-[13px] text-[var(--text-muted)]">{property.zone}</p>
             </div>
             <div className="flex flex-wrap gap-1.5">
               <LegalBadge status={property.legalStatus} />
@@ -104,10 +104,12 @@ export function PropertyDrawer({
                 <dt>Transaction</dt>
                 <dd>{property.transaction === "VENTE" ? "Vente" : "Location"}</dd>
               </div>
-              <div>
-                <dt>Agent</dt>
-                <dd>{property.agentName}</dd>
-              </div>
+              {property.agentName && (
+                <div>
+                  <dt>Agent</dt>
+                  <dd>{property.agentName}</dd>
+                </div>
+              )}
             </dl>
             <p className="text-[14px] leading-[22px] text-[var(--text-muted)]">
               {property.description}

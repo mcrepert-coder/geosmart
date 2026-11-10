@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import { PROPERTIES, COMMUNES, communeOf, type LegalStatus, type Property, type PropertyType, type TransactionType } from "@/lib/data";
-import { fetchPublicListings, LISTINGS_API_PATH } from "@/lib/listings-api";
+import { fetchPublicListings, LISTINGS_API_PATH, LISTINGS_DEMO_ENABLED } from "@/lib/listings-api";
 import { PropertyCard } from "./property-card";
 import { PropertyDrawer } from "./property-drawer";
 import { HeroTopo } from "./hero-topo";
@@ -137,9 +137,15 @@ function FilterControls({
 }
 
 export function AnnoncesScreen({ initialSelectedId }: { initialSelectedId: string | null }) {
-  const [properties, setProperties] = useState<Property[]>(LISTINGS_API_PATH ? [] : PROPERTIES);
+  const [properties, setProperties] = useState<Property[]>(
+    LISTINGS_DEMO_ENABLED ? PROPERTIES : [],
+  );
   const [loading, setLoading] = useState(Boolean(LISTINGS_API_PATH));
-  const [apiError, setApiError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(
+    !LISTINGS_API_PATH && !LISTINGS_DEMO_ENABLED
+      ? "L’API Listings n’est pas configurée. Définissez NEXT_PUBLIC_API_URL pour afficher les annonces réelles."
+      : null,
+  );
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -186,7 +192,9 @@ export function AnnoncesScreen({ initialSelectedId }: { initialSelectedId: strin
   const selected = properties.find((p) => p.id === selectedId) ?? null;
   const communes = LISTINGS_API_PATH
     ? [...new Set(properties.map((property) => communeOf(property.zone)))].sort()
-    : COMMUNES;
+    : LISTINGS_DEMO_ENABLED
+      ? COMMUNES
+      : [];
   const activeFilterCount =
     (filters.type !== "TOUS" ? 1 : 0) +
     (filters.operation !== "TOUS" ? 1 : 0) +
@@ -240,17 +248,15 @@ export function AnnoncesScreen({ initialSelectedId }: { initialSelectedId: strin
       </section>
 
       <div className="gs-wrap mt-4">
-        {LISTINGS_API_PATH ? (
-          apiError ? (
-            <p className="gs-alert gs-alert--danger" role="alert">{apiError}</p>
-          ) : loading ? (
-            <p className="gs-help" role="status">Chargement du catalogue…</p>
-          ) : null
-        ) : (
+        {apiError ? (
+          <p className="gs-alert gs-alert--danger" role="alert">{apiError}</p>
+        ) : loading ? (
+          <p className="gs-help" role="status">Chargement du catalogue…</p>
+        ) : LISTINGS_DEMO_ENABLED ? (
           <p className="gs-demo rounded-[10px] px-3 py-2" role="status">
             Version de démonstration : annonces et données fictives, non reliées à l&apos;API.
           </p>
-        )}
+        ) : null}
       </div>
 
       {/* Filtres + resultats */}
@@ -304,19 +310,21 @@ export function AnnoncesScreen({ initialSelectedId }: { initialSelectedId: strin
               </div>
             )}
           </div>
-          <div className="lg:sticky lg:top-20 lg:self-start">
-            <AnnoncesMap
-              properties={filtered}
-              liveLocations={Boolean(LISTINGS_API_PATH)}
-              hoveredId={hoveredId}
-              selectedId={selectedId}
-              onHover={setHoveredId}
-              onSelect={setSelectedId}
-            />
-            <p className="gs-caption mt-2">
-              Survolez une carte : le repère grossit. Cliquez un repère pour ouvrir la fiche.
-            </p>
-          </div>
+          {(LISTINGS_API_PATH || LISTINGS_DEMO_ENABLED) && (
+            <div className="lg:sticky lg:top-20 lg:self-start">
+              <AnnoncesMap
+                properties={filtered}
+                liveLocations={Boolean(LISTINGS_API_PATH)}
+                hoveredId={hoveredId}
+                selectedId={selectedId}
+                onHover={setHoveredId}
+                onSelect={setSelectedId}
+              />
+              <p className="gs-caption mt-2">
+                Survolez une carte : le repère grossit. Cliquez un repère pour ouvrir la fiche.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

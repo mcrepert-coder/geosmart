@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/geosmart_theme.dart';
+import '../../../app/runtime_config.dart';
 import '../domain/entities/survey_session.dart';
 import 'viewmodels/missions_controller.dart';
 
@@ -145,8 +146,9 @@ class _NewMissionPageState extends State<NewMissionPage> {
                   const SizedBox(width: GeoSmartDimens.space2),
                   Expanded(
                     child: Text(
-                      'La mission sera associee au chantier de demonstration '
-                      'et enregistree sur l appareil avant son envoi.',
+                      demoModeEnabled
+                          ? 'La mission sera associee au chantier de demonstration et enregistree sur l appareil avant son envoi.'
+                          : 'Configurez GEOSMART_PROJECT_ID et GEOSMART_SURVEYOR_ID pour creer une mission. Elle sera enregistree sur l appareil avant son envoi.',
                       style: GeoSmartText.body.copyWith(color: colors.text),
                     ),
                   ),

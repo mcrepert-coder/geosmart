@@ -1,8 +1,10 @@
 import type { LegalStatus, Property, PropertyType, TransactionType } from "./data";
+import { DEMO_MODE_ENABLED } from "./runtime-config";
 
 export const LISTINGS_API_PATH = process.env.NEXT_PUBLIC_API_URL
   ? "/listings-api"
   : null;
+export const LISTINGS_DEMO_ENABLED = DEMO_MODE_ENABLED && !LISTINGS_API_PATH;
 
 interface ApiPropertySummary {
   id: string;
@@ -46,13 +48,16 @@ function mapProperty(item: ApiPropertySummary): Property {
     title: item.title,
     price: item.price,
     surfaceM2: item.parcel.areaM2,
-    zone: item.zone ?? "Lomé",
+    zone: item.zone ?? "Zone non précisée",
     legalStatus: item.parcel.legalStatus,
     parcelCertified: item.badges.parcelCertified,
     agentCertified: item.badges.agentCertified,
-    agentName: "Agent immobilier",
+    agentName: undefined,
     description: item.description ?? "",
-    coords: { x: 500, y: 500 },
+    coords: {
+      x: item.parcel.approximateLocation.longitude,
+      y: item.parcel.approximateLocation.latitude,
+    },
     photoHue: ["#8fa88f", "#6f8a70"],
     mapLocation: item.parcel.approximateLocation,
     remotePhotos: photoUrl ? [photoUrl] : [],

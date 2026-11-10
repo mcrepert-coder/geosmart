@@ -21,22 +21,28 @@ npm exec -- tsc --noEmit
 npm run build
 ```
 
-`NEXT_PUBLIC_API_URL` configure l’API utilisée par les écrans de vérification des
-parcelles et des attestations. Cette variable est intégrée au build client; elle
-doit donc être fournie lors de la construction de l’image Docker ou avant le
-build Next.js.
+`NEXT_PUBLIC_API_URL` configure l’API utilisée par le navigateur pour vérifier
+les parcelles et les attestations. Cette variable est intégrée au build client;
+elle doit donc être fournie lors de la construction de l’image Docker ou avant
+le build Next.js. Pour Docker Compose, `API_INTERNAL_URL` configure séparément la
+cible du proxy Listings entre conteneurs (par défaut `http://backend:3001`).
 
 ## Catalogue Listings
 
-Sans `NEXT_PUBLIC_API_URL`, le catalogue utilise les annonces fictives locales.
-Pour l’exécuter contre l’API Listings, définir `NEXT_PUBLIC_API_URL` (par exemple
-`http://localhost:3001`) avant `npm run dev` ou `npm run build`. Next.js relaie
-alors les requêtes publiques vers l’API. Une erreur de l’API est affichée, sans
-retour silencieux aux données de démonstration.
+Sans `NEXT_PUBLIC_API_URL`, le catalogue n’affiche aucune annonce fictive et
+indique que l’API doit être configurée. Pour l’exécuter contre l’API Listings,
+définir `NEXT_PUBLIC_API_URL` (par exemple `http://localhost:3001`) avant
+`npm run dev` ou `npm run build`. Next.js relaie alors les requêtes publiques
+vers l’API. Une erreur de l’API est affichée, sans retour silencieux aux données
+de démonstration.
 
-Les écrans agent et administrateur sont encore en mode démonstration locale ;
-ils ne constituent ni une authentification ni un contrôle d’accès réels. La
-publication doit passer par l’API avec un jeton émis par le module Auth. La
+Les données de démonstration du catalogue peuvent être activées uniquement en
+développement avec `NEXT_PUBLIC_DEMO_MODE=true`. Elles ne sont jamais activées
+dans un build de production. Les parcours agent, administrateur, connexion et
+inscription de démonstration utilisent le même réglage ; ils ne constituent ni
+une authentification ni un contrôle d’accès réels.
+
+La publication doit passer par l’API avec un jeton émis par le module Auth. La
 source du badge « agent certifié » attend encore l’ajout de `agentCertified` au
 contrat et à l’identité fournie par Auth.
 

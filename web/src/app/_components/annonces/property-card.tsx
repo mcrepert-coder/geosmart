@@ -6,6 +6,7 @@ import { TYPE_LABEL } from "@/lib/data";
 import { formatPrice, formatSurface } from "@/lib/format";
 import { CertBadge, LegalBadge } from "../badges";
 import { ParcelThumb } from "./parcel-thumb";
+import { LISTINGS_DEMO_ENABLED } from "@/lib/listings-api";
 
 export function PropertyCard({
   property,
@@ -52,9 +53,15 @@ export function PropertyCard({
             className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.05]"
           />
         ) : (
-          <div className="absolute inset-0 transition-transform duration-300 ease-out group-hover:scale-[1.05]">
-            <ParcelThumb property={property} />
-          </div>
+          LISTINGS_DEMO_ENABLED ? (
+            <div className="absolute inset-0 transition-transform duration-300 ease-out group-hover:scale-[1.05]">
+              <ParcelThumb property={property} />
+            </div>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center bg-[var(--surface-sunken)] text-sm text-[var(--text-muted)]">
+              Photo non disponible
+            </div>
+          )
         )}
         <div className="absolute left-3 top-3">
           <CertBadge certified={property.parcelCertified} kind="parcelle" />

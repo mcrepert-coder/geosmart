@@ -4,8 +4,22 @@ import Link from "next/link";
 import { useState } from "react";
 import { Briefcase, Check, ShieldCheck } from "lucide-react";
 import { AuthCode, DEMO_CODE, PhoneField } from "./auth-code";
+import { DemoUnavailable } from "./demo-unavailable";
+import { DEMO_MODE_ENABLED } from "@/lib/runtime-config";
 
 export function ConnexionScreen() {
+  if (!DEMO_MODE_ENABLED) {
+    return (
+      <DemoUnavailable title="Connexion non disponible">
+        Le service d’authentification et d’envoi de codes SMS n’est pas encore
+        connecté. Le parcours de démonstration a été désactivé.
+      </DemoUnavailable>
+    );
+  }
+  return <DemoConnexionScreen />;
+}
+
+function DemoConnexionScreen() {
   const [step, setStep] = useState<"phone" | "code" | "done">("phone");
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState("");
