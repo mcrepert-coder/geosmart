@@ -29,7 +29,7 @@ info:
       note: Le role courant est relu en base a chaque requete (RG-06).
     listings:
       contract: contracts/listings.yaml
-      endpoint: GET /properties/:id
+      endpoint: GET /properties/{propertyId}
       note: |
         La responsabilite de Beni indique que Leasing consomme cette route pour rattacher
         une visite a un bien. contracts/listings.yaml definit maintenant GET
@@ -87,8 +87,10 @@ paths:
       summary: Demander une visite
       description: |
         Chemin propose a valider. Le cahier des charges confirme qu'un client peut demander
-        une visite et qu'un agent organise des visites. Le rattachement a un bien depend de
-        GET /properties/:id dans le contrat Listings. Les champs du formulaire et les regles
+        une visite et qu'un agent organise des visites. Le rattachement a un bien immobilier
+        utilise l'identifiant propertyId (UUID) et s'appuie sur l'endpoint
+        GET /properties/{propertyId} du contrat Listings, qui retourne une ressource
+        conforme au schema Property. Les champs du formulaire et les regles
         d'acceptation ne sont pas etablis ici.
       x-proposed-path: true
       x-confirmed-capabilities:
@@ -115,7 +117,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-
   /visits/{visitId}:
     parameters:
       - $ref: '#/components/parameters/VisitId'
@@ -270,6 +271,13 @@ components:
         nom du champ de reference reste a valider ; son identifiant est un UUID selon
         contracts/listings.yaml.
       additionalProperties: true
+      properties:
+        propertyId:
+          type: string
+          format: uuid
+          description: Identifiant unique du bien immobilier.
+      required:
+        - propertyId
 
     Visit:
       type: object

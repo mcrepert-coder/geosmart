@@ -8,6 +8,8 @@ import 'package:geosmart_mobile/features/gnss/presentation/viewmodels/missions_c
 
 import '../../../support/fake_multi_session_store.dart';
 
+final _trashTestNow = DateTime.utc(2026, 11, 3);
+
 void main() {
   SurveySession trashSession(
     String id, {
@@ -37,14 +39,17 @@ void main() {
         home: TrashPage(missions: missions),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
   }
 
   testWidgets('affiche l etat vide quand aucune mission n est en corbeille', (
     tester,
   ) async {
     final store = FakeMultiSessionStore();
-    final missions = MissionsController(store: store);
+    final missions = MissionsController(
+      store: store,
+      clock: () => _trashTestNow,
+    );
     addTearDown(missions.dispose);
     await missions.load();
 
@@ -68,7 +73,10 @@ void main() {
         ),
       ],
     );
-    final missions = MissionsController(store: store);
+    final missions = MissionsController(
+      store: store,
+      clock: () => _trashTestNow,
+    );
     addTearDown(missions.dispose);
     await missions.load();
 
@@ -85,7 +93,10 @@ void main() {
     final store = FakeMultiSessionStore(
       sessions: [trashSession('m1', title: 'Mission A')],
     );
-    final missions = MissionsController(store: store);
+    final missions = MissionsController(
+      store: store,
+      clock: () => _trashTestNow,
+    );
     addTearDown(missions.dispose);
     await missions.load();
 
@@ -110,7 +121,10 @@ void main() {
     final store = FakeMultiSessionStore(
       sessions: [trashSession('m1', title: 'Mission A')],
     );
-    final missions = MissionsController(store: store);
+    final missions = MissionsController(
+      store: store,
+      clock: () => _trashTestNow,
+    );
     addTearDown(missions.dispose);
     await missions.load();
 
@@ -145,7 +159,10 @@ void main() {
         trashSession('m2', title: 'Mission B'),
       ],
     );
-    final missions = MissionsController(store: store);
+    final missions = MissionsController(
+      store: store,
+      clock: () => _trashTestNow,
+    );
     addTearDown(missions.dispose);
     await missions.load();
 

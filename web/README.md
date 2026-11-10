@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GeoSmart Field — site web
 
-## Getting Started
+Application Next.js du projet GeoSmart Field. Marrich maintient le site des
+annonces et les intégrations web; le sous-dossier `src/app/parcelle/` relève de
+Samuel.
 
-First, run the development server:
+## Développement local
 
-```bash
+Depuis `web/` :
+
+```powershell
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Le site est servi sur <http://localhost:3000>. Pour valider les changements :
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```powershell
+npm run lint
+npm exec -- tsc --noEmit
+npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`NEXT_PUBLIC_API_URL` configure l’API utilisée par le navigateur pour vérifier
+les parcelles et les attestations. Cette variable est intégrée au build client;
+elle doit donc être fournie lors de la construction de l’image Docker ou avant
+le build Next.js. Pour Docker Compose, `API_INTERNAL_URL` configure séparément la
+cible du proxy Listings entre conteneurs (par défaut `http://backend:3001`).
 
-## Learn More
+## Catalogue Listings
 
-To learn more about Next.js, take a look at the following resources:
+Sans `NEXT_PUBLIC_API_URL`, le catalogue n’affiche aucune annonce fictive et
+indique que l’API doit être configurée. Pour l’exécuter contre l’API Listings,
+définir `NEXT_PUBLIC_API_URL` (par exemple `http://localhost:3001`) avant
+`npm run dev` ou `npm run build`. Next.js relaie alors les requêtes publiques
+vers l’API. Une erreur de l’API est affichée, sans retour silencieux aux données
+de démonstration.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Les données de démonstration du catalogue peuvent être activées uniquement en
+développement avec `NEXT_PUBLIC_DEMO_MODE=true`. Elles ne sont jamais activées
+dans un build de production. Les parcours agent, administrateur, connexion et
+inscription de démonstration utilisent le même réglage ; ils ne constituent ni
+une authentification ni un contrôle d’accès réels.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+La publication doit passer par l’API avec un jeton émis par le module Auth. La
+source du badge « agent certifié » attend encore l’ajout de `agentCertified` au
+contrat et à l’identité fournie par Auth.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Les coordonnées de carte Listings sont volontairement approximatives (arrondies
+à 0,01 degré) et ne représentent ni les limites ni les bornes d’une parcelle.
+Les pages foncières dans `src/app/parcelle/` restent séparées et utilisent leurs
+propres routes.
