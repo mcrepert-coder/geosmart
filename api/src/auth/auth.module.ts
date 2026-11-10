@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
+import { SyncModule } from '../sync/sync.module';
 import { AccountsService } from './accounts.service';
 import { AuthController } from './auth.controller';
 import { DevAuthGuard } from './dev-auth.guard';
@@ -10,6 +11,8 @@ import { LogSmsSender, SMS_SENDER } from './sms.sender';
 
 // L'ordre compte : le jeton est verifie et le compte relu en base (RG-06),
 // puis l'utilisateur de test de developpement, puis la verification du role.
+// Les autres modules de Beni (sync, puis admin et leasing) sont montes ici :
+// app.module.ts appartient a Marrich.
 @Module({
   imports: [
     JwtModule.registerAsync({
@@ -17,6 +20,7 @@ import { LogSmsSender, SMS_SENDER } from './sms.sender';
         secret: process.env.JWT_SECRET,
       }),
     }),
+    SyncModule,
   ],
   controllers: [AuthController],
   providers: [
