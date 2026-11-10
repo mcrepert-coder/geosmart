@@ -254,7 +254,7 @@ paths:
     get:
       tags: [administration]
       summary: Consulter la file des comptes
-      description: Role ADMINISTRATEUR uniquement.
+      description: Role ADMIN uniquement.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -278,7 +278,7 @@ paths:
     get:
       tags: [administration]
       summary: Consulter un compte et ses pieces justificatives
-      description: Role ADMINISTRATEUR uniquement.
+      description: Role ADMIN uniquement.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -302,7 +302,7 @@ paths:
     get:
       tags: [administration]
       summary: Lister les pieces justificatives d'un compte
-      description: Role ADMINISTRATEUR uniquement.
+      description: Role ADMIN uniquement.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -329,7 +329,7 @@ paths:
     get:
       tags: [administration]
       summary: Consulter le contenu prive d'une piece justificative
-      description: Role ADMINISTRATEUR uniquement.
+      description: Role ADMIN uniquement.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -356,7 +356,7 @@ paths:
     post:
       tags: [administration]
       summary: Valider un compte
-      description: Role ADMINISTRATEUR uniquement.
+      description: Role ADMIN uniquement.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -380,7 +380,7 @@ paths:
     post:
       tags: [administration]
       summary: Rejeter un compte avec un motif
-      description: Le motif de rejet est obligatoire. Role ADMINISTRATEUR.
+      description: Le motif de rejet est obligatoire. Role ADMIN.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -412,7 +412,7 @@ paths:
     post:
       tags: [administration]
       summary: Suspendre un compte
-      description: Role ADMINISTRATEUR uniquement.
+      description: Role ADMIN uniquement.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -436,7 +436,7 @@ paths:
     put:
       tags: [administration]
       summary: Attribuer le role d'un compte
-      description: Role ADMINISTRATEUR uniquement.
+      description: Role ADMIN uniquement.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -488,7 +488,7 @@ components:
   schemas:
     Role:
       type: string
-      enum: [ADMINISTRATEUR, GEOMETRE, TOPOGRAPHE, AGENT, CLIENT]
+      enum: [ADMIN, GEOMETRE, TOPOGRAPHE, AGENT, CLIENT]
 
     AccountStatus:
       type: string
