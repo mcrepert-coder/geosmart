@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { AdminModule } from '../admin/admin.module';
+import { LeasingModule } from '../leasing/leasing.module';
 import { SyncModule } from '../sync/sync.module';
 import { UsersModule } from '../users/users.module';
 import { AccountsService } from './accounts.service';
@@ -25,6 +26,7 @@ import { LogSmsSender, SMS_SENDER } from './sms.sender';
     SyncModule,
     UsersModule,
     AdminModule,
+    LeasingModule,
   ],
   controllers: [AuthController],
   providers: [
