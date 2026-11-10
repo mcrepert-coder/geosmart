@@ -31,8 +31,9 @@ info:
       contract: contracts/listings.yaml
       endpoint: GET /properties/{propertyId}
       note: |
-        Leasing consomme GET /properties/{propertyId} pour rattacher une visite a un bien.
-        Le parametre propertyId est un UUID et la reponse est le schema Property.
+        La responsabilite de Beni indique que Leasing consomme cette route pour rattacher
+        une visite a un bien. contracts/listings.yaml definit maintenant GET
+        /properties/{propertyId}, avec un identifiant UUID et une reponse Property.
     land:
       contract: contracts/land.yaml
       note: |
@@ -263,7 +264,9 @@ components:
   schemas:
     VisitRequest:
       type: object
-      description: Demande de visite d'un bien immobilier identifie par son UUID.
+      description: |
+        Le champ propertyId identifie le bien par son UUID. Les autres champs du formulaire
+        de demande ne sont pas encore specifies.
       additionalProperties: true
       properties:
         propertyId:
