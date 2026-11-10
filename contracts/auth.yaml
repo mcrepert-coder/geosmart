@@ -645,6 +645,16 @@ components:
       properties:
         role:
           $ref: '#/components/schemas/Role'
+        fullName:
+          type: string
+          description: |
+            Nom complet, imprime sur l'attestation de leve pour un geometre
+            (demande du module foncier, issue #23).
+        ordreNumber:
+          type: string
+          description: |
+            Numero d'inscription a l'Ordre des geometres. Renseigne ce
+            numero, un geometre devient registeredSurveyor (RG-03).
 
     Error:
       type: object
