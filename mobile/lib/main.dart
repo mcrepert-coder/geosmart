@@ -20,9 +20,6 @@ import 'features/sync/data/sync_api.dart';
 import 'features/sync/domain/sync_processor.dart';
 import 'features/sync/presentation/viewmodels/sync_controller.dart';
 
-/// Identifiant de la mission de demonstration creee au premier lancement.
-const String demoSessionId = 'demo-session';
-
 /// Le recepteur Bluetooth est le defaut. Pour essayer la simulation sans
 /// materiel : `flutter run --dart-define=GEOSMART_GNSS_SIMULATION=true`.
 const bool useSimulatedGnss = bool.fromEnvironment(
