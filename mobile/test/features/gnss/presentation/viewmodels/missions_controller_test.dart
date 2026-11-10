@@ -24,6 +24,27 @@ void main() {
   }
 
   group('MissionsController', () {
+    test(
+      'masque la mission de demonstration quand le mode demo est desactive',
+      () async {
+        final store = FakeMultiSessionStore(
+          sessions: [
+            mission(
+              'demo-session',
+              title: 'Leve de demonstration',
+              createdAt: DateTime.utc(2026, 10, 30),
+            ),
+          ],
+        );
+        final controller = MissionsController(store: store);
+        addTearDown(controller.dispose);
+
+        await controller.load();
+
+        expect(controller.missions, isEmpty);
+      },
+    );
+
     test('liste les missions de la plus recente a la plus ancienne', () async {
       final store = FakeMultiSessionStore(
         sessions: [
@@ -65,6 +86,8 @@ void main() {
       var nextId = 0;
       final controller = MissionsController(
         store: store,
+        defaultProjectId: 'project-1',
+        defaultSurveyorId: 'surveyor-1',
         idGenerator: () => 'id-${nextId++}',
         clock: () => DateTime.utc(2026, 10, 31, 8),
       );
@@ -75,8 +98,8 @@ void main() {
 
       expect(created, isNotNull);
       expect(created!.title, 'Leve B');
-      expect(created.projectId, 'demo-project');
-      expect(created.surveyorId, 'demo-surveyor');
+      expect(created.projectId, 'project-1');
+      expect(created.surveyorId, 'surveyor-1');
       expect(created.status, SurveySessionStatus.draft);
       expect(created.createdAt, DateTime.utc(2026, 10, 31, 8));
       expect(controller.missions.first.id, created.id);
@@ -96,9 +119,29 @@ void main() {
       expect(store.createCalls, 0);
     });
 
+    test(
+      'refuse la creation sans identifiants de chantier et topographe',
+      () async {
+        final store = FakeMultiSessionStore();
+        final controller = MissionsController(store: store);
+        addTearDown(controller.dispose);
+        await controller.load();
+
+        final created = await controller.createMission(title: 'Leve C');
+
+        expect(created, isNull);
+        expect(controller.error, contains('GEOSMART_PROJECT_ID'));
+        expect(store.createCalls, 0);
+      },
+    );
+
     test('signale un echec d ecriture locale', () async {
       final store = FakeMultiSessionStore()..failCreate = true;
-      final controller = MissionsController(store: store);
+      final controller = MissionsController(
+        store: store,
+        defaultProjectId: 'project-1',
+        defaultSurveyorId: 'surveyor-1',
+      );
       addTearDown(controller.dispose);
       await controller.load();
 

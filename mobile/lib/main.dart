@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import 'app/database/local_database.dart';
 import 'app/geosmart_app.dart';
+import 'app/runtime_config.dart';
 import 'features/account/data/auth_api.dart';
 import 'features/account/data/sqflite_session_store.dart';
 import 'features/account/presentation/viewmodels/auth_controller.dart';
@@ -21,11 +22,6 @@ import 'features/sync/presentation/viewmodels/sync_controller.dart';
 
 /// Identifiant de la mission de demonstration creee au premier lancement.
 const String demoSessionId = 'demo-session';
-
-const String apiBaseUrl = String.fromEnvironment(
-  'GEOSMART_API_BASE_URL',
-  defaultValue: 'http://10.0.2.2:3001',
-);
 
 /// Le recepteur Bluetooth est le defaut. Pour essayer la simulation sans
 /// materiel : `flutter run --dart-define=GEOSMART_GNSS_SIMULATION=true`.
@@ -59,17 +55,20 @@ Future<void> main() async {
     processor: SyncProcessor(sessions: store, queue: store, api: syncApi),
   );
 
-  var session = await store.loadSession(demoSessionId);
-  if (session == null) {
-    session = SurveySession(
-      id: demoSessionId,
-      clientId: 'demo-client-session',
-      projectId: 'demo-project',
-      surveyorId: 'demo-surveyor',
-      title: 'Leve de demonstration',
-      createdAt: DateTime.now().toUtc(),
-    );
-    await store.createSession(session);
+  SurveySession? session;
+  if (demoModeEnabled) {
+    session = await store.loadSession(demoSessionId);
+    if (session == null) {
+      session = SurveySession(
+        id: demoSessionId,
+        clientId: 'demo-client-session',
+        projectId: projectId,
+        surveyorId: surveyorId,
+        title: 'Leve de demonstration',
+        createdAt: DateTime.now().toUtc(),
+      );
+      await store.createSession(session);
+    }
   }
 
   final GnssPositionSource source = useSimulatedGnss
@@ -78,7 +77,7 @@ Future<void> main() async {
   final controller = SurveyController(
     store: store,
     source: source,
-    sessionId: session.id,
+    sessionId: session?.id ?? '',
   );
 
   runApp(

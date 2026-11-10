@@ -51,8 +51,7 @@ class _LoginPageState extends State<LoginPage> {
         listenable: widget.auth,
         builder: (context, _) {
           // Apres inscription, le code SMS est demande (EF-401).
-          if (widget.auth.status == AuthStatus.pendingVerification ||
-              widget.auth.status == AuthStatus.pendingApproval) {
+          if (widget.auth.status == AuthStatus.pendingVerification) {
             return VerificationPage(auth: widget.auth);
           }
           return ListView(
