@@ -1,19 +1,35 @@
 // Tests des fonctions pures de /parcelle, avec le lanceur de tests de Node
 // (Node 24 execute le TypeScript sans compilation) :
 //   node --test src/app/parcelle/_lib/parcelle.test.mjs
-// Aucun paquet a installer. Sans NEXT_PUBLIC_API_URL, api.ts est en mode
-// exemple et ne fait aucun appel reseau.
+// Aucun paquet a installer. Le mode exemple est force (NEXT_PUBLIC_DEMO_MODE)
+// et NEXT_PUBLIC_API_URL est vide : api.ts ne fait aucun appel reseau.
 import assert from "node:assert/strict";
+import { register } from "node:module";
 import { test } from "node:test";
-import {
+
+// L'alias "@/" de tsconfig.json (src/) n'existe que pour Next.js : on le
+// resout ici pour Node, avant de charger api.ts.
+const SRC = new URL("../../../", import.meta.url).href;
+register(
+  "data:text/javascript," +
+    encodeURIComponent(`export async function resolve(spec, context, next) {
+      if (spec.startsWith("@/")) return next(${JSON.stringify(SRC)} + spec.slice(2) + ".ts", context);
+      return next(spec, context);
+    }`),
+  import.meta.url,
+);
+process.env.NEXT_PUBLIC_DEMO_MODE = "true";
+delete process.env.NEXT_PUBLIC_API_URL;
+
+const {
   ATTESTATION_PATTERN,
   DEMO_ATTESTATION,
   DEMO_MODE,
   PARCEL_ID_PATTERN,
   fetchParcelStatus,
   verifyAttestation,
-} from "./api.ts";
-import {
+} = await import("./api.ts");
+const {
   formatArea,
   formatDate,
   formatDateTime,
@@ -22,8 +38,8 @@ import {
   shareMessage,
   shareUrl,
   shortHash,
-} from "./format.ts";
-import { sha256File } from "./sha256.ts";
+} = await import("./format.ts");
+const { sha256File } = await import("./sha256.ts");
 
 const NBSP = " ";
 
