@@ -29,11 +29,10 @@ info:
       note: Le role courant est relu en base a chaque requete (RG-06).
     listings:
       contract: contracts/listings.yaml
-      endpoint: GET /properties/:id
+      endpoint: GET /properties/{propertyId}
       note: |
-        La responsabilite de Beni indique que Leasing consomme cette route pour rattacher
-        une visite a un bien. Le contrat listings.yaml n'existe pas encore dans le depot ;
-        sa forme exacte et l'identifiant du bien restent a coordonner avec Marrich.
+        Leasing consomme GET /properties/{propertyId} pour rattacher une visite a un bien.
+        Le parametre propertyId est un UUID et la reponse est le schema Property.
     land:
       contract: contracts/land.yaml
       note: |
@@ -86,8 +85,10 @@ paths:
       summary: Demander une visite
       description: |
         Chemin propose a valider. Le cahier des charges confirme qu'un client peut demander
-        une visite et qu'un agent organise des visites. Le rattachement a un bien depend de
-        GET /properties/:id dans le contrat Listings. Les champs du formulaire et les regles
+        une visite et qu'un agent organise des visites. Le rattachement a un bien immobilier
+        utilise l'identifiant propertyId (UUID) et s'appuie sur l'endpoint
+        GET /properties/{propertyId} du contrat Listings, qui retourne une ressource
+        conforme au schema Property. Les champs du formulaire et les regles
         d'acceptation ne sont pas etablis ici.
       x-proposed-path: true
       x-confirmed-capabilities:
@@ -114,7 +115,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-
   /visits/{visitId}:
     parameters:
       - $ref: '#/components/parameters/VisitId'
@@ -263,11 +263,15 @@ components:
   schemas:
     VisitRequest:
       type: object
-      description: |
-        Les champs du formulaire de demande ne sont pas specifies. Le bien concerne peut
-        etre resolu via GET /properties/:id selon la dependance documentee par Beni ; le
-        nom et le format du champ de reference restent a valider.
+      description: Demande de visite d'un bien immobilier identifie par son UUID.
       additionalProperties: true
+      properties:
+        propertyId:
+          type: string
+          format: uuid
+          description: Identifiant unique du bien immobilier.
+      required:
+        - propertyId
 
     Visit:
       type: object
