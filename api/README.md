@@ -26,6 +26,25 @@ npm run start:dev
 Database migrations are applied automatically on API startup. The API does not
 use TypeORM schema synchronization.
 
+## First Super Admin
+
+The public registration flow never grants the `ADMIN` role. Create the first
+Super Admin once, after starting the database and API, by setting `ADMIN_PHONE`
+and `ADMIN_INITIAL_PASSWORD` in the local root `.env` file. Use a valid
+international phone number and a unique password of at least 12 characters.
+These values are passed only to the temporary bootstrap container, not to the
+running API service:
+
+```bash
+docker compose --profile admin-bootstrap run --rm admin-bootstrap
+```
+
+The command creates an active `ADMIN` account only when no administrator
+exists. It refuses to modify an existing account or run again after an admin
+has been created. It is safe to remove both bootstrap values from `.env` after
+the command succeeds. Sign in at `/admin/connexion`. This command cannot be
+used to promote an existing account or create additional administrators.
+
 ## Validation
 
 ```bash

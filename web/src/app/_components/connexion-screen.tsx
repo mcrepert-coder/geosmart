@@ -62,8 +62,8 @@ function DemoConnexionScreen() {
             </p>
             <p className="gs-help mt-4">
               Pas encore de compte ?{" "}
-              <Link href="/devenir-agent" className="font-semibold text-[var(--primary)] underline">
-                Devenir agent ou géomètre
+              <Link href="/inscription" className="font-semibold text-[var(--primary)] underline">
+                Créer un compte
               </Link>
             </p>
           </>

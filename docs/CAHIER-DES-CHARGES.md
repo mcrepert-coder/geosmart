@@ -63,7 +63,7 @@ Etat d'un compte : telephone non verifie -> en attente -> actif / rejete / suspe
 ### Module 4 - Comptes, roles, synchronisation (Beni)
 - EF-401 Inscription avec numero de telephone et code SMS (simule en journal tant qu'il n'y a pas de fournisseur).
 - EF-402 Navigation par role : seules les actions permises sont affichees ; le serveur refuse de toute facon.
-- EF-403 Pieces justificatives : identite pour tous, carte professionnelle / agrement / RCCM pour les agents, attestation d'inscription a l'Ordre pour les geometres. Pieces d'identite visibles du proprietaire et de l'administrateur seulement.
+- EF-403 Pieces justificatives : identite pour tous ; pour un agent, au moins une piece parmi carte professionnelle, agrement ou RCCM ; pour un geometre, attestation d'inscription a l'Ordre. L'administration ne valide pas un compte sans les pieces requises pour son role. Pieces d'identite visibles du proprietaire et de l'administrateur seulement.
 - EF-404 Espace administrateur : file d'attente des comptes, validation, rejet avec motif, suspension, journal.
 - EF-405 Synchronisation hors ligne : file d'envoi locale, `clientId` unique, reprise automatique, refus conserve avec son motif.
 - EF-407 Connexion securisee : jetons courts, renouvellement, blocage 15 minutes apres 5 echecs.
@@ -86,7 +86,7 @@ Etat d'un compte : telephone non verifie -> en attente -> actif / rejete / suspe
 - RG-07 La plateforme n'impose aucun outil aux agents : elle propose le partage par lien.
 - RG-08 Aucune ecriture directe depuis le terrain : tout passe par la file locale.
 - RG-09 Le document s'appelle "attestation de leve" ; mention "Ne vaut pas titre foncier" obligatoire.
-- RG-10 Chaque action sensible (validation de compte, creation/modification de parcelle, attestation, alerte) est journalisee.
+- RG-10 Chaque action sensible (validation de compte, creation/modification de parcelle, attestation, alerte) est journalisee. Une decision d'administration et sa ligne d'audit sont validees dans la meme transaction.
 
 ## 6. Architecture
 
