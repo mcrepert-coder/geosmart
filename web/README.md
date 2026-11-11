@@ -25,7 +25,10 @@ npm run build
 les parcelles et les attestations. Cette variable est intégrée au build client;
 elle doit donc être fournie lors de la construction de l’image Docker ou avant
 le build Next.js. Pour Docker Compose, `API_INTERNAL_URL` configure séparément la
-cible du proxy Listings entre conteneurs (par défaut `http://backend:3001`).
+cible du proxy Listings et de l’administration entre conteneurs (par défaut
+`http://backend:3001`). `ADMIN_COOKIE_SECURE` doit rester à `true` derrière
+HTTPS en production ; sa valeur `false` dans `.env.example` est réservée au
+Compose local servi en HTTP.
 
 ## Catalogue Listings
 
@@ -38,9 +41,17 @@ de démonstration.
 
 Les données de démonstration du catalogue peuvent être activées uniquement en
 développement avec `NEXT_PUBLIC_DEMO_MODE=true`. Elles ne sont jamais activées
-dans un build de production. Les parcours agent, administrateur, connexion et
-inscription de démonstration utilisent le même réglage ; ils ne constituent ni
-une authentification ni un contrôle d’accès réels.
+dans un build de production. L’inscription générale est disponible sur
+`/inscription` et utilise les routes d’authentification de l’API ; le rôle est
+attribué après vérification par l’administration, comme prévu au contrat.
+L’envoi SMS est actuellement simulé et le code apparaît dans les journaux du
+serveur. Le parcours général de connexion et l’espace agent restent des
+démonstrations. L’administration, sur `/admin/connexion`, utilise les comptes
+et les routes protégées de l’API ; elle permet le tableau de bord, la gestion
+des comptes, la consultation de leurs justificatifs et le journal d’audit avec
+vérification de sa chaîne. Les pages administratives de carte, alertes,
+parcelles et attestations restent indisponibles en mode connecté tant qu’elles
+ne sont pas prises en charge par une API adaptée.
 
 La publication doit passer par l’API avec un jeton émis par le module Auth. La
 source du badge « agent certifié » attend encore l’ajout de `agentCertified` au

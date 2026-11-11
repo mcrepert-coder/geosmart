@@ -31,6 +31,7 @@ const client: CurrentActorValue = {
 describe('AdminService (PostgreSQL)', () => {
   let db: PGlite;
   let service: AdminService;
+  let audit: AuditService;
   let pendingId: string;
 
   async function seed(status: string, role: string | null): Promise<string> {
@@ -52,6 +53,18 @@ describe('AdminService (PostgreSQL)', () => {
     return rows[0];
   }
 
+  async function addDocument(
+    accountId: string,
+    category: string,
+  ): Promise<void> {
+    await db.query(
+      `INSERT INTO account_documents
+         (id, account_id, category, content_type, size_bytes, content)
+       VALUES ($1, $2, $3, 'application/pdf', 4, decode('25504446', 'hex'))`,
+      [randomUUID(), accountId, category],
+    );
+  }
+
   beforeAll(async () => {
     const { PGlite } = await import('@electric-sql/pglite');
     db = new PGlite();
@@ -69,9 +82,10 @@ describe('AdminService (PostgreSQL)', () => {
           work({ query: (sql, params) => tx.query(sql, params) }),
         ),
     } as unknown as DataSource;
+    audit = new AuditService(dataSource);
     service = new AdminService(
       dataSource,
-      new AuditService(dataSource),
+      audit,
       new DocumentsService(dataSource),
     );
     await seed('ACTIF', 'ADMIN');
@@ -113,6 +127,8 @@ describe('AdminService (PostgreSQL)', () => {
       fullName: 'Ada Lovelace',
     });
     expect(withRole.role).toBe('AGENT');
+    await addDocument(pendingId, 'IDENTITY');
+    await addDocument(pendingId, 'PROFESSIONAL_CARD');
     const validated = await service.validate(admin, pendingId);
     expect(validated.status).toBe('ACTIF');
     const audit = await lastAudit();
@@ -131,6 +147,56 @@ describe('AdminService (PostgreSQL)', () => {
     ]);
     const user = toCurrentUser(rows[0] as Parameters<typeof toCurrentUser>[0]);
     expect(user.registeredSurveyor).toBe(true);
+  });
+
+  it('exige la piece identite pour tous et une piece professionnelle pour un agent', async () => {
+    const id = await seed('EN_ATTENTE', 'AGENT');
+    await expect(service.validate(admin, id)).rejects.toMatchObject({
+      status: 400,
+      response: {
+        message: 'Pieces obligatoires manquantes : piece d identite.',
+      },
+    });
+
+    await addDocument(id, 'IDENTITY');
+    await expect(service.validate(admin, id)).rejects.toMatchObject({
+      status: 400,
+      response: {
+        message:
+          'Le role Agent exige au moins une des pieces suivantes : carte professionnelle, agrement, RCCM.',
+      },
+    });
+
+    await addDocument(id, 'RCCM');
+    expect((await service.validate(admin, id)).status).toBe('ACTIF');
+  });
+
+  it('exige une piece identite avant d activer un client', async () => {
+    const id = await seed('EN_ATTENTE', 'CLIENT');
+    await expect(service.validate(admin, id)).rejects.toMatchObject({
+      status: 400,
+      response: {
+        message: 'Pieces obligatoires manquantes : piece d identite.',
+      },
+    });
+
+    await addDocument(id, 'IDENTITY');
+    expect((await service.validate(admin, id)).status).toBe('ACTIF');
+  });
+
+  it('exige l inscription a l Ordre pour valider un geometre', async () => {
+    const id = await seed('EN_ATTENTE', 'GEOMETRE');
+    await addDocument(id, 'IDENTITY');
+    await expect(service.validate(admin, id)).rejects.toMatchObject({
+      status: 400,
+      response: {
+        message:
+          'Pieces obligatoires manquantes : attestation d inscription a l Ordre.',
+      },
+    });
+
+    await addDocument(id, 'ORDER_REGISTRATION');
+    expect((await service.validate(admin, id)).status).toBe('ACTIF');
   });
 
   it('rejette avec un motif obligatoire', async () => {
@@ -173,10 +239,35 @@ describe('AdminService (PostgreSQL)', () => {
     await expect(
       service.assignRole(admin, actif, { role: 'SUPER_HEROS' }),
     ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      service.assignRole(admin, actif, { role: 'CLIENT' }),
+    ).rejects.toMatchObject({
+      status: 400,
+      response: {
+        message:
+          'Le role ne peut etre attribue qu a un compte en attente ou suspendu.',
+      },
+    });
   });
 
   it('expose les pieces justificatives dans le detail du compte', async () => {
     const detail = await service.getAccount(admin, pendingId);
     expect(Array.isArray(detail.documents)).toBe(true);
+  });
+
+  it('annule une decision si l ecriture du journal echoue', async () => {
+    const id = await seed('ACTIF', 'CLIENT');
+    jest
+      .spyOn(audit, 'log')
+      .mockRejectedValueOnce(new Error('audit unavailable'));
+
+    await expect(service.suspend(admin, id)).rejects.toThrow(
+      'audit unavailable',
+    );
+    const { rows } = await db.query<{ status: string }>(
+      'SELECT status FROM accounts WHERE id = $1',
+      [id],
+    );
+    expect(rows[0].status).toBe('ACTIF');
   });
 });

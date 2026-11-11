@@ -10,6 +10,11 @@ info:
     Exigences reprises : EF-401 a EF-404, EF-407, RG-06.
     Le cahier des charges impose l'authentification par téléphone, mot de passe BCrypt, 
     ainsi que la validation des comptes et des rôles par un administrateur.
+    Avant activation, chaque compte doit deposer une piece IDENTITY. Un AGENT doit
+    aussi deposer au moins une piece PROFESSIONAL_CARD, APPROVAL ou RCCM ; un
+    GEOMETRE doit deposer ORDER_REGISTRATION. Les attributions de role sont
+    reservees aux comptes EN_ATTENTE ou SUSPENDU. La modification d un compte et
+    sa ligne d audit sont enregistrees dans une transaction unique.
 
     En mode de développement (AUTH_DEV_MODE=true), l'en-tête "Authorization: Bearer dev:<ROLE>[:<id>]" 
     permet également de simuler un utilisateur de test.
@@ -24,7 +29,7 @@ info:
     - id: account-transitions
       question: Gestion des etats et des preconditions de validation, rejet et suspension.
     - id: document-requirements
-      question: Verification des documents obligatoires selon le role et attribution par l'admin.
+      decision: IDENTITY pour tous ; AGENT exige PROFESSIONAL_CARD, APPROVAL ou RCCM ; GEOMETRE exige ORDER_REGISTRATION avant validation.
 
 servers:
   - url: http://localhost:3001
@@ -356,7 +361,10 @@ paths:
     post:
       tags: [administration]
       summary: Valider un compte
-      description: Role ADMIN uniquement.
+      description: |
+        Role ADMIN uniquement. Exige IDENTITY pour tous, en plus d une piece
+        professionnelle parmi PROFESSIONAL_CARD, APPROVAL ou RCCM pour AGENT,
+        et ORDER_REGISTRATION pour GEOMETRE.
       x-proposed-path: true
       security:
         - bearerAuth: []
@@ -436,7 +444,7 @@ paths:
     put:
       tags: [administration]
       summary: Attribuer le role d'un compte
-      description: Role ADMIN uniquement.
+      description: Role ADMIN uniquement ; le compte doit etre EN_ATTENTE ou SUSPENDU.
       x-proposed-path: true
       security:
         - bearerAuth: []

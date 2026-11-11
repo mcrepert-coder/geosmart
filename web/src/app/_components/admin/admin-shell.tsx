@@ -14,21 +14,17 @@ import {
   Users,
 } from "lucide-react";
 import { LogoMark } from "../logo";
-import { DemoUnavailable } from "../demo-unavailable";
 import { ADMIN_STATS, ALERTS } from "@/lib/data";
 import { useDemoStore } from "@/lib/demo-store";
 import { DEMO_MODE_ENABLED } from "@/lib/runtime-config";
+import { AdminLiveShell } from "./admin-live";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
-  if (!DEMO_MODE_ENABLED) {
-    return (
-      <DemoUnavailable title="Espace administrateur non connecté">
-        L’API d’authentification et d’administration n’est pas encore intégrée à
-        cet écran. Aucune donnée fictive ni action locale ne sera affichée.
-      </DemoUnavailable>
-    );
-  }
-  return <AdminDemoShell>{children}</AdminDemoShell>;
+  return DEMO_MODE_ENABLED ? (
+    <AdminDemoShell>{children}</AdminDemoShell>
+  ) : (
+    <AdminLiveShell>{children}</AdminLiveShell>
+  );
 }
 
 function AdminDemoShell({ children }: { children: React.ReactNode }) {

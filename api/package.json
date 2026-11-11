@@ -12,6 +12,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "admin:bootstrap": "node dist/auth/bootstrap-admin.js",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -81,9 +82,9 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
-    "transformIgnorePatterns": [
-      "node_modules/(?!(@nestjs/jwt)/)"
-    ],
+    "moduleNameMapper": {
+      "^@nestjs/jwt$": "<rootDir>/auth/jwt.mock.ts"
+    },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],

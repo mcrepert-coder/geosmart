@@ -9,6 +9,7 @@ import { Logo } from "./logo";
 const LINKS = [
   { href: "/", label: "Annonces" },
   { href: "/parcelle", label: "Vérifier une parcelle" },
+  { href: "/inscription", label: "Créer un compte" },
   { href: "/devenir-agent", label: "Devenir agent" },
 ];
 
