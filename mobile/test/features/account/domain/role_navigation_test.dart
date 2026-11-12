@@ -53,6 +53,27 @@ void main() {
         expect(actions, [AccountAction.account], reason: role.name);
       }
     });
+
+    test('tous les roles actifs voient la carte des parcelles (EF-406)', () {
+      for (final role in AccountRole.values) {
+        expect(
+          actionsForRole(role),
+          contains(AccountAction.map),
+          reason: role.name,
+        );
+      }
+    });
+
+    test('la barre de navigation garde au plus cinq entrees', () {
+      for (final role in AccountRole.values) {
+        // + Parametres, toujours present.
+        expect(
+          actionsForRole(role).length + 1,
+          lessThanOrEqualTo(5),
+          reason: role.name,
+        );
+      }
+    });
   });
 
   group('AccountUser', () {

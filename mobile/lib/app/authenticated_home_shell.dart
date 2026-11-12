@@ -10,6 +10,8 @@ import '../features/gnss/presentation/viewmodels/theme_controller.dart';
 import '../features/leasing/data/leasing_api.dart';
 import '../features/leasing/presentation/leases_page.dart';
 import '../features/leasing/presentation/visits_page.dart';
+import '../features/map/presentation/parcel_map_page.dart';
+import '../features/map/presentation/viewmodels/parcel_map_controller.dart';
 import '../features/sync/presentation/sync_page.dart';
 import '../features/sync/presentation/viewmodels/sync_controller.dart';
 
@@ -21,6 +23,7 @@ class AuthenticatedHomeShell extends StatefulWidget {
     required this.auth,
     required this.leasingApi,
     required this.syncController,
+    this.parcelLoader,
   });
 
   final SurveyController survey;
@@ -29,12 +32,30 @@ class AuthenticatedHomeShell extends StatefulWidget {
   final LeasingApi leasingApi;
   final SyncController syncController;
 
+  /// Chargement des parcelles de la carte (GET /parcels). Sans lui, la carte
+  /// affiche un message au lieu de la carte.
+  final ParcelLoader? parcelLoader;
+
   @override
   State<AuthenticatedHomeShell> createState() => _AuthenticatedHomeShellState();
 }
 
 class _AuthenticatedHomeShellState extends State<AuthenticatedHomeShell> {
   int _index = 0;
+  ParcelMapController? _map;
+
+  @override
+  void initState() {
+    super.initState();
+    final loader = widget.parcelLoader;
+    if (loader != null) _map = ParcelMapController(loader: loader);
+  }
+
+  @override
+  void dispose() {
+    _map?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +94,10 @@ class _AuthenticatedHomeShellState extends State<AuthenticatedHomeShell> {
   Widget _pageFor(AccountAction action) => switch (action) {
     AccountAction.survey => MissionsPage(survey: widget.survey),
     AccountAction.sync => SyncPage(controller: widget.syncController),
+    AccountAction.map =>
+      _map == null
+          ? const ParcelMapUnavailablePage()
+          : ParcelMapPage(controller: _map!),
     AccountAction.visits => VisitsPage(
       api: widget.leasingApi,
       auth: widget.auth,
@@ -100,6 +125,7 @@ class _AuthenticatedHomeShellState extends State<AuthenticatedHomeShell> {
   String _labelFor(AccountAction action) => switch (action) {
     AccountAction.survey => 'Leves',
     AccountAction.sync => 'Sync',
+    AccountAction.map => 'Carte',
     AccountAction.visits => 'Visites',
     AccountAction.leasing => 'Baux',
     AccountAction.admin => 'Admin',
@@ -109,6 +135,7 @@ class _AuthenticatedHomeShellState extends State<AuthenticatedHomeShell> {
   IconData _iconFor(AccountAction action) => switch (action) {
     AccountAction.survey => Icons.satellite_alt_outlined,
     AccountAction.sync => Icons.sync_outlined,
+    AccountAction.map => Icons.map_outlined,
     AccountAction.visits => Icons.home_work_outlined,
     AccountAction.leasing => Icons.assignment_outlined,
     AccountAction.admin => Icons.admin_panel_settings_outlined,
@@ -118,6 +145,7 @@ class _AuthenticatedHomeShellState extends State<AuthenticatedHomeShell> {
   IconData _selectedIconFor(AccountAction action) => switch (action) {
     AccountAction.survey => Icons.satellite_alt,
     AccountAction.sync => Icons.sync,
+    AccountAction.map => Icons.map,
     AccountAction.visits => Icons.home_work,
     AccountAction.leasing => Icons.assignment,
     AccountAction.admin => Icons.admin_panel_settings,

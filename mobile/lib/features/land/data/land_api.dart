@@ -78,6 +78,24 @@ class LandApi {
         as Map<String, dynamic>,
   );
 
+  /// GET /parcels?bbox=minLon,minLat,maxLon,maxLat : collection GeoJSON des
+  /// parcelles d'une zone, pour la carte (EF-406). Renvoie le JSON brut.
+  Future<Map<String, dynamic>> listParcelsGeoJson({
+    required String bbox,
+    String? status,
+    int? limit,
+  }) async =>
+      await _send(
+            'GET',
+            '/parcels',
+            query: {
+              'bbox': bbox,
+              'status': ?status,
+              if (limit != null) 'limit': '$limit',
+            },
+          )
+          as Map<String, dynamic>;
+
   Future<ParcelInfo> getParcel(String parcelId) async => ParcelInfo.fromJson(
     await _send('GET', '/parcels/${Uri.encodeComponent(parcelId)}')
         as Map<String, dynamic>,

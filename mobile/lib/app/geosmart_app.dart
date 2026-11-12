@@ -7,6 +7,7 @@ import '../features/gnss/presentation/home_shell.dart';
 import '../features/gnss/presentation/viewmodels/survey_controller.dart';
 import '../features/gnss/presentation/viewmodels/theme_controller.dart';
 import '../features/leasing/data/leasing_api.dart';
+import '../features/map/presentation/viewmodels/parcel_map_controller.dart';
 import '../features/sync/presentation/viewmodels/sync_controller.dart';
 import 'authenticated_home_shell.dart';
 import 'theme/geosmart_theme.dart';
@@ -25,6 +26,7 @@ class GeoSmartApp extends StatefulWidget {
     this.auth,
     this.leasingApi,
     this.syncController,
+    this.parcelLoader,
   }) : assert(
          auth == null || (leasingApi != null && syncController != null),
          'LeasingApi and SyncController are required when auth is enabled.',
@@ -34,6 +36,9 @@ class GeoSmartApp extends StatefulWidget {
   final AuthController? auth;
   final LeasingApi? leasingApi;
   final SyncController? syncController;
+
+  /// Chargement des parcelles pour la carte (EF-406), facultatif.
+  final ParcelLoader? parcelLoader;
 
   /// Controleur de theme injecte par les tests. Par defaut, l'application en
   /// cree un sur le theme clair.
@@ -94,6 +99,7 @@ class _GeoSmartAppState extends State<GeoSmartApp> {
           auth: auth,
           leasingApi: widget.leasingApi!,
           syncController: widget.syncController!,
+          parcelLoader: widget.parcelLoader,
         ),
       },
     );

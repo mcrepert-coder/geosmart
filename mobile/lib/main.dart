@@ -15,7 +15,9 @@ import 'features/gnss/data/datasources/survey_session_local_data_source.dart';
 import 'features/gnss/domain/entities/survey_session.dart';
 import 'features/gnss/domain/repositories/gnss_position_source.dart';
 import 'features/gnss/presentation/viewmodels/survey_controller.dart';
+import 'features/land/data/land_api.dart';
 import 'features/leasing/data/leasing_api.dart';
+import 'features/map/domain/map_parcel.dart';
 import 'features/sync/data/sync_api.dart';
 import 'features/sync/domain/sync_processor.dart';
 import 'features/sync/presentation/viewmodels/sync_controller.dart';
@@ -46,6 +48,11 @@ Future<void> main() async {
     token: auth.accessToken,
   );
   final syncApi = SyncApi(client, baseUrl: apiBaseUrl, token: auth.accessToken);
+  final landApi = LandApi(client, baseUrl: apiBaseUrl, token: auth.accessToken);
+  Future<List<MapParcel>> loadParcels(MapBounds bounds) async =>
+      MapParcel.fromCollection(
+        await landApi.listParcelsGeoJson(bbox: bounds.toQuery()),
+      );
   final syncController = SyncController(
     queue: store,
     sessions: store,
@@ -83,6 +90,7 @@ Future<void> main() async {
       auth: auth,
       leasingApi: leasingApi,
       syncController: syncController,
+      parcelLoader: loadParcels,
     ),
   );
   unawaited(controller.start());
