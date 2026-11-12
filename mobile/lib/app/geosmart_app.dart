@@ -4,6 +4,7 @@ import '../features/account/presentation/login_page.dart';
 import '../features/account/presentation/verification_page.dart';
 import '../features/account/presentation/viewmodels/auth_controller.dart';
 import '../features/gnss/presentation/home_shell.dart';
+import '../features/gnss/presentation/viewmodels/missions_controller.dart';
 import '../features/gnss/presentation/viewmodels/survey_controller.dart';
 import '../features/gnss/presentation/viewmodels/theme_controller.dart';
 import '../features/leasing/data/leasing_api.dart';
@@ -27,6 +28,7 @@ class GeoSmartApp extends StatefulWidget {
     this.leasingApi,
     this.syncController,
     this.parcelLoader,
+    this.projectsLoader,
   }) : assert(
          auth == null || (leasingApi != null && syncController != null),
          'LeasingApi and SyncController are required when auth is enabled.',
@@ -39,6 +41,9 @@ class GeoSmartApp extends StatefulWidget {
 
   /// Chargement des parcelles pour la carte (EF-406), facultatif.
   final ParcelLoader? parcelLoader;
+
+  /// Chantiers du topographe connecte (GET /projects, CA-7), facultatif.
+  final SurveyProjectsLoader? projectsLoader;
 
   /// Controleur de theme injecte par les tests. Par defaut, l'application en
   /// cree un sur le theme clair.
@@ -100,6 +105,7 @@ class _GeoSmartAppState extends State<GeoSmartApp> {
           leasingApi: widget.leasingApi!,
           syncController: widget.syncController!,
           parcelLoader: widget.parcelLoader,
+          projectsLoader: widget.projectsLoader,
         ),
       },
     );

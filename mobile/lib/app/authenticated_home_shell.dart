@@ -5,6 +5,7 @@ import '../features/account/presentation/account_page.dart';
 import '../features/account/presentation/viewmodels/auth_controller.dart';
 import '../features/gnss/presentation/settings_page.dart';
 import '../features/gnss/presentation/missions_page.dart';
+import '../features/gnss/presentation/viewmodels/missions_controller.dart';
 import '../features/gnss/presentation/viewmodels/survey_controller.dart';
 import '../features/gnss/presentation/viewmodels/theme_controller.dart';
 import '../features/leasing/data/leasing_api.dart';
@@ -24,6 +25,7 @@ class AuthenticatedHomeShell extends StatefulWidget {
     required this.leasingApi,
     required this.syncController,
     this.parcelLoader,
+    this.projectsLoader,
   });
 
   final SurveyController survey;
@@ -35,6 +37,9 @@ class AuthenticatedHomeShell extends StatefulWidget {
   /// Chargement des parcelles de la carte (GET /parcels). Sans lui, la carte
   /// affiche un message au lieu de la carte.
   final ParcelLoader? parcelLoader;
+
+  /// Chantiers du topographe connecte (GET /projects, CA-7).
+  final SurveyProjectsLoader? projectsLoader;
 
   @override
   State<AuthenticatedHomeShell> createState() => _AuthenticatedHomeShellState();
@@ -92,7 +97,11 @@ class _AuthenticatedHomeShellState extends State<AuthenticatedHomeShell> {
   }
 
   Widget _pageFor(AccountAction action) => switch (action) {
-    AccountAction.survey => MissionsPage(survey: widget.survey),
+    AccountAction.survey => MissionsPage(
+      survey: widget.survey,
+      projectsLoader: widget.projectsLoader,
+      surveyorId: widget.auth.user?.id,
+    ),
     AccountAction.sync => SyncPage(controller: widget.syncController),
     AccountAction.map =>
       _map == null

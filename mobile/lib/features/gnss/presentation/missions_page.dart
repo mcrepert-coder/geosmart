@@ -17,7 +17,13 @@ import 'viewmodels/survey_controller.dart';
 /// Un appui ouvre la mesure de la mission dans le meme [SurveyController].
 /// La creation ecrit d'abord la mission vide en local, puis ouvre sa mesure.
 class MissionsPage extends StatefulWidget {
-  const MissionsPage({super.key, required this.survey, this.missions});
+  const MissionsPage({
+    super.key,
+    required this.survey,
+    this.missions,
+    this.projectsLoader,
+    this.surveyorId,
+  });
 
   /// Controleur de mesure partage : une seule mission est active a la fois.
   final SurveyController survey;
@@ -25,6 +31,13 @@ class MissionsPage extends StatefulWidget {
   /// ViewModel injecte par les tests. Par defaut, il est construit sur le
   /// depot local du controleur de mesure.
   final MissionsController? missions;
+
+  /// Chantiers du compte connecte (GET /projects) : la mission est creee sur
+  /// un chantier choisi (CA-7). Sans lui, GEOSMART_PROJECT_ID s'applique.
+  final SurveyProjectsLoader? projectsLoader;
+
+  /// Compte connecte, auteur des missions creees.
+  final String? surveyorId;
 
   @override
   State<MissionsPage> createState() => _MissionsPageState();
@@ -39,7 +52,12 @@ class _MissionsPageState extends State<MissionsPage> {
     super.initState();
     _ownsMissions = widget.missions == null;
     _missions =
-        widget.missions ?? MissionsController(store: widget.survey.store);
+        widget.missions ??
+        MissionsController(
+          store: widget.survey.store,
+          projectsLoader: widget.projectsLoader,
+          surveyorIdProvider: () => widget.surveyorId,
+        );
     _missions.addListener(_onMissionsChanged);
     unawaited(_missions.load());
   }
