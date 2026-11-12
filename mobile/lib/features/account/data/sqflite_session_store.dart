@@ -5,11 +5,10 @@ import 'package:sqflite/sqflite.dart';
 import '../domain/entities/account_user.dart';
 import '../domain/repositories/session_store.dart';
 
-/// Session conservee dans la base SQLite locale de l'application, une seule
-/// ligne. Les jetons y sont en clair tant que le stockage sur du systeme
-/// n'est pas disponible dans les dependances de l'application ; le port
-/// SessionStore permet de remplacer cette implementation sans toucher aux
-/// vues. La table est creee ici pour ne pas modifier le schema commun.
+/// Ancienne session conservee en clair dans la base SQLite locale, une seule
+/// ligne. Elle n'est plus utilisee que pour migrer une session existante vers
+/// SecureSessionStore (stockage chiffre), qui l'efface ensuite.
+/// La table est creee ici pour ne pas modifier le schema commun.
 class SqfliteSessionStore implements SessionStore {
   SqfliteSessionStore(this._database);
 
