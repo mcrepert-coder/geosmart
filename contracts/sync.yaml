@@ -40,6 +40,12 @@ info:
         ne definit pas de champ dans la charge utile pour les distinguer. Preciser si les
         points non FIXED sont synchronisables comme points indicatifs et comment le serveur
         identifie un point soumis comme limite fonciere officielle.
+    - id: survey-projects
+      decision: |
+        Les chantiers (EF-109) sont crees par un administrateur ou un geometre actif,
+        qui y assigne des topographes actifs. Le geometre ne gere que ses chantiers.
+        POST /sync refuse (403) les points d'un chantier qui n'est pas assigne au
+        topographe ou qui est clos (CA-7).
     - id: sync-permissions
       question: |
         CA-7 confirme le droit du topographe assigne a ajouter des points au chantier.
@@ -51,6 +57,7 @@ servers:
 
 tags:
   - name: synchronisation
+  - name: chantiers
 
 paths:
   /sync:
@@ -185,7 +192,193 @@ paths:
         '409':
           $ref: '#/components/responses/IdempotencyConflict'
 
+  /projects:
+    post:
+      tags: [chantiers]
+      summary: Creer un chantier de leve (EF-109)
+      security:
+        - bearerAuth: []
+      x-required-roles: [ADMIN, GEOMETRE]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+            example:
+              title: Leve parcelle Adakpame
+      responses:
+        '201':
+          description: Chantier cree, ouvert, sans topographe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [chantiers]
+      summary: Lister les chantiers visibles
+      description: |
+        ADMIN : tous les chantiers. GEOMETRE : ceux qu'il a crees. TOPOGRAPHE : ceux
+        qui lui sont assignes (pour choisir le projectId de ses missions).
+      security:
+        - bearerAuth: []
+      x-required-roles: [ADMIN, GEOMETRE, TOPOGRAPHE]
+      responses:
+        '200':
+          description: Chantiers, du plus recent au plus ancien
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /projects/{projectId}:
+    get:
+      tags: [chantiers]
+      summary: Suivre un chantier (topographes, missions recues)
+      description: Un chantier que le compte ne peut pas voir est renvoye en 404.
+      security:
+        - bearerAuth: []
+      x-required-roles: [ADMIN, GEOMETRE, TOPOGRAPHE]
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Chantier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProjectNotFound'
+
+  /projects/{projectId}/topographers/{accountId}:
+    put:
+      tags: [chantiers]
+      summary: Assigner un topographe au chantier (CA-7)
+      description: |
+        Le compte doit etre un topographe actif. Assigner deux fois ne cree pas de
+        doublon. Un chantier clos refuse toute assignation (409).
+      security:
+        - bearerAuth: []
+      x-required-roles: [ADMIN, GEOMETRE]
+      x-role-condition: Le geometre ne gere que les chantiers qu'il a crees.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: Chantier avec ses topographes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProjectNotFound'
+        '409':
+          description: Chantier clos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: PROJECT_CLOSED
+                message: Le chantier est clos.
+    delete:
+      tags: [chantiers]
+      summary: Retirer un topographe du chantier
+      description: Le topographe retire ne peut plus synchroniser de points sur ce chantier.
+      security:
+        - bearerAuth: []
+      x-required-roles: [ADMIN, GEOMETRE]
+      x-role-condition: Le geometre ne gere que les chantiers qu'il a crees.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: Chantier avec ses topographes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProjectNotFound'
+
+  /projects/{projectId}/close:
+    post:
+      tags: [chantiers]
+      summary: Clore un chantier
+      description: Un chantier clos n'accepte plus de points (POST /sync renvoie 403).
+      security:
+        - bearerAuth: []
+      x-required-roles: [ADMIN, GEOMETRE]
+      x-role-condition: Le geometre ne gere que les chantiers qu'il a crees.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Chantier clos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProjectNotFound'
+
 components:
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      description: Compte du topographe
+      schema:
+        type: string
+        format: uuid
+
   securitySchemes:
     bearerAuth:
       type: http
@@ -193,6 +386,51 @@ components:
       bearerFormat: JWT
 
   schemas:
+    Project:
+      type: object
+      required: [id, title, status, createdBy, createdAt, topographers, missionsCount, pointsCount]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Valeur a utiliser comme projectId dans POST /sync.
+        title:
+          type: string
+        status:
+          type: string
+          enum: [OUVERT, CLOS]
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+        topographers:
+          type: array
+          items:
+            type: object
+            required: [id, assignedAt]
+            properties:
+              id:
+                type: string
+                format: uuid
+              fullName:
+                type: string
+                nullable: true
+              assignedAt:
+                type: string
+                format: date-time
+        missionsCount:
+          type: integer
+          description: Missions (survey_session) recues par POST /sync pour ce chantier.
+        pointsCount:
+          type: integer
+          description: Bornes seules (survey_point) recues pour ce chantier.
+
     SyncItem:
       type: object
       additionalProperties: false
@@ -433,6 +671,24 @@ components:
               description: Motif a conserver localement avec l'element refuse.
 
   responses:
+    Validation:
+      description: Donnees invalides
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: VALIDATION_ERROR
+            message: Le compte a assigner doit etre un topographe actif.
+    ProjectNotFound:
+      description: Chantier introuvable ou non visible pour ce compte
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: NOT_FOUND
+            message: Chantier introuvable.
     InvalidItem:
       description: |
         Element mal forme ou point refuse comme borne officielle, notamment si fixQuality

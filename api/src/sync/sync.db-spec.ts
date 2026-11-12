@@ -9,6 +9,7 @@ import { AuditService } from '../audit/audit.service';
 import type { SqlRunner } from '../audit/sql-runner';
 import { AuthAccounts1793104000000 } from '../auth/migrations/1793104000000-auth-accounts';
 import { SyncItems1793105000000 } from './migrations/1793105000000-sync-items';
+import { SurveyProjects1793108000000 } from './migrations/1793108000000-survey-projects';
 import { SyncService, stableStringify } from './sync.service';
 
 jest.setTimeout(60000);
@@ -20,8 +21,12 @@ const topo: CurrentActorValue = {
   accountActive: true,
 };
 const topo2: CurrentActorValue = { ...topo, id: randomUUID() };
+const geometre = randomUUID();
+// Chantier ouvert assigne a topo et topo2 (CA-7).
+const PROJECT = randomUUID();
+const CLOSED_PROJECT = randomUUID();
 
-function validPayload(projectId = randomUUID()) {
+function validPayload(projectId: string = PROJECT) {
   return {
     projectId,
     pointNumber: 1,
@@ -70,7 +75,7 @@ function sessionPoint(pointNumber: number, overrides = {}) {
 
 function sessionPayload(overrides: Record<string, unknown> = {}) {
   return {
-    projectId: randomUUID(),
+    projectId: PROJECT,
     surveyorId: 'local-surveyor',
     title: 'Leve parcelle Adakpame',
     status: 'COMPLETED',
@@ -120,11 +125,37 @@ describe('SyncService (PostgreSQL)', () => {
     await new AuditLog1793102400000().up(qr);
     await new AuthAccounts1793104000000().up(qr);
     await new SyncItems1793105000000().up(qr);
+    await new SurveyProjects1793108000000().up(qr);
     for (const account of [topo, topo2]) {
       await db.query(
         `INSERT INTO accounts (id, phone, password_hash, status, role)
          VALUES ($1, $2, 'x', 'ACTIF', 'TOPOGRAPHE')`,
         [account.id, `+2289000${account.id.slice(0, 6)}`],
+      );
+    }
+    await db.query(
+      `INSERT INTO accounts (id, phone, password_hash, status, role)
+       VALUES ($1, '+22891000001', 'x', 'ACTIF', 'GEOMETRE')`,
+      [geometre],
+    );
+    await db.query(
+      `INSERT INTO survey_projects (id, title, created_by) VALUES ($1, 'Adakpame', $2)`,
+      [PROJECT, geometre],
+    );
+    await db.query(
+      `INSERT INTO survey_projects (id, title, status, created_by)
+       VALUES ($1, 'Ancien chantier', 'CLOS', $2)`,
+      [CLOSED_PROJECT, geometre],
+    );
+    for (const [project, account] of [
+      [PROJECT, topo.id],
+      [PROJECT, topo2.id],
+      [CLOSED_PROJECT, topo.id],
+    ]) {
+      await db.query(
+        `INSERT INTO survey_project_assignments (project_id, topographe_id, assigned_by)
+         VALUES ($1, $2, $3)`,
+        [project, account, geometre],
       );
     }
     const dataSource = {
@@ -166,7 +197,10 @@ describe('SyncService (PostgreSQL)', () => {
     const clientId = randomUUID();
     await service.processItem(topo, item(validPayload(), clientId));
     await expect(
-      service.processItem(topo, item(validPayload(), clientId)),
+      service.processItem(
+        topo,
+        item({ ...validPayload(), pointNumber: 2 }, clientId),
+      ),
     ).rejects.toMatchObject({
       status: 409,
       response: { code: 'IDEMPOTENCY_CONFLICT' },
@@ -248,6 +282,53 @@ describe('SyncService (PostgreSQL)', () => {
         payload: validPayload(),
       }),
     ).rejects.toMatchObject({ status: 400 });
+  });
+
+  describe('chantier assigne (CA-7)', () => {
+    it('refuse 403 un point sur un chantier non assigne et le journalise', async () => {
+      const before = await countItems();
+      await expect(
+        service.processItem(topo, item(validPayload(randomUUID()))),
+      ).rejects.toMatchObject({
+        status: 403,
+        response: { code: 'FORBIDDEN' },
+      });
+      expect(await countItems()).toBe(before);
+      const audit = await lastAudit();
+      expect(audit.result).toBe('DENIED');
+    });
+
+    it('refuse 403 une mission sur un chantier clos', async () => {
+      await expect(
+        service.processItem(
+          topo,
+          sessionItem(sessionPayload({ projectId: CLOSED_PROJECT })),
+        ),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('refuse 403 un topographe retire du chantier', async () => {
+      const other = randomUUID();
+      await db.query(
+        `INSERT INTO survey_projects (id, title, created_by) VALUES ($1, 'Autre', $2)`,
+        [other, geometre],
+      );
+      await db.query(
+        `INSERT INTO survey_project_assignments (project_id, topographe_id, assigned_by)
+         VALUES ($1, $2, $3)`,
+        [other, topo2.id, geometre],
+      );
+      await expect(
+        service.processItem(topo2, item(validPayload(other))),
+      ).resolves.toMatchObject({ result: 'ACCEPTED' });
+      await db.query(
+        'DELETE FROM survey_project_assignments WHERE project_id = $1',
+        [other],
+      );
+      await expect(
+        service.processItem(topo2, item(validPayload(other))),
+      ).rejects.toMatchObject({ status: 403 });
+    });
   });
 
   describe('mission complete (survey_session)', () => {

@@ -10,6 +10,7 @@ import { type CurrentActorValue } from '../audit/current-actor.decorator';
 import { AuditService } from '../audit/audit.service';
 import { rowsOf } from '../audit/sql-runner';
 import { sha256 } from '../auth/accounts.service';
+import { isAssignedTopographer } from './projects.service';
 
 // Element de la file locale (contracts/sync.yaml, RG-08) : une borne seule
 // (survey_point) ou une mission complete (survey_session).
@@ -198,6 +199,26 @@ export class SyncService {
         pointsCount: points.length,
       };
     }
+    // CA-7 : seulement sur un chantier ouvert assigne au topographe.
+    const projectId = item.payload.projectId as string;
+    if (!(await isAssignedTopographer(this.dataSource, projectId, actor.id))) {
+      const reason =
+        'Le projectId ne correspond pas a un chantier ouvert assigne au topographe.';
+      await this.audit.log({
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: 'SYNC_ITEM',
+        resourceType: entityType,
+        result: 'DENIED',
+        details: { clientId, projectId, reason },
+      });
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: "Le topographe n'est pas assigne a ce chantier.",
+        details: { clientId, reason },
+      });
+    }
+
     if (notFixed) {
       await this.audit.log({
         actorId: actor.id,
