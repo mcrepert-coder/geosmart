@@ -11,23 +11,24 @@ info:
     Le telephone conserve d'abord les donnees dans SQLite ; le serveur n'est contacte
     que par la file locale de synchronisation, via POST /sync.
 
-    Le format SurveyPoint suit l'exemple de contracts/survey.md. Seul entityType
-    survey_point et action CREATE sont decrits ici, car ce sont les seules valeurs
-    illustrees par le contrat Terrain. Les autres entites et actions ne sont pas
-    definies par les documents consultes.
+    Deux entites sont acceptees, toutes deux avec action CREATE :
+    - survey_session : la mission terminee avec toutes ses bornes. C'est le format
+      envoye par le telephone (contracts/survey.md, section 3 ; SurveySession.toSyncPayload) ;
+    - survey_point : une borne seule, conservee pour compatibilite.
+    Les autres entites et actions ne sont pas definies par les documents consultes.
 
     L'authentification utilise le bearer JWT defini dans contracts/auth.yaml. Le role
     est relu en base a chaque requete (RG-06). Pour les points de chantier, le serveur
     doit verifier que le topographe est assigne au chantier concerne (CA-7).
   x-team-decisions:
     - id: batch-format
-      question: |
-        Le contrat Terrain illustre un element unique. Valider si POST /sync accepte
-        un element par requete ou un lot, et definir le format du lot si necessaire.
+      decision: |
+        Un element par requete. L'unite envoyee par le telephone est la mission
+        (survey_session) avec toutes ses bornes ; il n'y a pas d'autre format de lot.
     - id: success-response
-      question: |
-        Le corps de reponse de synchronisation n'est pas defini. Valider s'il faut
-        retourner un accusé par element et en definir le schema.
+      decision: |
+        Le serveur renvoie un accuse par element : SyncReceipt (clientId, result
+        ACCEPTED ou DUPLICATE, id serveur).
     - id: idempotency-conflict
       question: |
         Le renvoi du meme element avec le meme clientId ne doit pas creer de doublon.
@@ -57,12 +58,16 @@ paths:
       tags: [synchronisation]
       summary: Synchroniser un element de la file locale
       description: |
-        Le format illustre dans contracts/survey.md contient un seul element :
-        clientId, entityType, action et payload. Ce contrat ne suppose pas de format
-        par lot.
+        Une requete porte un seul element : clientId, entityType, action et payload.
 
-        Pour entityType survey_point, action CREATE, le role TOPOGRAPHE est autorise
-        pour ajouter le point uniquement au chantier qui lui est assigne (CA-7). Le
+        Pour entityType survey_session, la mission doit etre au statut COMPLETED,
+        avoir au moins trois bornes au clientId et au pointNumber uniques, et toutes
+        ses bornes en fixQuality FIXED. Une seule borne non FIXED rejette la mission
+        entiere ; rien n'est insere partiellement. Les champs facultatifs peuvent
+        valoir null.
+
+        Pour survey_point comme pour survey_session, le role TOPOGRAPHE est autorise
+        pour ajouter des points uniquement au chantier qui lui est assigne (CA-7). Le
         role courant est relu en base pour chaque requete (RG-06).
 
         Le client conserve localement chaque element en attente jusqu'a son acceptation.
@@ -73,9 +78,6 @@ paths:
         Un point non FIXED ne peut pas etre enregistre comme point officiel de limite
         fonciere (RG-01). Le format actuel ne permettant pas de distinguer explicitement
         un point indicatif d'une limite officielle, cette distinction reste a valider.
-
-        La forme du corps de reponse en cas de succes n'est pas definie dans les contrats
-        existants ; le 200 ci-dessous ne specifie donc pas de corps.
       security:
         - bearerAuth: []
       x-required-roles:
@@ -89,29 +91,91 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SyncItem'
-            example:
-              clientId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
-              entityType: survey_point
-              action: CREATE
-              payload:
-                projectId: 8f3b6c2a-9e12-4c56-8a71-3b5e4a2c1d0f
-                pointNumber: 1
-                pointName: B1
-                latitude: 6.137254
-                longitude: 1.212547
-                altitude: 24.35
-                fixQuality: FIXED
-                satellitesCount: 18
-                pdop: 1.2
-                hdop: 0.8
-                vdop: 0.9
-                instrument: UM982
-                recordedAt: '2026-10-25T14:32:00.000Z'
+            examples:
+              mission:
+                summary: Mission terminee (format du telephone)
+                value:
+                  clientId: b7e4c2a1-3f6d-4e89-9a02-5c1d8e7f6a3b
+                  entityType: survey_session
+                  action: CREATE
+                  payload:
+                    projectId: 8f3b6c2a-9e12-4c56-8a71-3b5e4a2c1d0f
+                    surveyorId: 2d9a4c7e-1b3f-4a8d-9c6e-7f2b5a1d0c8e
+                    title: Leve parcelle Adakpame
+                    status: COMPLETED
+                    perimeterMeters: 128.4
+                    areaSquareMeters: 1024.0
+                    createdAt: '2026-10-28T08:15:00.000Z'
+                    completedAt: '2026-10-28T09:42:00.000Z'
+                    points:
+                      - clientId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+                        pointNumber: 1
+                        pointName: B1
+                        latitude: 6.137254
+                        longitude: 1.212547
+                        altitude: 24.35
+                        accuracy: 0.012
+                        fixQuality: FIXED
+                        satellitesCount: 18
+                        pdop: 1.2
+                        hdop: 0.8
+                        vdop: 0.9
+                        instrument: UM982
+                        recordedAt: '2026-10-28T08:20:00.000Z'
+                        isValidated: true
+                      - clientId: c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f
+                        pointNumber: 2
+                        latitude: 6.137312
+                        longitude: 1.212611
+                        altitude: 24.41
+                        fixQuality: FIXED
+                        satellitesCount: 19
+                        pdop: 1.1
+                        instrument: UM982
+                        recordedAt: '2026-10-28T08:32:00.000Z'
+                      - clientId: d3e4f5a6-b7c8-4d9e-8f0a-2b3c4d5e6f7a
+                        pointNumber: 3
+                        latitude: 6.137268
+                        longitude: 1.212689
+                        altitude: 24.37
+                        fixQuality: FIXED
+                        satellitesCount: 18
+                        pdop: 1.2
+                        instrument: UM982
+                        recordedAt: '2026-10-28T08:44:00.000Z'
+              borne:
+                summary: Borne seule
+                value:
+                  clientId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+                  entityType: survey_point
+                  action: CREATE
+                  payload:
+                    projectId: 8f3b6c2a-9e12-4c56-8a71-3b5e4a2c1d0f
+                    pointNumber: 1
+                    pointName: B1
+                    latitude: 6.137254
+                    longitude: 1.212547
+                    altitude: 24.35
+                    fixQuality: FIXED
+                    satellitesCount: 18
+                    pdop: 1.2
+                    hdop: 0.8
+                    vdop: 0.9
+                    instrument: UM982
+                    recordedAt: '2026-10-25T14:32:00.000Z'
       responses:
         '200':
           description: |
-            Element traite ou renvoi idempotent sans creation de doublon. Le corps de
-            reponse, s'il existe, reste a definir par l'equipe.
+            Element accepte (ACCEPTED) ou renvoi idempotent sans creation de doublon
+            (DUPLICATE, meme id que le premier envoi).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncReceipt'
+              example:
+                clientId: b7e4c2a1-3f6d-4e89-9a02-5c1d8e7f6a3b
+                result: ACCEPTED
+                id: 5e0c8a14-2f7b-4d3a-9b61-0c4e7d2a9f18
         '400':
           $ref: '#/components/responses/InvalidItem'
         '401':
@@ -140,16 +204,147 @@ components:
           description: Identifiant unique de l'element dans la file locale (RG-08).
         entityType:
           type: string
-          enum: [survey_point]
+          enum: [survey_session, survey_point]
           description: |
-            Seul survey_point est documente dans contracts/survey.md. Les autres types
-            ne sont pas specules par ce contrat.
+            survey_session pour une mission complete (format du telephone),
+            survey_point pour une borne seule.
         action:
           type: string
           enum: [CREATE]
           description: CREATE est la seule action montree par l'exemple Terrain.
         payload:
-          $ref: '#/components/schemas/SurveyPointPayload'
+          description: SurveySessionPayload pour survey_session, SurveyPointPayload pour survey_point.
+          oneOf:
+            - $ref: '#/components/schemas/SurveySessionPayload'
+            - $ref: '#/components/schemas/SurveyPointPayload'
+
+    SyncReceipt:
+      type: object
+      required: [clientId, result, id]
+      properties:
+        clientId:
+          type: string
+          format: uuid
+        result:
+          type: string
+          enum: [ACCEPTED, DUPLICATE]
+        id:
+          type: string
+          format: uuid
+          description: Identifiant serveur de l'element accepte.
+
+    SurveySessionPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - projectId
+        - status
+        - perimeterMeters
+        - areaSquareMeters
+        - createdAt
+        - completedAt
+        - points
+      properties:
+        projectId:
+          type: string
+          format: uuid
+          description: Identifiant du chantier assigne.
+        surveyorId:
+          type: string
+          nullable: true
+          description: |
+            Identifiant du topographe cote telephone. Le serveur retient le compte
+            connecte comme auteur de l'envoi.
+        title:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [COMPLETED]
+          description: Seule une mission terminee est synchronisable.
+        perimeterMeters:
+          type: number
+          minimum: 0
+          description: Perimetre calcule en UTM 31N.
+        areaSquareMeters:
+          type: number
+          minimum: 0
+          description: Surface calculee en UTM 31N.
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        points:
+          type: array
+          minItems: 3
+          description: Bornes ordonnees, clientId et pointNumber uniques, toutes FIXED.
+          items:
+            $ref: '#/components/schemas/SessionPoint'
+
+    SessionPoint:
+      type: object
+      additionalProperties: false
+      required:
+        - clientId
+        - pointNumber
+        - latitude
+        - longitude
+        - altitude
+        - fixQuality
+        - satellitesCount
+        - pdop
+        - instrument
+        - recordedAt
+      description: |
+        Borne d'une mission : memes champs que SurveyPointPayload, sans projectId
+        (celui de la mission s'applique), avec son propre clientId. Les champs
+        facultatifs peuvent valoir null.
+      properties:
+        clientId:
+          type: string
+          format: uuid
+        pointNumber:
+          type: integer
+          minimum: 1
+        pointName:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+        altitude:
+          type: number
+        accuracy:
+          type: number
+          nullable: true
+        fixQuality:
+          type: string
+          enum: [FIXED, FLOAT, AUTONOME, INVALIDE]
+        satellitesCount:
+          type: integer
+        pdop:
+          type: number
+        hdop:
+          type: number
+          nullable: true
+        vdop:
+          type: number
+          nullable: true
+        instrument:
+          type: string
+        recordedAt:
+          type: string
+          format: date-time
+        isValidated:
+          type: boolean
+          nullable: true
 
     SurveyPointPayload:
       type: object

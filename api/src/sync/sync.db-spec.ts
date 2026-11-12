@@ -39,8 +39,55 @@ function validPayload(projectId = randomUUID()) {
   };
 }
 
-function item(payload: Record<string, unknown>, clientId = randomUUID()) {
+function item(
+  payload: Record<string, unknown>,
+  clientId: string = randomUUID(),
+) {
   return { clientId, entityType: 'survey_point', action: 'CREATE', payload };
+}
+
+// Mission telle que l'envoie SurveySession.toSyncPayload() (contracts/survey.md).
+function sessionPoint(pointNumber: number, overrides = {}) {
+  return {
+    clientId: randomUUID(),
+    pointNumber,
+    pointName: `B${pointNumber}`,
+    latitude: 6.137254 + pointNumber * 0.00005,
+    longitude: 1.212547 + pointNumber * 0.00005,
+    altitude: 24.35,
+    accuracy: 0.012,
+    fixQuality: 'FIXED',
+    satellitesCount: 18,
+    pdop: 1.2,
+    hdop: null,
+    vdop: null,
+    instrument: 'UM982',
+    recordedAt: '2026-10-28T08:20:00.000Z',
+    isValidated: true,
+    ...overrides,
+  };
+}
+
+function sessionPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    projectId: randomUUID(),
+    surveyorId: 'local-surveyor',
+    title: 'Leve parcelle Adakpame',
+    status: 'COMPLETED',
+    perimeterMeters: 128.4,
+    areaSquareMeters: 1024.0,
+    createdAt: '2026-10-28T08:15:00.000Z',
+    completedAt: '2026-10-28T09:42:00.000Z',
+    points: [sessionPoint(1), sessionPoint(2), sessionPoint(3)],
+    ...overrides,
+  };
+}
+
+function sessionItem(
+  payload: Record<string, unknown>,
+  clientId: string = randomUUID(),
+) {
+  return { clientId, entityType: 'survey_session', action: 'CREATE', payload };
 }
 
 describe('SyncService (PostgreSQL)', () => {
@@ -201,6 +248,98 @@ describe('SyncService (PostgreSQL)', () => {
         payload: validPayload(),
       }),
     ).rejects.toMatchObject({ status: 400 });
+  });
+
+  describe('mission complete (survey_session)', () => {
+    it('accepte une mission terminee avec ses bornes (EF-405)', async () => {
+      const before = await countItems();
+      const receipt = await service.processItem(
+        topo,
+        sessionItem(sessionPayload()),
+      );
+      expect(receipt.result).toBe('ACCEPTED');
+      expect(await countItems()).toBe(before + 1);
+      const { rows } = await db.query<{
+        entity_type: string;
+        payload: { points: unknown[] };
+      }>('SELECT entity_type, payload FROM sync_items WHERE id = $1', [
+        receipt.id,
+      ]);
+      expect(rows[0].entity_type).toBe('survey_session');
+      expect(rows[0].payload.points).toHaveLength(3);
+      const audit = await lastAudit();
+      expect(audit.result).toBe('SUCCESS');
+      expect(audit.details.pointsCount).toBe(3);
+    });
+
+    it('renvoyer la meme mission ne cree pas de doublon (CA-3, RG-08)', async () => {
+      const payload = sessionPayload();
+      const first = await service.processItem(topo, sessionItem(payload));
+      const before = await countItems();
+      const resend = await service.processItem(
+        topo,
+        sessionItem(payload, first.clientId),
+      );
+      expect(resend).toEqual({ ...first, result: 'DUPLICATE' });
+      expect(await countItems()).toBe(before);
+    });
+
+    it('rejette la mission entiere si une borne n est pas FIXED (RG-01)', async () => {
+      const before = await countItems();
+      const payload = sessionPayload({
+        points: [
+          sessionPoint(1),
+          sessionPoint(2, { fixQuality: 'FLOAT', isValidated: false }),
+          sessionPoint(3),
+        ],
+      });
+      await expect(
+        service.processItem(topo, sessionItem(payload)),
+      ).rejects.toMatchObject({
+        status: 400,
+        response: { code: 'VALIDATION_ERROR' },
+      });
+      expect(await countItems()).toBe(before);
+      expect((await lastAudit()).result).toBe('REJECTED');
+    });
+
+    it.each([
+      ['un statut autre que COMPLETED', { status: 'IN_PROGRESS' }],
+      ['moins de trois bornes', { points: [sessionPoint(1), sessionPoint(2)] }],
+      ['un projectId invalide', { projectId: 'demo-project' }],
+      ['une surface absente', { areaSquareMeters: undefined }],
+      ['un champ non admis', { commentaire: 'x' }],
+      [
+        'deux bornes avec le meme numero',
+        { points: [sessionPoint(1), sessionPoint(1), sessionPoint(2)] },
+      ],
+      [
+        'une borne sans clientId',
+        {
+          points: [
+            sessionPoint(1),
+            sessionPoint(2),
+            sessionPoint(3, { clientId: undefined }),
+          ],
+        },
+      ],
+    ])('refuse 400 %s', async (_label, overrides) => {
+      await expect(
+        service.processItem(topo, sessionItem(sessionPayload(overrides))),
+      ).rejects.toMatchObject({
+        status: 400,
+        response: { code: 'VALIDATION_ERROR' },
+      });
+    });
+
+    it('refuse 403 une mission envoyee par un geometre', async () => {
+      await expect(
+        service.processItem(
+          { ...topo, role: 'GEOMETRE' },
+          sessionItem(sessionPayload()),
+        ),
+      ).rejects.toMatchObject({ status: 403, response: { code: 'FORBIDDEN' } });
+    });
   });
 
   it('hache le payload de facon stable quel que soit lordre des cles', () => {
