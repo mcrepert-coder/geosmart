@@ -16,6 +16,8 @@ import {
   timingSafeEqual,
 } from 'node:crypto';
 import { DataSource } from 'typeorm';
+import { type AuditResult } from '../audit/audit-chain';
+import { AuditService } from '../audit/audit.service';
 import { rowsOf, type SqlRunner } from '../audit/sql-runner';
 import { type Role } from './roles';
 import { SMS_SENDER, type SmsSender } from './sms.sender';
@@ -140,7 +142,27 @@ export class AccountsService {
     private readonly dataSource: DataSource,
     private readonly jwt: JwtService,
     @Inject(SMS_SENDER) private readonly sms: SmsSender,
+    private readonly audit: AuditService,
   ) {}
+
+  // RG-10 : inscriptions, verifications et connexions sont journalisees.
+  // Le numero de telephone n'est jamais ecrit dans le journal.
+  private async logAccount(
+    action: string,
+    result: AuditResult,
+    account: Pick<AccountRow, 'id' | 'role'> | undefined,
+    details?: Record<string, unknown>,
+  ): Promise<void> {
+    await this.audit.log({
+      actorId: account?.id ?? null,
+      actorRole: account?.role ?? null,
+      action,
+      resourceType: 'account',
+      resourceId: account?.id ?? null,
+      result,
+      details,
+    });
+  }
 
   private accessTtlSeconds(): number {
     const ttl = Number(process.env.JWT_ACCESS_TTL_SECONDS ?? 3600);
@@ -198,6 +220,7 @@ export class AccountsService {
     );
     await this.issueVerificationCode(phone);
     const row = await this.findById(id);
+    await this.logAccount('ACCOUNT_REGISTER', 'SUCCESS', row);
     return toAccountView(row!);
   }
 
@@ -245,6 +268,9 @@ export class AccountsService {
       new Date(stored.expires_at).getTime() < Date.now() ||
       stored.attempts >= MAX_CODE_ATTEMPTS
     ) {
+      await this.logAccount('PHONE_VERIFY', 'REJECTED', account, {
+        reason: 'Code expire ou trop de tentatives.',
+      });
       throw validation(
         'Le code est expire ou trop de tentatives ont ete faites.',
       );
@@ -254,6 +280,9 @@ export class AccountsService {
         'UPDATE phone_verification_codes SET attempts = attempts + 1 WHERE phone = $1',
         [phone],
       );
+      await this.logAccount('PHONE_VERIFY', 'REJECTED', account, {
+        reason: 'Code invalide.',
+      });
       throw validation('Le code est invalide.');
     }
     await this.dataSource.query(
@@ -264,6 +293,7 @@ export class AccountsService {
       `UPDATE accounts SET status = 'EN_ATTENTE', updated_at = now() WHERE id = $1`,
       [account.id],
     );
+    await this.logAccount('PHONE_VERIFY', 'SUCCESS', account);
     return toAccountView((await this.findById(account.id))!);
   }
 
@@ -281,7 +311,15 @@ export class AccountsService {
     const phone = normalizePhone(input.phone);
     const account = await this.findByPhone(phone);
     if (!account) {
+      await this.logAccount('LOGIN', 'REJECTED', undefined, {
+        reason: 'Compte inconnu.',
+      });
       throw unauthorized();
+    }
+    if (this.isLocked(account)) {
+      await this.logAccount('LOGIN', 'DENIED', account, {
+        reason: 'Connexion temporairement bloquee.',
+      });
     }
     this.assertNotLocked(account);
     const passwordOk = await bcrypt.compare(
@@ -290,6 +328,9 @@ export class AccountsService {
     );
     if (!passwordOk) {
       await this.registerFailedAttempt(account);
+      await this.logAccount('LOGIN', 'REJECTED', account, {
+        reason: 'Mot de passe invalide.',
+      });
       throw unauthorized();
     }
     await this.dataSource.query(
@@ -297,6 +338,10 @@ export class AccountsService {
       [account.id],
     );
     if (account.status !== 'ACTIF') {
+      await this.logAccount('LOGIN', 'DENIED', account, {
+        reason: 'Compte non actif.',
+        status: account.status,
+      });
       throw new ForbiddenException({
         code: 'ACCOUNT_NOT_ACTIVE',
         message: this.notActiveMessage(account.status),
@@ -306,6 +351,7 @@ export class AccountsService {
             : undefined,
       });
     }
+    await this.logAccount('LOGIN', 'SUCCESS', account);
     return this.issueTokens(account.id);
   }
 
@@ -324,17 +370,21 @@ export class AccountsService {
     }
   }
 
-  private assertNotLocked(account: AccountRow): void {
-    if (
-      account.locked_until &&
+  private isLocked(account: AccountRow): boolean {
+    return (
+      account.locked_until !== null &&
       new Date(account.locked_until).getTime() > Date.now()
-    ) {
+    );
+  }
+
+  private assertNotLocked(account: AccountRow): void {
+    if (this.isLocked(account)) {
       throw new HttpException(
         {
           code: 'LOGIN_TEMPORARILY_BLOCKED',
           message: 'Connexion temporairement bloquee.',
           details: {
-            lockedUntil: new Date(account.locked_until).toISOString(),
+            lockedUntil: new Date(account.locked_until!).toISOString(),
           },
         },
         423,
@@ -350,6 +400,10 @@ export class AccountsService {
         'UPDATE accounts SET failed_login_attempts = 0, locked_until = $1, updated_at = now() WHERE id = $2',
         [lockedUntil.toISOString(), account.id],
       );
+      await this.logAccount('LOGIN_BLOCKED', 'DENIED', account, {
+        reason: 'Cinq echecs de connexion.',
+        lockedUntil: lockedUntil.toISOString(),
+      });
       throw new HttpException(
         {
           code: 'LOGIN_TEMPORARILY_BLOCKED',

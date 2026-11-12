@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
+import { AuditService } from '../audit/audit.service';
 import { type CurrentActorValue } from '../audit/current-actor.decorator';
 import { sha256 } from '../auth/accounts.service';
 import { rowsOf } from '../audit/sql-runner';
@@ -102,7 +103,10 @@ function decodeImage(value: unknown, field: string): Buffer {
 
 @Injectable()
 export class InspectionsService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly audit: AuditService,
+  ) {}
 
   async create(
     actor: CurrentActorValue,
@@ -201,6 +205,22 @@ export class InspectionsService {
             [randomUUID(), id, photo.takenAt, photo.data.length, photo.data],
           );
         }
+        await this.audit.log(
+          {
+            actorId: actor.id,
+            actorRole: actor.role,
+            action: 'INSPECTION_CREATE',
+            resourceType: 'lease',
+            resourceId: leaseId,
+            result: 'SUCCESS',
+            details: {
+              inspectionId: id,
+              kind: input.kind,
+              photos: decodedPhotos.length,
+            },
+          },
+          tx,
+        );
       });
     } catch (error) {
       if (!this.isUniqueViolation(error)) {
