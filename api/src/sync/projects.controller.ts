@@ -35,6 +35,13 @@ export class ProjectsController {
     return this.projects.list(actor);
   }
 
+  // Declaree avant :projectId pour ne pas etre lue comme un identifiant.
+  @Get('topographers')
+  @Roles('ADMIN', 'GEOMETRE')
+  topographers(@CurrentActor() actor: CurrentActorValue) {
+    return this.projects.listTopographers(actor);
+  }
+
   @Get(':projectId')
   @Roles('ADMIN', 'GEOMETRE', 'TOPOGRAPHE')
   get(

@@ -238,6 +238,15 @@ describe('ProjectsService (PostgreSQL) : chantiers EF-109 et CA-7', () => {
     });
   });
 
+  it('liste les topographes actifs a assigner, sans telephone', async () => {
+    const list = await projects.listTopographers(geometre);
+    expect(list.map((t) => t.id).sort()).toEqual([topo.id, topo2.id].sort());
+    expect(JSON.stringify(list)).not.toContain('+228');
+    await expect(projects.listTopographers(topo)).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
   it('chacun ne voit que ses chantiers', async () => {
     const mine = await projects.create(geometre2, { title: 'Totsi' });
     await projects.assign(geometre2, mine.id, topo2.id);

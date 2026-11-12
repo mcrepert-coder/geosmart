@@ -145,6 +145,22 @@ export class ProjectsService {
     return this.view(await this.findRow(id));
   }
 
+  // Topographes actifs que l'administrateur ou le geometre peut assigner.
+  // Identifiant et nom seulement : le telephone n'est jamais expose.
+  async listTopographers(
+    actor: CurrentActorValue,
+  ): Promise<{ id: string; fullName: string | null }[]> {
+    this.assertManagerRole(actor);
+    const rows = rowsOf<{ id: string; full_name: string | null }>(
+      await this.dataSource.query(
+        `SELECT id, full_name FROM accounts
+          WHERE role = 'TOPOGRAPHE' AND status = 'ACTIF'
+          ORDER BY full_name NULLS LAST, id`,
+      ),
+    );
+    return rows.map((r) => ({ id: r.id, fullName: r.full_name }));
+  }
+
   // ADMIN : tous ; GEOMETRE : ceux qu'il a crees ; TOPOGRAPHE : ses chantiers.
   async list(actor: CurrentActorValue): Promise<ProjectView[]> {
     if (actor.accountActive !== true) throw forbidden();
