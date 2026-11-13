@@ -4,6 +4,7 @@ import '../../../../app/runtime_config.dart';
 import '../../domain/entities/survey_project.dart';
 import '../../domain/entities/survey_session.dart';
 import '../../domain/repositories/survey_session_store.dart';
+import '../../domain/services/uuid_v4.dart';
 
 /// Charge les chantiers du compte connecte (GET /projects).
 typedef SurveyProjectsLoader = Future<List<SurveyProject>> Function();
@@ -80,12 +81,8 @@ class MissionsController extends ChangeNotifier {
   String? _error;
   bool _disposed = false;
 
-  static int _idCounter = 0;
-
-  static String _defaultId() {
-    _idCounter++;
-    return '${DateTime.now().toUtc().microsecondsSinceEpoch}-$_idCounter';
-  }
+  // UUID v4 : POST /sync refuse un clientId qui n'est pas un UUID (RG-08).
+  static String _defaultId() => uuidV4();
 
   List<SurveySession> get missions => List.unmodifiable(_missions);
 
