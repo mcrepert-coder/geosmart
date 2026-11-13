@@ -5,6 +5,7 @@ import '../features/account/presentation/verification_page.dart';
 import '../features/account/presentation/viewmodels/auth_controller.dart';
 import '../features/gnss/presentation/home_shell.dart';
 import '../features/gnss/presentation/viewmodels/missions_controller.dart';
+import '../features/gnss/presentation/viewmodels/projects_admin_controller.dart';
 import '../features/gnss/presentation/viewmodels/survey_controller.dart';
 import '../features/gnss/presentation/viewmodels/theme_controller.dart';
 import '../features/leasing/data/leasing_api.dart';
@@ -29,6 +30,7 @@ class GeoSmartApp extends StatefulWidget {
     this.syncController,
     this.parcelLoader,
     this.projectsLoader,
+    this.projectsAdmin,
   }) : assert(
          auth == null || (leasingApi != null && syncController != null),
          'LeasingApi and SyncController are required when auth is enabled.',
@@ -44,6 +46,9 @@ class GeoSmartApp extends StatefulWidget {
 
   /// Chantiers du topographe connecte (GET /projects, CA-7), facultatif.
   final SurveyProjectsLoader? projectsLoader;
+
+  /// Gestion des chantiers par le geometre (EF-109), facultative.
+  final ProjectsAdminGateway? projectsAdmin;
 
   /// Controleur de theme injecte par les tests. Par defaut, l'application en
   /// cree un sur le theme clair.
@@ -106,6 +111,7 @@ class _GeoSmartAppState extends State<GeoSmartApp> {
           syncController: widget.syncController!,
           parcelLoader: widget.parcelLoader,
           projectsLoader: widget.projectsLoader,
+          projectsAdmin: widget.projectsAdmin,
         ),
       },
     );

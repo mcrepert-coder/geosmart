@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../features/account/domain/entities/account_user.dart';
 import '../features/account/domain/role_navigation.dart';
 import '../features/account/presentation/account_page.dart';
 import '../features/account/presentation/viewmodels/auth_controller.dart';
 import '../features/gnss/presentation/settings_page.dart';
 import '../features/gnss/presentation/missions_page.dart';
 import '../features/gnss/presentation/viewmodels/missions_controller.dart';
+import '../features/gnss/presentation/viewmodels/projects_admin_controller.dart';
 import '../features/gnss/presentation/viewmodels/survey_controller.dart';
 import '../features/gnss/presentation/viewmodels/theme_controller.dart';
 import '../features/leasing/data/leasing_api.dart';
@@ -26,6 +28,7 @@ class AuthenticatedHomeShell extends StatefulWidget {
     required this.syncController,
     this.parcelLoader,
     this.projectsLoader,
+    this.projectsAdmin,
   });
 
   final SurveyController survey;
@@ -40,6 +43,9 @@ class AuthenticatedHomeShell extends StatefulWidget {
 
   /// Chantiers du topographe connecte (GET /projects, CA-7).
   final SurveyProjectsLoader? projectsLoader;
+
+  /// Gestion des chantiers, proposee au geometre (EF-109).
+  final ProjectsAdminGateway? projectsAdmin;
 
   @override
   State<AuthenticatedHomeShell> createState() => _AuthenticatedHomeShellState();
@@ -101,6 +107,9 @@ class _AuthenticatedHomeShellState extends State<AuthenticatedHomeShell> {
       survey: widget.survey,
       projectsLoader: widget.projectsLoader,
       surveyorId: widget.auth.user?.id,
+      projectsAdmin: widget.auth.user?.role == AccountRole.geometre
+          ? widget.projectsAdmin
+          : null,
     ),
     AccountAction.sync => SyncPage(controller: widget.syncController),
     AccountAction.map =>

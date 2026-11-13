@@ -13,6 +13,7 @@ import 'features/gnss/data/datasources/native_gnss_source.dart';
 import 'features/gnss/data/datasources/simulated_gnss_source.dart';
 import 'features/gnss/data/datasources/survey_session_local_data_source.dart';
 import 'features/gnss/data/survey_projects_api.dart';
+import 'features/gnss/presentation/viewmodels/projects_admin_controller.dart';
 import 'features/gnss/domain/entities/survey_session.dart';
 import 'features/gnss/domain/repositories/gnss_position_source.dart';
 import 'features/gnss/presentation/viewmodels/survey_controller.dart';
@@ -98,6 +99,7 @@ Future<void> main() async {
       syncController: syncController,
       parcelLoader: loadParcels,
       projectsLoader: projectsApi.list,
+      projectsAdmin: ApiProjectsAdminGateway(projectsApi),
     ),
   );
   unawaited(controller.start());

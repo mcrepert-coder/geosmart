@@ -8,8 +8,10 @@ import '../domain/entities/survey_session.dart';
 import '../domain/entities/survey_session_status.dart';
 import 'gnss_page.dart';
 import 'new_mission_page.dart';
+import 'projects_admin_page.dart';
 import 'trash_page.dart';
 import 'viewmodels/missions_controller.dart';
+import 'viewmodels/projects_admin_controller.dart';
 import 'viewmodels/survey_controller.dart';
 
 /// Liste des missions locales sous forme de mosaique de cartes carrees.
@@ -23,6 +25,7 @@ class MissionsPage extends StatefulWidget {
     this.missions,
     this.projectsLoader,
     this.surveyorId,
+    this.projectsAdmin,
   });
 
   /// Controleur de mesure partage : une seule mission est active a la fois.
@@ -38,6 +41,9 @@ class MissionsPage extends StatefulWidget {
 
   /// Compte connecte, auteur des missions creees.
   final String? surveyorId;
+
+  /// Gestion des chantiers (geometre) : affiche le bouton Chantiers.
+  final ProjectsAdminGateway? projectsAdmin;
 
   @override
   State<MissionsPage> createState() => _MissionsPageState();
@@ -71,6 +77,16 @@ class _MissionsPageState extends State<MissionsPage> {
 
   void _onMissionsChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _openProjects() async {
+    final controller = ProjectsAdminController(gateway: widget.projectsAdmin!);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProjectsAdminPage(controller: controller),
+      ),
+    );
+    controller.dispose();
   }
 
   void _showToast(String message) {
@@ -183,6 +199,13 @@ class _MissionsPageState extends State<MissionsPage> {
           ],
         ),
         actions: [
+          if (widget.projectsAdmin != null)
+            IconButton(
+              key: const Key('open-projects-button'),
+              tooltip: 'Chantiers',
+              onPressed: _openProjects,
+              icon: const Icon(Icons.engineering_outlined),
+            ),
           IconButton(
             key: const Key('open-trash-button'),
             tooltip: 'Corbeille',
