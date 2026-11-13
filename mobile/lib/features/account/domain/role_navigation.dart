@@ -9,6 +9,10 @@ enum AccountAction {
   /// Ecran de synchronisation hors ligne (EF-405).
   sync,
 
+  /// Carte des parcelles coloree par statut (EF-406) : tous les roles,
+  /// comme GET /parcels.
+  map,
+
   /// Demandes de visite d'un bien (EF-305) : client et agent.
   visits,
 
@@ -29,26 +33,31 @@ List<AccountAction> actionsForRole(AccountRole role, {bool accountActive = true}
   return switch (role) {
     AccountRole.admin => const [
       AccountAction.admin,
+      AccountAction.map,
       AccountAction.sync,
       AccountAction.account,
     ],
     AccountRole.geometre => const [
       AccountAction.survey,
+      AccountAction.map,
       AccountAction.sync,
       AccountAction.account,
     ],
     AccountRole.topographe => const [
       AccountAction.survey,
+      AccountAction.map,
       AccountAction.sync,
       AccountAction.account,
     ],
     AccountRole.agent => const [
       AccountAction.visits,
       AccountAction.leasing,
+      AccountAction.map,
       AccountAction.account,
     ],
     AccountRole.client => const [
       AccountAction.visits,
+      AccountAction.map,
       AccountAction.account,
     ],
   };

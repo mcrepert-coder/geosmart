@@ -22,11 +22,36 @@ class _NewMissionPageState extends State<NewMissionPage> {
   final _title = TextEditingController();
   bool _submitting = false;
   String? _error;
+  String? _projectId;
+
+  MissionsController get _missions => widget.missions;
+
+  @override
+  void initState() {
+    super.initState();
+    _missions.addListener(_onMissionsChanged);
+    if (_missions.choosesProject) _loadProjects();
+  }
 
   @override
   void dispose() {
+    _missions.removeListener(_onMissionsChanged);
     _title.dispose();
     super.dispose();
+  }
+
+  void _onMissionsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadProjects() async {
+    await _missions.loadProjects();
+    if (!mounted) return;
+    // Un seul chantier : il est choisi d'office.
+    final projects = _missions.projects;
+    if (_projectId == null && projects.length == 1) {
+      setState(() => _projectId = projects.single.id);
+    }
   }
 
   Future<void> _submit() async {
@@ -36,13 +61,20 @@ class _NewMissionPageState extends State<NewMissionPage> {
       setState(() => _error = 'Le nom de la mission est obligatoire.');
       return;
     }
+    if (_missions.choosesProject && _projectId == null) {
+      setState(() => _error = 'Choisissez le chantier de la mission.');
+      return;
+    }
 
     setState(() {
       _submitting = true;
       _error = null;
     });
 
-    final session = await widget.missions.createMission(title: title);
+    final session = await widget.missions.createMission(
+      title: title,
+      projectId: _projectId,
+    );
     if (!mounted) return;
     if (session == null) {
       setState(() {
@@ -132,6 +164,19 @@ class _NewMissionPageState extends State<NewMissionPage> {
                 ],
               ),
             ),
+            if (_missions.choosesProject) ...[
+              const SizedBox(height: GeoSmartDimens.space3),
+              _ProjectPicker(
+                missions: _missions,
+                selected: _projectId,
+                enabled: !_submitting,
+                onSelected: (id) => setState(() {
+                  _projectId = id;
+                  _error = null;
+                }),
+                onRetry: _loadProjects,
+              ),
+            ],
             const SizedBox(height: GeoSmartDimens.space3),
             Container(
               padding: const EdgeInsets.all(GeoSmartDimens.space3),
@@ -146,7 +191,9 @@ class _NewMissionPageState extends State<NewMissionPage> {
                   const SizedBox(width: GeoSmartDimens.space2),
                   Expanded(
                     child: Text(
-                      demoModeEnabled
+                      _missions.choosesProject
+                          ? 'La mission sera rattachee au chantier choisi et enregistree sur l appareil avant son envoi. Seuls vos chantiers ouverts sont proposes.'
+                          : demoModeEnabled
                           ? 'La mission sera associee au chantier de demonstration et enregistree sur l appareil avant son envoi.'
                           : 'Configurez GEOSMART_PROJECT_ID et GEOSMART_SURVEYOR_ID pour creer une mission. Elle sera enregistree sur l appareil avant son envoi.',
                       style: GeoSmartText.body.copyWith(color: colors.text),
@@ -190,6 +237,97 @@ class _NewMissionPageState extends State<NewMissionPage> {
                     : const Text('Creer la mission'),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Choix du chantier parmi ceux assignes au topographe (CA-7).
+class _ProjectPicker extends StatelessWidget {
+  const _ProjectPicker({
+    required this.missions,
+    required this.selected,
+    required this.enabled,
+    required this.onSelected,
+    required this.onRetry,
+  });
+
+  final MissionsController missions;
+  final String? selected;
+  final bool enabled;
+  final ValueChanged<String> onSelected;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = GeoSmartColors.of(context);
+    final Widget content;
+    if (missions.projectsLoading) {
+      content = const Padding(
+        padding: EdgeInsets.all(GeoSmartDimens.space3),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    } else if (missions.projectsError != null) {
+      content = Row(
+        children: [
+          Expanded(
+            child: Text(
+              missions.projectsError!,
+              style: GeoSmartText.body.copyWith(color: colors.danger),
+            ),
+          ),
+          TextButton(onPressed: onRetry, child: const Text('Reessayer')),
+        ],
+      );
+    } else if (missions.projects.isEmpty) {
+      content = Text(
+        'Aucun chantier ouvert ne vous est assigne. Demandez au geometre de vous assigner a un chantier.',
+        style: GeoSmartText.body.copyWith(color: colors.textMuted),
+      );
+    } else {
+      content = RadioGroup<String>(
+        groupValue: selected,
+        onChanged: (id) {
+          if (enabled && id != null) onSelected(id);
+        },
+        child: Column(
+          children: [
+            for (final project in missions.projects)
+              RadioListTile<String>(
+                key: ValueKey('chantier-${project.id}'),
+                value: project.id,
+                enabled: enabled,
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  project.title,
+                  style: GeoSmartText.body.copyWith(color: colors.text),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+    // Material plutot qu'une boite coloree : les RadioListTile y dessinent
+    // leur fond et leurs effets.
+    return Material(
+      color: colors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(GeoSmartDimens.radiusLg),
+        side: BorderSide(color: colors.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(GeoSmartDimens.space4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Chantier',
+              style: GeoSmartText.label.copyWith(color: colors.text),
+            ),
+            const SizedBox(height: GeoSmartDimens.space2),
+            content,
           ],
         ),
       ),
