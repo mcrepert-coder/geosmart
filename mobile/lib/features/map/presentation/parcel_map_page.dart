@@ -20,6 +20,8 @@ class ParcelMapPage extends StatefulWidget {
     this.initialCenter = const LatLng(6.1375, 1.2123), // Lome
     this.initialZoom = 15,
     this.tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    this.onOpenParcel,
+    this.onVerify,
   });
 
   final ParcelMapController controller;
@@ -28,6 +30,12 @@ class ParcelMapPage extends StatefulWidget {
 
   /// Fond de carte ; null pour ne pas charger de tuiles (tests).
   final String? tileUrl;
+
+  /// Ouvre la fiche de la parcelle choisie (module foncier).
+  final void Function(MapParcel parcel)? onOpenParcel;
+
+  /// Ouvre la verification d'une parcelle par son identifiant (EF-206).
+  final VoidCallback? onVerify;
 
   @override
   State<ParcelMapPage> createState() => _ParcelMapPageState();
@@ -73,7 +81,17 @@ class _ParcelMapPageState extends State<ParcelMapPage> {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      appBar: AppBar(title: const Text('Carte des parcelles')),
+      appBar: AppBar(
+        title: const Text('Carte des parcelles'),
+        actions: [
+          if (widget.onVerify != null)
+            IconButton(
+              tooltip: 'Verifier une parcelle',
+              icon: const Icon(Icons.fact_check_outlined),
+              onPressed: widget.onVerify,
+            ),
+        ],
+      ),
       body: ListenableBuilder(
         listenable: _controller,
         builder: (context, _) {
@@ -159,6 +177,9 @@ class _ParcelMapPageState extends State<ParcelMapPage> {
                     parcel: _controller.selected!,
                     dark: dark,
                     onClose: () => _controller.select(null),
+                    onOpen: widget.onOpenParcel == null
+                        ? null
+                        : () => widget.onOpenParcel!(_controller.selected!),
                   ),
                 ),
             ],
@@ -218,11 +239,13 @@ class _ParcelCard extends StatelessWidget {
     required this.parcel,
     required this.dark,
     required this.onClose,
+    this.onOpen,
   });
 
   final MapParcel parcel;
   final bool dark;
   final VoidCallback onClose;
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -255,6 +278,8 @@ class _ParcelCard extends StatelessWidget {
                 ],
               ),
             ),
+            if (onOpen != null)
+              TextButton(onPressed: onOpen, child: const Text('Voir la fiche')),
             IconButton(
               tooltip: 'Fermer',
               icon: const Icon(Icons.close),

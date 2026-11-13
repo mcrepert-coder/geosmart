@@ -26,6 +26,8 @@ class MissionsPage extends StatefulWidget {
     this.projectsLoader,
     this.surveyorId,
     this.projectsAdmin,
+    this.canCreateParcel,
+    this.onCreateParcel,
   });
 
   /// Controleur de mesure partage : une seule mission est active a la fois.
@@ -44,6 +46,12 @@ class MissionsPage extends StatefulWidget {
 
   /// Gestion des chantiers (geometre) : affiche le bouton Chantiers.
   final ProjectsAdminGateway? projectsAdmin;
+
+  /// Mission prete a devenir une parcelle (geometre, mission terminee).
+  final bool Function(SurveySession mission)? canCreateParcel;
+
+  /// Ouvre la creation de la parcelle, mission chargee avec ses bornes.
+  final Future<void> Function(SurveySession mission)? onCreateParcel;
 
   @override
   State<MissionsPage> createState() => _MissionsPageState();
@@ -77,6 +85,16 @@ class _MissionsPageState extends State<MissionsPage> {
 
   void _onMissionsChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _createParcel(SurveySession mission) async {
+    final full = await widget.survey.store.loadSession(mission.id);
+    if (!mounted) return;
+    if (full == null || full.points.length < 3) {
+      _showToast('La mission doit contenir au moins trois bornes.');
+      return;
+    }
+    await widget.onCreateParcel!(full);
   }
 
   Future<void> _openProjects() async {
@@ -280,6 +298,11 @@ class _MissionsPageState extends State<MissionsPage> {
               onDelete: mission.canDelete
                   ? () => _confirmDeleteMission(mission)
                   : null,
+              onCreateParcel:
+                  widget.onCreateParcel != null &&
+                      (widget.canCreateParcel?.call(mission) ?? false)
+                  ? () => _createParcel(mission)
+                  : null,
             );
           },
         );
@@ -294,12 +317,14 @@ class _MissionCard extends StatelessWidget {
     required this.colors,
     required this.onTap,
     this.onDelete,
+    this.onCreateParcel,
   });
 
   final SurveySession mission;
   final GeoSmartColors colors;
   final VoidCallback onTap;
   final VoidCallback? onDelete;
+  final VoidCallback? onCreateParcel;
 
   @override
   Widget build(BuildContext context) {
@@ -382,6 +407,22 @@ class _MissionCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (onCreateParcel != null)
+                    IconButton(
+                      key: Key('create-parcel-${mission.id}'),
+                      icon: Icon(
+                        Icons.add_location_alt_outlined,
+                        size: 20,
+                        color: colors.primary,
+                      ),
+                      tooltip: 'Creer la parcelle',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
+                      onPressed: onCreateParcel,
+                    ),
                   if (onDelete != null)
                     IconButton(
                       key: Key('delete-mission-${mission.id}'),

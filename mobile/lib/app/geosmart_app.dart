@@ -8,6 +8,7 @@ import '../features/gnss/presentation/viewmodels/missions_controller.dart';
 import '../features/gnss/presentation/viewmodels/projects_admin_controller.dart';
 import '../features/gnss/presentation/viewmodels/survey_controller.dart';
 import '../features/gnss/presentation/viewmodels/theme_controller.dart';
+import '../features/land/land_entry_points.dart';
 import '../features/leasing/data/leasing_api.dart';
 import '../features/map/presentation/viewmodels/parcel_map_controller.dart';
 import '../features/sync/presentation/viewmodels/sync_controller.dart';
@@ -31,6 +32,7 @@ class GeoSmartApp extends StatefulWidget {
     this.parcelLoader,
     this.projectsLoader,
     this.projectsAdmin,
+    this.land,
   }) : assert(
          auth == null || (leasingApi != null && syncController != null),
          'LeasingApi and SyncController are required when auth is enabled.',
@@ -49,6 +51,9 @@ class GeoSmartApp extends StatefulWidget {
 
   /// Gestion des chantiers par le geometre (EF-109), facultative.
   final ProjectsAdminGateway? projectsAdmin;
+
+  /// Services du module foncier, facultatifs.
+  final LandServices? land;
 
   /// Controleur de theme injecte par les tests. Par defaut, l'application en
   /// cree un sur le theme clair.
@@ -112,6 +117,7 @@ class _GeoSmartAppState extends State<GeoSmartApp> {
           parcelLoader: widget.parcelLoader,
           projectsLoader: widget.projectsLoader,
           projectsAdmin: widget.projectsAdmin,
+          land: widget.land,
         ),
       },
     );

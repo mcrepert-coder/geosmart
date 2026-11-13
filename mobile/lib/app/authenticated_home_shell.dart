@@ -10,6 +10,7 @@ import '../features/gnss/presentation/viewmodels/missions_controller.dart';
 import '../features/gnss/presentation/viewmodels/projects_admin_controller.dart';
 import '../features/gnss/presentation/viewmodels/survey_controller.dart';
 import '../features/gnss/presentation/viewmodels/theme_controller.dart';
+import '../features/land/land_entry_points.dart';
 import '../features/leasing/data/leasing_api.dart';
 import '../features/leasing/presentation/leases_page.dart';
 import '../features/leasing/presentation/visits_page.dart';
@@ -29,6 +30,7 @@ class AuthenticatedHomeShell extends StatefulWidget {
     this.parcelLoader,
     this.projectsLoader,
     this.projectsAdmin,
+    this.land,
   });
 
   final SurveyController survey;
@@ -47,6 +49,10 @@ class AuthenticatedHomeShell extends StatefulWidget {
   /// Gestion des chantiers, proposee au geometre (EF-109).
   final ProjectsAdminGateway? projectsAdmin;
 
+  /// Ecrans du module foncier (fiche, verification, demandes de leve,
+  /// creation de parcelle). Sans lui, ils ne sont pas proposes.
+  final LandServices? land;
+
   @override
   State<AuthenticatedHomeShell> createState() => _AuthenticatedHomeShellState();
 }
@@ -54,6 +60,9 @@ class AuthenticatedHomeShell extends StatefulWidget {
 class _AuthenticatedHomeShellState extends State<AuthenticatedHomeShell> {
   int _index = 0;
   ParcelMapController? _map;
+
+  LandEntryPoints? get _land =>
+      widget.land == null ? null : LandEntryPoints(widget.land!);
 
   @override
   void initState() {
@@ -110,12 +119,28 @@ class _AuthenticatedHomeShellState extends State<AuthenticatedHomeShell> {
       projectsAdmin: widget.auth.user?.role == AccountRole.geometre
           ? widget.projectsAdmin
           : null,
+      canCreateParcel: _land == null
+          ? null
+          : (mission) => _land!.canCreateParcel(widget.auth.user!, mission),
+      onCreateParcel: _land == null
+          ? null
+          : (mission) => _land!.openCreateParcel(context, mission),
     ),
     AccountAction.sync => SyncPage(controller: widget.syncController),
     AccountAction.map =>
       _map == null
           ? const ParcelMapUnavailablePage()
-          : ParcelMapPage(controller: _map!),
+          : ParcelMapPage(
+              controller: _map!,
+              onOpenParcel: _land == null
+                  ? null
+                  : (parcel) => _land!.openParcel(
+                      context,
+                      widget.auth.user!,
+                      parcel.id,
+                    ),
+              onVerify: _land == null ? null : () => _land!.openVerify(context),
+            ),
     AccountAction.visits => VisitsPage(
       api: widget.leasingApi,
       auth: widget.auth,
@@ -128,6 +153,10 @@ class _AuthenticatedHomeShellState extends State<AuthenticatedHomeShell> {
     AccountAction.account => AccountPage(
       auth: widget.auth,
       onAction: _openAction,
+      onSurveyRequests:
+          _land != null && _land!.showsSurveyRequests(widget.auth.user!)
+          ? () => _land!.openSurveyRequests(context, widget.auth.user!)
+          : null,
     ),
   };
 
