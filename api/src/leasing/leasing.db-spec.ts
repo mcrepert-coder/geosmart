@@ -12,7 +12,9 @@ import { AuthAccounts1793104000000 } from '../auth/migrations/1793104000000-auth
 import { InspectionsService } from './inspections.service';
 import { LeasesService, addMonths } from './leases.service';
 import { Leasing1793107000000 } from './migrations/1793107000000-leasing';
+import { VisitReminderSent1793109000000 } from './migrations/1793109000000-visit-reminder-sent';
 import { SimulatedPropertyLookup } from './property-lookup';
+import { VisitReminders } from './visit-reminders';
 import { VisitsService } from './visits.service';
 
 jest.setTimeout(60000);
@@ -53,6 +55,7 @@ const photo = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x01, 0x02]).toString(
 describe('Leasing (PostgreSQL)', () => {
   let db: PGlite;
   let visits: VisitsService;
+  let reminders: VisitReminders;
   let leases: LeasesService;
   let inspections: InspectionsService;
   let sms: FakeSms;
@@ -75,6 +78,7 @@ describe('Leasing (PostgreSQL)', () => {
     await new AuditLog1793102400000().up(qr);
     await new AuthAccounts1793104000000().up(qr);
     await new Leasing1793107000000().up(qr);
+    await new VisitReminderSent1793109000000().up(qr);
     for (const account of [agent, client, stranger]) {
       await db.query(
         `INSERT INTO accounts (id, phone, password_hash, status, role)
@@ -99,6 +103,7 @@ describe('Leasing (PostgreSQL)', () => {
     sms = new FakeSms();
     const audit = new AuditService(dataSource);
     visits = new VisitsService(dataSource, lookup, sms, audit);
+    reminders = new VisitReminders(dataSource, audit, sms);
     leases = new LeasesService(dataSource, lookup, audit);
     inspections = new InspectionsService(dataSource, audit);
   });
@@ -147,6 +152,47 @@ describe('Leasing (PostgreSQL)', () => {
       expect(confirmed.reminderAt).toBe(reminderAt);
       expect(sms.sent.length).toBeGreaterThanOrEqual(1);
       expect(sms.sent[sms.sent.length - 1].message).toMatch(/confirmee/);
+    });
+
+    it('envoie le rappel a l heure prevue, une seule fois (EF-305)', async () => {
+      const { rows } = await db.query<{ reminder_at: Date }>(
+        'SELECT reminder_at FROM visits WHERE id = $1',
+        [visitId],
+      );
+      const due = new Date(rows[0].reminder_at);
+      const sentBefore = sms.sent.length;
+
+      // Avant l'heure : rien.
+      expect(await reminders.sendDue(new Date(due.getTime() - 60_000))).toBe(0);
+      // A l'heure : un SMS au demandeur, journalise.
+      expect(await reminders.sendDue(new Date(due.getTime() + 60_000))).toBe(1);
+      expect(sms.sent).toHaveLength(sentBefore + 1);
+      expect(sms.sent[sms.sent.length - 1].message).toMatch(/^Rappel : visite/);
+      const { rows: audit } = await db.query<{ action: string }>(
+        'SELECT action FROM audit_log ORDER BY seq DESC LIMIT 1',
+      );
+      expect(audit[0].action).toBe('VISIT_REMINDER');
+      // Pas de second envoi.
+      expect(await reminders.sendDue(new Date(due.getTime() + 600_000))).toBe(
+        0,
+      );
+      expect(sms.sent).toHaveLength(sentBefore + 1);
+    });
+
+    it('ne rappelle pas une visite seulement demandee', async () => {
+      const visit = await visits.request(client, {
+        propertyId,
+        reminderAt: new Date(Date.now() - 60_000).toISOString(),
+      });
+      expect(visit.status).toBe('DEMANDEE');
+      const later = new Date(Date.now() + 3_600_000);
+      const sent = await reminders.sendDue(later);
+      const { rows } = await db.query<{ reminder_sent_at: Date | null }>(
+        'SELECT reminder_sent_at FROM visits WHERE id = $1',
+        [visit.id],
+      );
+      expect(rows[0].reminder_sent_at).toBeNull();
+      expect(sent).toBe(0);
     });
 
     it('le demandeur ne confirme pas lui-meme sa visite', async () => {
