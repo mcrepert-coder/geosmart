@@ -19,12 +19,10 @@ Dossiers couverts : `api/src/listings/`, `api/test/listings/`, `contracts/listin
 
 ## Bloqueurs inter-modules
 
-- `contracts/auth.yaml` ne fournit pas encore `agentCertified`. Le badge agent
-  reste donc a faux jusqu'a ce que Beni fournisse une valeur issue de la
-  validation administrative.
-- Le serveur Auth ne fournit pas encore de verification JWT en production ;
-  les ecritures Listings ne peuvent etre recettees qu'avec le contexte
-  d'authentification de test jusqu'a son integration.
+- Badge "agent certifie" : fourni par `CurrentUser.agentCertified`
+  (contracts/auth.yaml) depuis le 16/11 ; il tombe si l'agent est suspendu.
+- L'authentification JWT reelle est en place (module auth) : les ecritures
+  Listings se recettent avec un vrai compte agent.
 - Le client mobile est en lecture publique seulement. Les ecrans agent et
   l'upload de photos attendent une authentification reelle et un parcours agent
   defini ; le catalogue ne contourne pas cette dependance.

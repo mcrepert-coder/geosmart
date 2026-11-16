@@ -34,16 +34,22 @@ const LEGAL_STATUSES: ListingLegalStatus[] = [
   'INCONNU',
 ];
 const STATUSES: ListingStatus[] = ['BROUILLON', 'PUBLIE', 'RETIRE'];
+// Le badge "agent certifie" est copie a la publication et ne reste vrai que
+// tant que l'agent est actif : une suspension le retire de ses annonces sans
+// ecrire dans la table des annonces.
+const AGENT_CERTIFIED = `COALESCE(prop.agent_certified AND agent.status = 'ACTIF', false)`;
+
 const BASE_SELECT = `
   SELECT prop.id, prop.parcel_id, prop.agent_id, prop.type, prop.transaction,
          prop.title, prop.description, prop.price, prop.currency, prop.price_period,
-         prop.zone, prop.status, prop.agent_certified, prop.created_at,
+         prop.zone, prop.status, ${AGENT_CERTIFIED} AS agent_certified, prop.created_at,
          prop.updated_at, prop.published_at, parcel.legal_status, parcel.certified,
          parcel.area_m2,
          round(ST_Y(ST_PointOnSurface(parcel.geom))::numeric, 2)::float8 AS approximate_latitude,
          round(ST_X(ST_PointOnSurface(parcel.geom))::numeric, 2)::float8 AS approximate_longitude
     FROM properties prop
-    JOIN parcels parcel ON parcel.id = prop.parcel_id`;
+    JOIN parcels parcel ON parcel.id = prop.parcel_id
+    LEFT JOIN accounts agent ON agent.id = prop.agent_id`;
 
 interface ListingRow {
   id: string;
@@ -155,7 +161,7 @@ export class ListingsService {
     }
     if (query.agentCertified !== undefined) {
       add(
-        'prop.agent_certified = ?',
+        `${AGENT_CERTIFIED} = ?`,
         this.booleanValue(query.agentCertified, 'agentCertified'),
       );
     }

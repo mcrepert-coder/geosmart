@@ -67,6 +67,6 @@ un géomètre et deux topographes actifs.
   fixtures ne montrent pas « Mission A ». Ces tests GNSS hors périmètre Listings
   restent à traiter séparément ; les autres tests passent.
 
-La recette de bout en bout n'est pas considérée complète tant que le module Auth
-ne fournit pas `agentCertified` et que les scénarios CA-3 et CA-7 ci-dessus n'ont
-pas été rejoués sur un vrai téléphone (PR #48 et #49).
+La recette de bout en bout n'est pas considérée complète tant que les scénarios
+CA-3 et CA-7 ci-dessus n'ont pas été rejoués sur un vrai téléphone. Le badge
+"agent certifié" de CA-6 est fourni par le module Auth (`agentCertified`).
