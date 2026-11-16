@@ -49,7 +49,7 @@ info:
       contract: contracts/land.yaml
       endpoint: GET /parcels/:id/status
       note: |
-        Un bien est rattache a une parcelle par son identifiant (parcelId, format TG-XXX-#####).
+        Un bien est rattache a une parcelle par son identifiant (parcelId, format TG-<commune>-#####, commune de 3 lettres ou chiffres, ex. TG-AG3-00457).
         Le badge "parcelle certifiee", le statut juridique et la surface sont lus depuis le
         statut courant de la parcelle. La carte Listings calcule un point indicatif arrondi
         depuis la geometrie interne ; elle ne renvoie ni polygone, ni limite, ni borne.
@@ -478,7 +478,8 @@ components:
       properties:
         parcelId:
           type: string
-          description: Identifiant de la parcelle rattachee (format land TG-XXX-#####).
+          description: Identifiant de la parcelle rattachee (format land TG-<commune>-#####, ex. TG-AG3-00457).
+          pattern: '^TG-[A-Z0-9]{3}-[0-9]{5,6}$'
           example: TG-AG3-00457
         type: { $ref: '#/components/schemas/PropertyType' }
         transaction: { $ref: '#/components/schemas/TransactionType' }

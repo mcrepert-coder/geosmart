@@ -11,7 +11,8 @@ import { ListingsService } from './listings.service';
 
 jest.setTimeout(60000);
 
-const PARCEL_ID = 'TG-AGO-00001';
+// Commune avec chiffre (Grand Lome) : l'ancien motif [A-Z]{3} la refusait.
+const PARCEL_ID = 'TG-AG3-00001';
 const AGENT_ID = 'b1f0c2a4-1111-4a10-9c01-0a1b2c3d4e01';
 const AGENT = { id: AGENT_ID, role: 'AGENT', accountActive: true };
 const GEOMETRY =
@@ -47,7 +48,7 @@ describe('ListingsService with PostgreSQL migrations', () => {
       `INSERT INTO parcels
          (id, commune, geom, area_m2, perimeter_m, geometry_hash,
           surveyor_id, survey_session_id, idempotency_key, legal_status, certified)
-       VALUES ($1, 'AGO', ${GEOMETRY}, 450, 90, repeat('a', 64),
+       VALUES ($1, 'AG3', ${GEOMETRY}, 450, 90, repeat('a', 64),
                $2, gen_random_uuid(), gen_random_uuid(), 'INCONNU', true)`,
       [PARCEL_ID, AGENT_ID],
     );
@@ -82,6 +83,8 @@ describe('ListingsService with PostgreSQL migrations', () => {
 
   afterAll(async () => {
     await listings.down(db as unknown as QueryRunner);
+    // L'ancien format (commune en lettres) refuse TG-AG3 : vider avant.
+    await db.query('DELETE FROM parcels');
     await idFormat.down(db as unknown as QueryRunner);
     await land.down(db as unknown as QueryRunner);
     await accounts.down(db as unknown as QueryRunner);

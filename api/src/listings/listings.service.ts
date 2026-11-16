@@ -22,11 +22,14 @@ import type {
   ListingSummary,
   ListingUpdateInput,
 } from './listings.types';
+import { PARCEL_ID_PATTERN } from '../land/parcel-id';
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const PARCEL_PATTERN = /^TG-[A-Z]{3}-\d{5,6}$/;
+// Meme format que le foncier : la commune tient en 3 lettres ou chiffres
+// (AG3, GO1, decision de LGR, #24).
+const PARCEL_PATTERN = PARCEL_ID_PATTERN;
 const LEGAL_STATUSES: ListingLegalStatus[] = [
   'TITRE',
   'COUTUMIER_NON_TITRE',
