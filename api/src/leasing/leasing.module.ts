@@ -9,6 +9,7 @@ import {
   SimulatedPropertyLookup,
   UnavailableMobileMoneyProvider,
 } from './property-lookup';
+import { VisitReminders } from './visit-reminders';
 import { VisitsService } from './visits.service';
 import { LogSmsSender, SMS_SENDER } from '../auth/sms.sender';
 
@@ -20,6 +21,7 @@ import { LogSmsSender, SMS_SENDER } from '../auth/sms.sender';
   controllers: [LeasingController],
   providers: [
     VisitsService,
+    VisitReminders,
     LeasesService,
     InspectionsService,
     { provide: PROPERTY_LOOKUP, useClass: SimulatedPropertyLookup },
