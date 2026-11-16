@@ -15,6 +15,7 @@ import '../features/leasing/data/leasing_api.dart';
 import '../features/leasing/presentation/leases_page.dart';
 import '../features/leasing/presentation/visits_page.dart';
 import '../features/map/presentation/parcel_map_page.dart';
+import '../features/report/share_survey_plan.dart';
 import '../features/map/presentation/viewmodels/parcel_map_controller.dart';
 import '../features/sync/presentation/sync_page.dart';
 import '../features/sync/presentation/viewmodels/sync_controller.dart';
@@ -119,6 +120,7 @@ class _AuthenticatedHomeShellState extends State<AuthenticatedHomeShell> {
       projectsAdmin: widget.auth.user?.role == AccountRole.geometre
           ? widget.projectsAdmin
           : null,
+      planSharer: SurveyPlanSharer(),
       canCreateParcel: _land == null
           ? null
           : (mission) => _land!.canCreateParcel(widget.auth.user!, mission),

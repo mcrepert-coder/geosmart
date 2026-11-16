@@ -7,6 +7,7 @@ import '../../../app/theme/geosmart_theme.dart';
 import '../domain/entities/survey_session.dart';
 import '../domain/entities/survey_session_status.dart';
 import 'gnss_page.dart';
+import '../../report/share_survey_plan.dart';
 import 'new_mission_page.dart';
 import 'projects_admin_page.dart';
 import 'trash_page.dart';
@@ -28,6 +29,7 @@ class MissionsPage extends StatefulWidget {
     this.projectsAdmin,
     this.canCreateParcel,
     this.onCreateParcel,
+    this.planSharer,
   });
 
   /// Controleur de mesure partage : une seule mission est active a la fois.
@@ -52,6 +54,9 @@ class MissionsPage extends StatefulWidget {
 
   /// Ouvre la creation de la parcelle, mission chargee avec ses bornes.
   final Future<void> Function(SurveySession mission)? onCreateParcel;
+
+  /// Partage du plan PDF d'une mission terminee (EF-108).
+  final SurveyPlanSharer? planSharer;
 
   @override
   State<MissionsPage> createState() => _MissionsPageState();
@@ -85,6 +90,20 @@ class _MissionsPageState extends State<MissionsPage> {
 
   void _onMissionsChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _sharePlan(SurveySession mission) async {
+    final full = await widget.survey.store.loadSession(mission.id);
+    if (!mounted) return;
+    if (full == null || full.points.length < 3) {
+      _showToast('La mission doit contenir au moins trois bornes.');
+      return;
+    }
+    try {
+      await widget.planSharer!.share(full);
+    } on Object {
+      if (mounted) _showToast('Le plan PDF n a pas pu etre partage.');
+    }
   }
 
   Future<void> _createParcel(SurveySession mission) async {
@@ -298,6 +317,12 @@ class _MissionsPageState extends State<MissionsPage> {
               onDelete: mission.canDelete
                   ? () => _confirmDeleteMission(mission)
                   : null,
+              onSharePlan:
+                  widget.planSharer != null &&
+                      (mission.status == SurveySessionStatus.completed ||
+                          mission.status == SurveySessionStatus.synced)
+                  ? () => _sharePlan(mission)
+                  : null,
               onCreateParcel:
                   widget.onCreateParcel != null &&
                       (widget.canCreateParcel?.call(mission) ?? false)
@@ -318,6 +343,7 @@ class _MissionCard extends StatelessWidget {
     required this.onTap,
     this.onDelete,
     this.onCreateParcel,
+    this.onSharePlan,
   });
 
   final SurveySession mission;
@@ -325,6 +351,7 @@ class _MissionCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onDelete;
   final VoidCallback? onCreateParcel;
+  final VoidCallback? onSharePlan;
 
   @override
   Widget build(BuildContext context) {
@@ -407,6 +434,22 @@ class _MissionCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (onSharePlan != null)
+                    IconButton(
+                      key: Key('share-plan-${mission.id}'),
+                      icon: Icon(
+                        Icons.picture_as_pdf_outlined,
+                        size: 20,
+                        color: colors.primary,
+                      ),
+                      tooltip: 'Partager le plan PDF',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
+                      onPressed: onSharePlan,
+                    ),
                   if (onCreateParcel != null)
                     IconButton(
                       key: Key('create-parcel-${mission.id}'),
