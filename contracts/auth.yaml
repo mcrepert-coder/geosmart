@@ -65,6 +65,8 @@ paths:
                 $ref: '#/components/schemas/Account'
         '400':
           $ref: '#/components/responses/Validation'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /auth/phone-verifications:
     post:
@@ -88,6 +90,8 @@ paths:
                 $ref: '#/components/schemas/Account'
         '400':
           $ref: '#/components/responses/Validation'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /auth/login:
     post:
@@ -141,6 +145,8 @@ paths:
                 message: Connexion temporairement bloquee.
                 details:
                   lockedUntil: '2026-10-30T15:30:00Z'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /auth/tokens/refresh:
     post:
@@ -166,6 +172,8 @@ paths:
           $ref: '#/components/responses/Validation'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /auth/me:
     get:
@@ -677,6 +685,25 @@ components:
           type: object
 
   responses:
+    TooManyRequests:
+      description: |
+        Trop de requetes depuis la meme adresse IP. Limites par minute : 5 pour
+        /auth/registrations (envoi d'un SMS), 10 pour /auth/phone-verifications et
+        /auth/login, 30 pour /auth/tokens/refresh, 300 pour les autres routes.
+        L'en-tete Retry-After donne le delai d'attente en secondes.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: TOO_MANY_REQUESTS
+            message: Trop de requetes. Reessayez dans un instant.
+            details:
+              retryAfterSeconds: 42
     Validation:
       description: Donnees invalides
       content:

@@ -46,6 +46,34 @@ jobs:
       - if: steps.present.outputs.ok == 'true'
         run: npm run test:db -- --runInBand
 
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - id: present
+        run: test -f package.json && echo "ok=true" >> "$GITHUB_OUTPUT" || echo "ok=false" >> "$GITHUB_OUTPUT"
+      - if: steps.present.outputs.ok == 'true'
+        uses: actions/setup-node@v4
+        with:
+          # Node 22 : les tests de /parcelle importent des fichiers .ts.
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - if: steps.present.outputs.ok == 'true'
+        run: npm ci
+      - if: steps.present.outputs.ok == 'true'
+        run: npm run lint
+      - if: steps.present.outputs.ok == 'true'
+        run: npm test
+      - if: steps.present.outputs.ok == 'true'
+        run: npm run build
+      # Apres le build : PageProps et LayoutProps sont generes par Next.js.
+      - if: steps.present.outputs.ok == 'true'
+        run: npx tsc --noEmit
+
   mobile:
     runs-on: ubuntu-latest
     defaults:
@@ -63,7 +91,10 @@ jobs:
       - if: steps.present.outputs.ok == 'true'
         uses: subosito/flutter-action@v2
         with:
+          # Version fixee : une nouvelle version stable a rendu
+          # package:flutter/material.dart obsolete et fait echouer flutter analyze.
           channel: stable
+          flutter-version: 3.47.5
           cache: true
       - if: steps.present.outputs.ok == 'true'
         run: flutter pub get
