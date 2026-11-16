@@ -24,6 +24,16 @@ Une Pull Request reste petite : une tache, quelques centaines de lignes au plus.
 
 Une PR contient : ce qui change, l'exigence visee (par exemple EF-202), la commande de test lancee, et "Dossiers touches : uniquement les miens". Une PR qui touche le dossier d'un autre est refusee, sauf accord ecrit de son proprietaire.
 
+## Reprise du travail d'un autre (delegation)
+
+Quand un proprietaire est indisponible, LGR peut confier son module a un autre etudiant. Depuis novembre 2026 (accord de LGR et de Marrich), Samuel est tech lead : il peut completer les modules de Marrich, Beni et Romuald, resoudre les conflits et fusionner les PR vers `dev`.
+
+Les regles restent les memes :
+1. Le travail se fait sur la branche du proprietaire (`marrich`, `beni`, `romuald`) et passe par une PR vers `dev`.
+2. La description de la PR dit que le travail est repris et par qui ; la case "Je n'ai touche que mes dossiers" reste decochee avec l'explication.
+3. CI verte avant toute fusion ; les PR dependantes sont fusionnees dans l'ordre.
+4. A son retour, le proprietaire fait `git pull` sur sa branche avant de reprendre.
+
 ## Si un conflit apparait
 
 Ne pas le resoudre a la va-vite. Prevenir Marrich. Les conflits viennent presque toujours d'un fichier partage ; la table de `docs/RESPONSABILITES.md` existe pour les eviter.
