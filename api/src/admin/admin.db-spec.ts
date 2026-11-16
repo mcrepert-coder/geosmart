@@ -8,7 +8,10 @@ import { AuditLog1793102400000 } from '../audit/migrations/1793102400000-audit-l
 import { AuditService } from '../audit/audit.service';
 import type { CurrentActorValue } from '../audit/current-actor.decorator';
 import type { SqlRunner } from '../audit/sql-runner';
-import { toCurrentUser } from '../auth/accounts.service';
+import {
+  hasProfessionalDocument,
+  toCurrentUser,
+} from '../auth/accounts.service';
 import { AuthAccounts1793104000000 } from '../auth/migrations/1793104000000-auth-accounts';
 import { DocumentsService } from '../users/documents.service';
 import { UserDocuments1793106000000 } from '../users/migrations/1793106000000-user-documents';
@@ -182,6 +185,38 @@ describe('AdminService (PostgreSQL)', () => {
 
     await addDocument(id, 'IDENTITY');
     expect((await service.validate(admin, id)).status).toBe('ACTIF');
+  });
+
+  it('un agent valide avec une piece professionnelle est certifie (EF-302)', async () => {
+    const runner: SqlRunner = { query: (sql, params) => db.query(sql, params) };
+    const current = async (accountId: string) => {
+      const { rows } = await db.query('SELECT * FROM accounts WHERE id = $1', [
+        accountId,
+      ]);
+      return toCurrentUser(
+        rows[0] as Parameters<typeof toCurrentUser>[0],
+        await hasProfessionalDocument(runner, accountId),
+      );
+    };
+
+    const id = await seed('EN_ATTENTE', 'AGENT');
+    await addDocument(id, 'IDENTITY');
+    expect(await hasProfessionalDocument(runner, id)).toBe(false);
+    await addDocument(id, 'APPROVAL');
+    expect(await hasProfessionalDocument(runner, id)).toBe(true);
+    // Pas encore valide par l'administration : pas de badge.
+    expect((await current(id)).agentCertified).toBe(false);
+
+    await service.validate(admin, id);
+    expect((await current(id)).agentCertified).toBe(true);
+
+    await service.suspend(admin, id);
+    expect((await current(id)).agentCertified).toBe(false);
+
+    // Un client ou un geometre n'est jamais "agent certifie".
+    const geometre = await seed('ACTIF', 'GEOMETRE');
+    await addDocument(geometre, 'PROFESSIONAL_CARD');
+    expect((await current(geometre)).agentCertified).toBe(false);
   });
 
   it('exige l inscription a l Ordre pour valider un geometre', async () => {

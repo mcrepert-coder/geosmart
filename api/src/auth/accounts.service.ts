@@ -63,6 +63,9 @@ export interface CurrentUser {
   role: string;
   registeredSurveyor: boolean;
   accountActive: boolean;
+  // EF-302 : agent valide par l'administration avec une piece
+  // professionnelle (carte professionnelle, agrement ou RCCM, EF-403).
+  agentCertified: boolean;
   fullName?: string;
   ordreNumber?: string;
 }
@@ -109,13 +112,36 @@ export function toAccountView(row: AccountRow): AccountView {
   };
 }
 
+// Pieces professionnelles d'un agent (EF-403).
+export const PROFESSIONAL_DOCUMENTS = ['PROFESSIONAL_CARD', 'APPROVAL', 'RCCM'];
+
+// Vrai si le compte a depose au moins une piece professionnelle.
+export async function hasProfessionalDocument(
+  runner: SqlRunner,
+  accountId: string,
+): Promise<boolean> {
+  const rows = rowsOf<{ ok: number }>(
+    await runner.query(
+      'SELECT 1 AS ok FROM account_documents WHERE account_id = $1 AND category = ANY($2) LIMIT 1',
+      [accountId, PROFESSIONAL_DOCUMENTS],
+    ),
+  );
+  return rows.length > 0;
+}
+
 // Le jeton ne fait pas autorite : le role et l'etat viennent de la base.
-export function toCurrentUser(row: AccountRow): CurrentUser {
+// [professionalDocument] : resultat de hasProfessionalDocument pour un agent.
+export function toCurrentUser(
+  row: AccountRow,
+  professionalDocument = false,
+): CurrentUser {
   return {
     id: row.id,
     role: row.role ?? '',
     registeredSurveyor: row.role === 'GEOMETRE' && row.ordre_number !== null,
     accountActive: row.status === 'ACTIF',
+    agentCertified:
+      row.role === 'AGENT' && row.status === 'ACTIF' && professionalDocument,
     fullName: row.full_name ?? undefined,
     ordreNumber: row.ordre_number ?? undefined,
   };
@@ -127,6 +153,11 @@ function validation(message: string, details?: Record<string, unknown>) {
     message,
     details,
   });
+}
+
+// Etats autorises a ouvrir une session : actif, ou en attente de validation.
+export function canSignIn(status: AccountStatus): boolean {
+  return status === 'ACTIF' || status === 'EN_ATTENTE';
 }
 
 function unauthorized() {
@@ -337,7 +368,10 @@ export class AccountsService {
       'UPDATE accounts SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1',
       [account.id],
     );
-    if (account.status !== 'ACTIF') {
+    // Un compte en attente se connecte pour deposer ses pieces (EF-403) :
+    // sans elles, l'administration ne peut pas le valider. Il n'a aucun droit
+    // d'ecriture (accountActive = false, RG-06).
+    if (!canSignIn(account.status)) {
       await this.logAccount('LOGIN', 'DENIED', account, {
         reason: 'Compte non actif.',
         status: account.status,
@@ -475,7 +509,7 @@ export class AccountsService {
         ]),
       );
       const account = accounts[0];
-      if (!account || account.status !== 'ACTIF') {
+      if (!account || !canSignIn(account.status)) {
         throw unauthorized();
       }
       return this.issueTokens(account.id, tx);

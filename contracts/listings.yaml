@@ -29,9 +29,9 @@ info:
 
     Le badge "parcelle certifiee" provient du statut courant de la parcelle
     (contracts/land.yaml, champ certified). Le badge "agent certifie" est une copie de
-    l'etat fourni par Auth a la publication ; il est faux tant que Beni ne l'expose pas.
-    Une nouvelle publication actualise cette copie ; un flux de revocation en temps reel
-    reste a definir entre les modules.
+    CurrentUser.agentCertified (contracts/auth.yaml) prise a la publication ; une nouvelle
+    publication actualise cette copie. A la lecture, il n'est vrai que si l'agent est
+    encore actif : une suspension retire le badge de ses annonces.
 
     Aucune donnee personnelle de la parcelle (nom, telephone, coordonnees de bornes ou
     limites) n'est exposee ici. La carte ne recoit qu'un point indicatif arrondi a 0,01 degre
@@ -44,13 +44,12 @@ info:
       scheme: bearerAuth
       note: |
         Role relu en base a chaque requete (RG-06). "Agent actif" = role AGENT et
-        accountActive = true. `contracts/auth.yaml` ne porte pas encore `agentCertified`;
-        l'API enregistre false jusqu'a ce qu'Auth fournisse une valeur verifiable.
+        accountActive = true. `agentCertified` vient de CurrentUser (contracts/auth.yaml).
     land:
       contract: contracts/land.yaml
       endpoint: GET /parcels/:id/status
       note: |
-        Un bien est rattache a une parcelle par son identifiant (parcelId, format TG-XXX-#####).
+        Un bien est rattache a une parcelle par son identifiant (parcelId, format TG-<commune>-#####, commune de 3 lettres ou chiffres, ex. TG-AG3-00457).
         Le badge "parcelle certifiee", le statut juridique et la surface sont lus depuis le
         statut courant de la parcelle. La carte Listings calcule un point indicatif arrondi
         depuis la geometrie interne ; elle ne renvoie ni polygone, ni limite, ni borne.
@@ -62,12 +61,10 @@ info:
         Beni consomme cette route pour rattacher une visite a un bien. L'identifiant du bien
         est un UUID (propertyId). La forme de la reponse est fixee ci-dessous pour lever
         l'attente signalee dans contracts/leasing.yaml.
-  x-cross-module-follow-up:
-    owner: Beni
-    contract: contracts/auth.yaml
-    action: Ajouter `agentCertified` a `CurrentUser`, derive de la validation administrative
-      des pieces professionnelles, et definir comment une revocation invalide les annonces.
-      Listings garde le badge a false jusque-la.
+  x-cross-module-decisions:
+    agent-certified: |
+      CurrentUser.agentCertified = role AGENT, compte actif et piece professionnelle deposee.
+      Revocation : le badge lu est faux des que l'agent n'est plus actif.
   x-decisions:
     property-types: [TERRAIN, MAISON]
     transactions: [VENTE, LOCATION]
@@ -420,7 +417,7 @@ components:
           description: Vient de land GET /parcels/:id/status (champ certified).
         agentCertified:
           type: boolean
-          description: Certification administrative fournie par auth ; false si auth ne la fournit pas.
+          description: Copie de CurrentUser.agentCertified a la publication, et agent encore actif.
 
     ParcelSnapshot:
       type: object
@@ -481,7 +478,8 @@ components:
       properties:
         parcelId:
           type: string
-          description: Identifiant de la parcelle rattachee (format land TG-XXX-#####).
+          description: Identifiant de la parcelle rattachee (format land TG-<commune>-#####, ex. TG-AG3-00457).
+          pattern: '^TG-[A-Z0-9]{3}-[0-9]{5,6}$'
           example: TG-AG3-00457
         type: { $ref: '#/components/schemas/PropertyType' }
         transaction: { $ref: '#/components/schemas/TransactionType' }

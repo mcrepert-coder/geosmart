@@ -22,11 +22,14 @@ import type {
   ListingSummary,
   ListingUpdateInput,
 } from './listings.types';
+import { PARCEL_ID_PATTERN } from '../land/parcel-id';
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const PARCEL_PATTERN = /^TG-[A-Z]{3}-\d{5,6}$/;
+// Meme format que le foncier : la commune tient en 3 lettres ou chiffres
+// (AG3, GO1, decision de LGR, #24).
+const PARCEL_PATTERN = PARCEL_ID_PATTERN;
 const LEGAL_STATUSES: ListingLegalStatus[] = [
   'TITRE',
   'COUTUMIER_NON_TITRE',
@@ -34,16 +37,22 @@ const LEGAL_STATUSES: ListingLegalStatus[] = [
   'INCONNU',
 ];
 const STATUSES: ListingStatus[] = ['BROUILLON', 'PUBLIE', 'RETIRE'];
+// Le badge "agent certifie" est copie a la publication et ne reste vrai que
+// tant que l'agent est actif : une suspension le retire de ses annonces sans
+// ecrire dans la table des annonces.
+const AGENT_CERTIFIED = `COALESCE(prop.agent_certified AND agent.status = 'ACTIF', false)`;
+
 const BASE_SELECT = `
   SELECT prop.id, prop.parcel_id, prop.agent_id, prop.type, prop.transaction,
          prop.title, prop.description, prop.price, prop.currency, prop.price_period,
-         prop.zone, prop.status, prop.agent_certified, prop.created_at,
+         prop.zone, prop.status, ${AGENT_CERTIFIED} AS agent_certified, prop.created_at,
          prop.updated_at, prop.published_at, parcel.legal_status, parcel.certified,
          parcel.area_m2,
          round(ST_Y(ST_PointOnSurface(parcel.geom))::numeric, 2)::float8 AS approximate_latitude,
          round(ST_X(ST_PointOnSurface(parcel.geom))::numeric, 2)::float8 AS approximate_longitude
     FROM properties prop
-    JOIN parcels parcel ON parcel.id = prop.parcel_id`;
+    JOIN parcels parcel ON parcel.id = prop.parcel_id
+    LEFT JOIN accounts agent ON agent.id = prop.agent_id`;
 
 interface ListingRow {
   id: string;
@@ -155,7 +164,7 @@ export class ListingsService {
     }
     if (query.agentCertified !== undefined) {
       add(
-        'prop.agent_certified = ?',
+        `${AGENT_CERTIFIED} = ?`,
         this.booleanValue(query.agentCertified, 'agentCertified'),
       );
     }

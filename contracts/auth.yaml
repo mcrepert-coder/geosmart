@@ -129,7 +129,10 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Compte en attente de validation ou suspendu
+          description: |
+            Telephone non verifie, compte rejete ou suspendu. Un compte en attente de
+            validation peut se connecter pour deposer ses pieces justificatives (EF-403),
+            sans aucun droit d'ecriture (accountActive = false).
           content:
             application/json:
               schema:
@@ -569,12 +572,18 @@ components:
     CurrentUser:
       description: Forme de request.user lue par les gardes d'authentification
       type: object
-      required: [id, role, registeredSurveyor, accountActive]
+      required: [id, role, registeredSurveyor, accountActive, agentCertified]
       properties:
         id: { type: string, format: uuid }
         role: { $ref: '#/components/schemas/Role' }
         registeredSurveyor: { type: boolean, description: "geometre inscrit a l'Ordre" }
         accountActive: { type: boolean, description: compte valide et actif }
+        agentCertified:
+          type: boolean
+          description: |
+            Agent certifie (EF-302) : role AGENT, compte actif (valide par l'administration)
+            et au moins une piece professionnelle deposee (carte professionnelle, agrement
+            ou RCCM, EF-403). Toujours false pour les autres roles.
 
     Account:
       type: object
