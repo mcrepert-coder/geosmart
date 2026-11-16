@@ -198,9 +198,13 @@ export function AccountRegistrationScreen() {
             <h1 className="gs-h1 gs-display mt-4">Téléphone vérifié</h1>
             <p className="mt-2 text-[14px] text-[var(--text-muted)]">
               Votre compte est en attente de validation. L’administration attribuera votre rôle
-              avant l’activation de l’accès.
+              avant l’activation de l’accès. Connectez-vous pour déposer vos pièces
+              justificatives : sans elles, le compte ne peut pas être validé.
             </p>
-            <Link href="/" className="gs-btn gs-btn--secondary gs-btn--block mt-6">
+            <Link href="/connexion" className="gs-btn gs-btn--primary gs-btn--block mt-6">
+              Déposer mes pièces
+            </Link>
+            <Link href="/" className="gs-btn gs-btn--secondary gs-btn--block mt-2">
               Retour aux annonces
             </Link>
           </div>

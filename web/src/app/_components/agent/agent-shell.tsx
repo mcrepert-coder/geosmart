@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeft, Megaphone, Wallet } from "lucide-react";
 import { LogoMark } from "../logo";
-import { DemoUnavailable } from "../demo-unavailable";
+import { AgentLiveShell } from "./agent-live";
 import { ROLE_LABEL, type AccountStatus } from "@/lib/data";
 import { setAgentSession, useDemoStore } from "@/lib/demo-store";
 import { DEMO_MODE_ENABLED } from "@/lib/runtime-config";
@@ -33,15 +33,7 @@ function initials(name: string): string {
 }
 
 export function AgentShell({ children }: { children: React.ReactNode }) {
-  if (!DEMO_MODE_ENABLED) {
-    return (
-      <DemoUnavailable title="Espace agent non connecté">
-        Les annonces de l’espace agent ne sont pas encore reliées à
-        l’authentification ni à l’API Listings. Aucune donnée fictive ni action
-        locale ne sera affichée.
-      </DemoUnavailable>
-    );
-  }
+  if (!DEMO_MODE_ENABLED) return <AgentLiveShell>{children}</AgentLiveShell>;
   return <AgentDemoShell>{children}</AgentDemoShell>;
 }
 

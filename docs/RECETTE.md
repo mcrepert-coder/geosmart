@@ -43,6 +43,21 @@ un géomètre et deux topographes actifs.
 6. Le géomètre clôt le chantier (`POST /projects/{projectId}/close`) : un nouvel envoi
    du premier topographe est refusé (403).
 
+## Recette de bout en bout du 16/11/2026
+
+Rejouée sur l'API, la base PostGIS et le site (branches à jour de `dev`), avec de
+vrais comptes créés par l'API et validés par l'administration. Scripts et mode
+d'emploi : `docs/recette/`.
+
+| Script | Résultat |
+|---|---|
+| `serveur-ca2-ca3-ca4-ca7.mjs` | 15/15 : CA-2 (409 et alerte, voisine acceptée), CA-3 (renvoi sans doublon), CA-4 (agent refusé, limite inchangée), CA-7 (topographe non assigné et chantier clos refusés), chaîne du journal intacte |
+| `annonces-ca5-ca6.mjs` | 17/17 : CA-5 (client refusé), CA-6 (publication par l'espace agent du site, deux badges, carte, lien public et WhatsApp), badge retiré à la suspension |
+| `nouvel-inscrit.mjs` | 9/9 : validation refusée sans pièces, connexion en attente, dépôt des pièces par "Mon compte", validation |
+
+Restent à rejouer sur un vrai téléphone : la création d'une mission sur un chantier,
+la coupure réseau pendant le levé (CA-3 côté application) et CA-1 avec le récepteur.
+
 ## Résultats de l'implémentation Listings
 
 - Dans `api/`, `npm test -- --runInBand listings.service.spec.ts` : réussi,
