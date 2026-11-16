@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../app/format/geosmart_formats.dart';
 import '../../../app/theme/geosmart_theme.dart';

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../app/theme/geosmart_theme.dart';
 import '../data/datasources/native_gnss_source.dart';

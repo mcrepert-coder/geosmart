@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geosmart_mobile/app/theme/geosmart_theme.dart';
 import 'package:geosmart_mobile/features/gnss/data/survey_projects_api.dart';

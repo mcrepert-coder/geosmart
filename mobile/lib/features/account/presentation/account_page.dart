@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../app/theme/geosmart_theme.dart';
 import '../domain/entities/account_user.dart';

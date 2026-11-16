@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../account/domain/entities/account_user.dart';
 import '../gnss/domain/entities/survey_session.dart';

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Jetons du design system GeoSmart Field v1.0 utilises par le module
 /// foncier. A remplacer par le theme commun de l'application quand il existera
