@@ -117,6 +117,25 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [visites]
+      summary: Lister mes visites
+      description: |
+        Visites demandees par le compte connecte, de la plus recente a la plus ancienne.
+        L'administrateur voit toutes les visites.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Visites
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Visit'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /visits/{visitId}:
     parameters:
       - $ref: '#/components/parameters/VisitId'
@@ -136,6 +155,85 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Visit'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /visits/{visitId}/status:
+    parameters:
+      - $ref: '#/components/parameters/VisitId'
+    put:
+      tags: [visites]
+      summary: Changer le statut d'une visite
+      description: |
+        Transitions permises : DEMANDEE vers CONFIRMEE ou ANNULEE, CONFIRMEE vers FAITE ou
+        ANNULEE. CONFIRMEE et FAITE sont reserves a l'agent (ou a l'administrateur) ; le
+        demandeur peut annuler sa demande. La confirmation envoie un SMS au demandeur.
+        Chaque changement est journalise (VISIT_STATUS).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [CONFIRMEE, FAITE, ANNULEE]
+                scheduledAt:
+                  type: string
+                  format: date-time
+                reminderAt:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Visite avec son nouveau statut
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Visit'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /leases/{leaseId}/rents/{rentId}/pay:
+    parameters:
+      - $ref: '#/components/parameters/LeaseId'
+      - name: rentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [baux]
+      summary: Marquer une echeance de loyer comme payee
+      description: |
+        Paiement constate hors application (le paiement Mobile Money n'est pas branche).
+        Reserve a l'agent du bail ou a l'administrateur ; journalise (RENT_PAID).
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Echeance payee
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rent'
+        '400':
+          $ref: '#/components/responses/Validation'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -238,6 +336,26 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [etats-des-lieux]
+      summary: Lister les etats des lieux d'un bail
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Etats des lieux du bail (entree, sortie)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Inspection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
 components:
   securitySchemes:
@@ -263,6 +381,26 @@ components:
         description: Format d'identifiant à définir.
 
   schemas:
+    Rent:
+      type: object
+      required: [id, dueDate, amount, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        dueDate:
+          type: string
+          format: date
+        amount:
+          type: number
+        status:
+          type: string
+          enum: [A_PAYER, PAYEE, EN_RETARD]
+        paidAt:
+          type: string
+          format: date-time
+          nullable: true
+
     VisitRequest:
       type: object
       description: |

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuditModule } from '../audit/audit.module';
 import { InspectionsService } from './inspections.service';
 import { LeasingController } from './leasing.controller';
 import { LeasesService } from './leases.service';
@@ -15,6 +16,7 @@ import { LogSmsSender, SMS_SENDER } from '../auth/sms.sender';
 // SmsSender est fourni localement pour eviter une dependance circulaire
 // avec AuthModule ; c'est la meme implementation sans etat.
 @Module({
+  imports: [AuditModule],
   controllers: [LeasingController],
   providers: [
     VisitsService,
