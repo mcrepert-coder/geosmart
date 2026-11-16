@@ -1,8 +1,13 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../../app/runtime_config.dart';
+import '../../domain/entities/survey_project.dart';
 import '../../domain/entities/survey_session.dart';
 import '../../domain/repositories/survey_session_store.dart';
+import '../../domain/services/uuid_v4.dart';
+
+/// Charge les chantiers du compte connecte (GET /projects).
+typedef SurveyProjectsLoader = Future<List<SurveyProject>> Function();
 
 /// ViewModel de la liste des missions.
 ///
@@ -14,6 +19,8 @@ class MissionsController extends ChangeNotifier {
     required this.store,
     this.defaultProjectId = projectId,
     this.defaultSurveyorId = surveyorId,
+    this.projectsLoader,
+    this.surveyorIdProvider,
     String Function()? idGenerator,
     DateTime Function()? clock,
   }) : _idGenerator = idGenerator ?? _defaultId,
@@ -26,6 +33,45 @@ class MissionsController extends ChangeNotifier {
   final String defaultProjectId;
   final String defaultSurveyorId;
 
+  /// Avec un compte connecte : chantiers assignes au topographe (CA-7). La
+  /// mission est alors creee sur le chantier choisi, pas sur
+  /// GEOSMART_PROJECT_ID.
+  final SurveyProjectsLoader? projectsLoader;
+
+  /// Identifiant du compte connecte, auteur de la mission.
+  final String? Function()? surveyorIdProvider;
+
+  List<SurveyProject> _projects = const [];
+  bool _projectsLoading = false;
+  String? _projectsError;
+
+  /// Vrai si la mission doit etre creee sur un chantier choisi.
+  bool get choosesProject => projectsLoader != null;
+
+  /// Chantiers ouverts assignes, dans l'ordre du serveur.
+  List<SurveyProject> get projects => _projects;
+  bool get projectsLoading => _projectsLoading;
+  String? get projectsError => _projectsError;
+
+  /// Recharge les chantiers ouverts du compte connecte.
+  Future<void> loadProjects() async {
+    final loader = projectsLoader;
+    if (loader == null) return;
+    _projectsLoading = true;
+    _projectsError = null;
+    _notify();
+    try {
+      _projects = (await loader()).where((p) => p.open).toList();
+    } on Object catch (error) {
+      _projectsError = error.toString().isEmpty
+          ? 'Les chantiers ne peuvent pas etre charges.'
+          : error.toString();
+    } finally {
+      _projectsLoading = false;
+      _notify();
+    }
+  }
+
   final String Function() _idGenerator;
   final DateTime Function() _clock;
 
@@ -35,12 +81,8 @@ class MissionsController extends ChangeNotifier {
   String? _error;
   bool _disposed = false;
 
-  static int _idCounter = 0;
-
-  static String _defaultId() {
-    _idCounter++;
-    return '${DateTime.now().toUtc().microsecondsSinceEpoch}-$_idCounter';
-  }
+  // UUID v4 : POST /sync refuse un clientId qui n'est pas un UUID (RG-08).
+  static String _defaultId() => uuidV4();
 
   List<SurveySession> get missions => List.unmodifiable(_missions);
 
@@ -76,14 +118,31 @@ class MissionsController extends ChangeNotifier {
   /// Cree une mission vide et l'ajoute en tete de liste.
   ///
   /// Renvoie `null` si le nom est vide ou si l'ecriture locale echoue.
-  Future<SurveySession?> createMission({required String title}) async {
+  Future<SurveySession?> createMission({
+    required String title,
+    String? projectId,
+  }) async {
     final trimmed = title.trim();
     if (trimmed.isEmpty) {
       _error = 'Le nom de la mission est obligatoire.';
       _notify();
       return null;
     }
-    if (defaultProjectId.trim().isEmpty || defaultSurveyorId.trim().isEmpty) {
+    final String chosenProject;
+    final String chosenSurveyor;
+    if (choosesProject) {
+      if (projectId == null || !_projects.any((p) => p.id == projectId)) {
+        _error = 'Choisissez un chantier qui vous est assigne.';
+        _notify();
+        return null;
+      }
+      chosenProject = projectId;
+      chosenSurveyor = surveyorIdProvider?.call() ?? defaultSurveyorId;
+    } else {
+      chosenProject = defaultProjectId;
+      chosenSurveyor = defaultSurveyorId;
+    }
+    if (chosenProject.trim().isEmpty || chosenSurveyor.trim().isEmpty) {
       _error =
           'Configurez GEOSMART_PROJECT_ID et GEOSMART_SURVEYOR_ID avant de creer une mission.';
       _notify();
@@ -93,8 +152,8 @@ class MissionsController extends ChangeNotifier {
     final session = SurveySession(
       id: _idGenerator(),
       clientId: _idGenerator(),
-      projectId: defaultProjectId,
-      surveyorId: defaultSurveyorId,
+      projectId: chosenProject,
+      surveyorId: chosenSurveyor,
       title: trimmed,
       createdAt: _clock().toUtc(),
     );

@@ -8,8 +8,10 @@ import '../domain/entities/survey_session.dart';
 import '../domain/entities/survey_session_status.dart';
 import 'gnss_page.dart';
 import 'new_mission_page.dart';
+import 'projects_admin_page.dart';
 import 'trash_page.dart';
 import 'viewmodels/missions_controller.dart';
+import 'viewmodels/projects_admin_controller.dart';
 import 'viewmodels/survey_controller.dart';
 
 /// Liste des missions locales sous forme de mosaique de cartes carrees.
@@ -17,7 +19,14 @@ import 'viewmodels/survey_controller.dart';
 /// Un appui ouvre la mesure de la mission dans le meme [SurveyController].
 /// La creation ecrit d'abord la mission vide en local, puis ouvre sa mesure.
 class MissionsPage extends StatefulWidget {
-  const MissionsPage({super.key, required this.survey, this.missions});
+  const MissionsPage({
+    super.key,
+    required this.survey,
+    this.missions,
+    this.projectsLoader,
+    this.surveyorId,
+    this.projectsAdmin,
+  });
 
   /// Controleur de mesure partage : une seule mission est active a la fois.
   final SurveyController survey;
@@ -25,6 +34,16 @@ class MissionsPage extends StatefulWidget {
   /// ViewModel injecte par les tests. Par defaut, il est construit sur le
   /// depot local du controleur de mesure.
   final MissionsController? missions;
+
+  /// Chantiers du compte connecte (GET /projects) : la mission est creee sur
+  /// un chantier choisi (CA-7). Sans lui, GEOSMART_PROJECT_ID s'applique.
+  final SurveyProjectsLoader? projectsLoader;
+
+  /// Compte connecte, auteur des missions creees.
+  final String? surveyorId;
+
+  /// Gestion des chantiers (geometre) : affiche le bouton Chantiers.
+  final ProjectsAdminGateway? projectsAdmin;
 
   @override
   State<MissionsPage> createState() => _MissionsPageState();
@@ -39,7 +58,12 @@ class _MissionsPageState extends State<MissionsPage> {
     super.initState();
     _ownsMissions = widget.missions == null;
     _missions =
-        widget.missions ?? MissionsController(store: widget.survey.store);
+        widget.missions ??
+        MissionsController(
+          store: widget.survey.store,
+          projectsLoader: widget.projectsLoader,
+          surveyorIdProvider: () => widget.surveyorId,
+        );
     _missions.addListener(_onMissionsChanged);
     unawaited(_missions.load());
   }
@@ -53,6 +77,16 @@ class _MissionsPageState extends State<MissionsPage> {
 
   void _onMissionsChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _openProjects() async {
+    final controller = ProjectsAdminController(gateway: widget.projectsAdmin!);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProjectsAdminPage(controller: controller),
+      ),
+    );
+    controller.dispose();
   }
 
   void _showToast(String message) {
@@ -165,6 +199,13 @@ class _MissionsPageState extends State<MissionsPage> {
           ],
         ),
         actions: [
+          if (widget.projectsAdmin != null)
+            IconButton(
+              key: const Key('open-projects-button'),
+              tooltip: 'Chantiers',
+              onPressed: _openProjects,
+              icon: const Icon(Icons.engineering_outlined),
+            ),
           IconButton(
             key: const Key('open-trash-button'),
             tooltip: 'Corbeille',

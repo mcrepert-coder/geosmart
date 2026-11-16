@@ -17,6 +17,7 @@ import '../../domain/repositories/sync_queue_store.dart';
 import '../../domain/repositories/sync_transport.dart';
 import '../../domain/services/survey_measurements.dart';
 import '../../domain/services/sync_queue_processor.dart';
+import '../../domain/services/uuid_v4.dart';
 
 /// Evenements destines a la vue (toast, annulation, erreur).
 sealed class SurveyEvent {
@@ -139,12 +140,8 @@ class SurveyController extends ChangeNotifier {
   String? _error;
   String? _syncError;
 
-  static int _idCounter = 0;
-
-  static String _defaultId() {
-    _idCounter++;
-    return '${DateTime.now().toUtc().microsecondsSinceEpoch}-$_idCounter';
-  }
+  // UUID v4 : POST /sync refuse un clientId qui n'est pas un UUID (RG-08).
+  static String _defaultId() => uuidV4();
 
   SurveySession? get session => _session;
 
