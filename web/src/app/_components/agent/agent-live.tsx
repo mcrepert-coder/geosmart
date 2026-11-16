@@ -38,6 +38,10 @@ type AgentListing = {
 type SharePayload = {
   publicUrl: string;
   whatsapp: { url: string; message: string };
+  // TikTok et Instagram n'ont pas de lien de publication : l'agent copie le
+  // lien et publie l'image principale (EF-308).
+  tiktok?: { url: string; imageUrl: string | null };
+  instagram?: { url: string; imageUrl: string | null };
 };
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -553,6 +557,21 @@ export function AgentLiveListings() {
                   >
                     Partager sur WhatsApp
                   </a>
+                  {shares[item.id].tiktok?.imageUrl ? (
+                    <a
+                      className="underline"
+                      href={shares[item.id].tiktok!.imageUrl!}
+                      target="_blank"
+                      rel="noreferrer"
+                      download
+                    >
+                      Image pour TikTok et Instagram (avec le lien public ci-dessus)
+                    </a>
+                  ) : (
+                    <span className="text-[var(--text-muted)]">
+                      Ajoutez une photo pour partager sur TikTok et Instagram.
+                    </span>
+                  )}
                 </div>
               )}
             </li>
