@@ -105,11 +105,33 @@ describe('AccountsService (PostgreSQL)', () => {
     ).rejects.toMatchObject({ response: { code: 'VALIDATION_ERROR' } });
   });
 
-  it('refuse la connexion dun compte en attente de validation', async () => {
-    await expect(service.login({ phone, password })).rejects.toMatchObject({
-      response: { code: 'ACCOUNT_NOT_ACTIVE' },
-      status: 403,
+  it('un compte en attente se connecte pour deposer ses pieces, sans droit d ecriture (EF-403)', async () => {
+    const tokens = await service.login({ phone, password });
+    expect(tokens.accessToken).toBeTruthy();
+    const account = await service.findByPhone(normalizePhone(phone));
+    expect(account?.status).toBe('EN_ATTENTE');
+    expect(toCurrentUser(account!).accountActive).toBe(false);
+  });
+
+  it('refuse la connexion d un compte suspendu ou rejete', async () => {
+    const other = '+228 90 77 66 55';
+    await service.register({ phone: other, password });
+    await service.verifyPhone({
+      phone: other,
+      code: sms.lastCode(normalizePhone(other)),
     });
+    for (const status of ['SUSPENDU', 'REJETE']) {
+      await db.query('UPDATE accounts SET status = $1 WHERE phone = $2', [
+        status,
+        normalizePhone(other),
+      ]);
+      await expect(
+        service.login({ phone: other, password }),
+      ).rejects.toMatchObject({
+        response: { code: 'ACCOUNT_NOT_ACTIVE' },
+        status: 403,
+      });
+    }
   });
 
   it('bloque la connexion 15 minutes apres cinq echecs (EF-407)', async () => {

@@ -129,7 +129,10 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Compte en attente de validation ou suspendu
+          description: |
+            Telephone non verifie, compte rejete ou suspendu. Un compte en attente de
+            validation peut se connecter pour deposer ses pieces justificatives (EF-403),
+            sans aucun droit d'ecriture (accountActive = false).
           content:
             application/json:
               schema:

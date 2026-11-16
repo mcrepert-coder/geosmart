@@ -155,6 +155,11 @@ function validation(message: string, details?: Record<string, unknown>) {
   });
 }
 
+// Etats autorises a ouvrir une session : actif, ou en attente de validation.
+export function canSignIn(status: AccountStatus): boolean {
+  return status === 'ACTIF' || status === 'EN_ATTENTE';
+}
+
 function unauthorized() {
   return new UnauthorizedException({
     code: 'UNAUTHORIZED',
@@ -363,7 +368,10 @@ export class AccountsService {
       'UPDATE accounts SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1',
       [account.id],
     );
-    if (account.status !== 'ACTIF') {
+    // Un compte en attente se connecte pour deposer ses pieces (EF-403) :
+    // sans elles, l'administration ne peut pas le valider. Il n'a aucun droit
+    // d'ecriture (accountActive = false, RG-06).
+    if (!canSignIn(account.status)) {
       await this.logAccount('LOGIN', 'DENIED', account, {
         reason: 'Compte non actif.',
         status: account.status,
@@ -501,7 +509,7 @@ export class AccountsService {
         ]),
       );
       const account = accounts[0];
-      if (!account || account.status !== 'ACTIF') {
+      if (!account || !canSignIn(account.status)) {
         throw unauthorized();
       }
       return this.issueTokens(account.id, tx);
