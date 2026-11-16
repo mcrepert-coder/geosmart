@@ -40,10 +40,19 @@ IconData _actionIcon(AccountAction action) => switch (action) {
 /// [onAction] est appele pour chaque action choisie, sauf "Mon compte" qui
 /// est l'ecran courant.
 class AccountPage extends StatelessWidget {
-  const AccountPage({super.key, required this.auth, this.onAction});
+  const AccountPage({
+    super.key,
+    required this.auth,
+    this.onAction,
+    this.onSurveyRequests,
+  });
 
   final AuthController auth;
   final void Function(AccountAction action)? onAction;
+
+  /// Demandes de leve du module foncier (EF-209), pour l'agent et le
+  /// geometre.
+  final VoidCallback? onSurveyRequests;
 
   @override
   Widget build(BuildContext context) {
@@ -95,17 +104,27 @@ class AccountPage extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: GeoSmartDimens.space4),
-              for (final action
-                  in actions.where((a) => a != AccountAction.account))
+              for (final action in actions.where(
+                (a) => a != AccountAction.account,
+              ))
                 Card(
-                  margin: const EdgeInsets.only(
-                    bottom: GeoSmartDimens.space2,
-                  ),
+                  margin: const EdgeInsets.only(bottom: GeoSmartDimens.space2),
                   child: ListTile(
                     leading: Icon(_actionIcon(action)),
                     title: Text(_actionLabel(action)),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: onAction == null ? null : () => onAction!(action),
+                  ),
+                ),
+              if (onSurveyRequests != null)
+                Card(
+                  margin: const EdgeInsets.only(bottom: GeoSmartDimens.space2),
+                  child: ListTile(
+                    key: const Key('open-survey-requests'),
+                    leading: const Icon(Icons.assignment_ind_outlined),
+                    title: const Text('Demandes de leve'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: onSurveyRequests,
                   ),
                 ),
             ],

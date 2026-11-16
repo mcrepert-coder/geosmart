@@ -19,6 +19,10 @@ import 'features/gnss/domain/entities/survey_session.dart';
 import 'features/gnss/domain/repositories/gnss_position_source.dart';
 import 'features/gnss/presentation/viewmodels/survey_controller.dart';
 import 'features/land/data/land_api.dart';
+import 'features/land/data/parcel_status_api.dart';
+import 'features/land/data/parcel_status_cache.dart';
+import 'features/land/domain/usecases/check_parcel.dart';
+import 'features/land/land_entry_points.dart';
 import 'features/leasing/data/leasing_api.dart';
 import 'features/map/domain/map_parcel.dart';
 import 'features/sync/data/sync_api.dart';
@@ -58,6 +62,17 @@ Future<void> main() async {
   );
   final syncApi = SyncApi(client, baseUrl: apiBaseUrl, token: auth.accessToken);
   final landApi = LandApi(client, baseUrl: apiBaseUrl, token: auth.accessToken);
+  // Verification publique (EF-206) : resultat garde hors ligne en SQLite.
+  final statusCache = SqfliteParcelStatusCache(database);
+  await statusCache.createTable();
+  final land = LandServices(
+    api: landApi,
+    checkParcel: CheckParcel(
+      ParcelStatusApi(client, baseUrl: apiBaseUrl),
+      statusCache,
+    ),
+    statusCache: statusCache,
+  );
   final projectsApi = SurveyProjectsApi(
     client,
     baseUrl: apiBaseUrl,
@@ -107,6 +122,7 @@ Future<void> main() async {
       parcelLoader: loadParcels,
       projectsLoader: projectsApi.list,
       projectsAdmin: ApiProjectsAdminGateway(projectsApi),
+      land: land,
     ),
   );
   unawaited(controller.start());
