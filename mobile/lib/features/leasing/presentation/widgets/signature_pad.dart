@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Pavé de signature du locataire pour l'etat des lieux (EF-306), sans
 /// dependance externe : le geste est dessine puis exporte en PNG base64.

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -139,8 +139,12 @@ class _ParcelMapPageState extends State<ParcelMapPage> {
                     ],
                   ),
                   if (widget.tileUrl != null)
-                    const SimpleAttributionWidget(
-                      source: Text('OpenStreetMap contributors'),
+                    // Couleur passee explicitement : flutter_map lit sinon
+                    // l'ancien theme de package:flutter/material.dart, que
+                    // l'application ne fournit plus depuis material_ui.
+                    SimpleAttributionWidget(
+                      source: const Text('OpenStreetMap contributors'),
+                      backgroundColor: Theme.of(context).colorScheme.surface,
                     ),
                 ],
               ),

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Jetons du design system GeoSmart Field v1.0, themes "terrain jour" et
 /// "nuit". Le module terrain les utilise pour toutes ses interfaces.

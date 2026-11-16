@@ -144,7 +144,7 @@ Avant de coder une route, son proprietaire ecrit `contracts/<module>.yaml` et ou
 - Serveur : `npm test` (tests unitaires `*.spec.ts`) et `npm run test:db` (tests `*.db-spec.ts` sur une vraie base PostgreSQL + PostGIS en memoire, PGlite). Les migrations sont rejouees dans chaque test sur base.
 - Contrats : `land-contract.spec.ts` et `auth/contracts.spec.ts` echouent si une route codee differe de son contrat (chemin ou code de succes).
 - Performance : `overlap-performance.db-spec.ts` verifie le controle de chevauchement en moins de 2 s sur 10 000 parcelles.
-- Application : `flutter analyze` et `flutter test` (Flutter 3.47.5, version fixee dans la CI).
+- Application : `flutter analyze` et `flutter test` (Flutter 3.50.0, version fixee dans la CI ; les ecrans importent `package:material_ui`, pas `package:flutter/material.dart`).
 - Site : `npm run lint`, `npm test` (page /parcelle), `npm run build`, puis `npx tsc --noEmit`.
 - CI (`.github/workflows/ci.yml`) : jobs api, mobile, web et messages de commit, sur chaque PR et sur `dev` et `main`.
 - Recette de bout en bout : `docs/recette/` rejoue CA-2 a CA-7 sur une pile reelle ; resultats dans `docs/RECETTE.md`.
