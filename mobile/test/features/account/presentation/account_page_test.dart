@@ -111,8 +111,10 @@ void main() {
 
     await pumpPage(tester, controller);
 
-    expect(find.text('Compte suspendu : les actions sont bloquees par le '
-        'serveur.'), findsOneWidget);
+    expect(
+      find.textContaining('Compte en attente de validation ou suspendu'),
+      findsOneWidget,
+    );
     expect(find.text('Visites de biens'), findsNothing);
     expect(find.text('Baux et loyers'), findsNothing);
   });

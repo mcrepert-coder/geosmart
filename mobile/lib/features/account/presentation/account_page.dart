@@ -89,8 +89,9 @@ class AccountPage extends StatelessWidget {
               if (!user.accountActive) ...[
                 const SizedBox(height: GeoSmartDimens.space3),
                 Text(
-                  'Compte suspendu : les actions sont bloquees par le '
-                  'serveur.',
+                  'Compte en attente de validation ou suspendu : les actions '
+                  'sont bloquees par le serveur. Deposez vos pieces '
+                  'justificatives depuis le site (Mon compte).',
                   style: GeoSmartText.body.copyWith(color: colors.danger),
                 ),
               ],
