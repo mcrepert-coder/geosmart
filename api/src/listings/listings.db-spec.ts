@@ -3,6 +3,7 @@ import type { PGlite } from '@electric-sql/pglite' with {
 };
 import type { DataSource, QueryRunner } from 'typeorm';
 import { AuditLog1793102400000 } from '../audit/migrations/1793102400000-audit-log';
+import { AuthAccounts1793104000000 } from '../auth/migrations/1793104000000-auth-accounts';
 import { LandParcels1793102500000 } from '../land/migrations/1793102500000-land-parcels';
 import { LandParcelIdFormat1793103100000 } from '../land/migrations/1793103100000-land-parcel-id-format';
 import { Listings1793103200000 } from './migrations/1793103200000-listings';
@@ -10,7 +11,8 @@ import { ListingsService } from './listings.service';
 
 jest.setTimeout(60000);
 
-const PARCEL_ID = 'TG-AGO-00001';
+// Commune avec chiffre (Grand Lome) : l'ancien motif [A-Z]{3} la refusait.
+const PARCEL_ID = 'TG-AG3-00001';
 const AGENT_ID = 'b1f0c2a4-1111-4a10-9c01-0a1b2c3d4e01';
 const AGENT = { id: AGENT_ID, role: 'AGENT', accountActive: true };
 const GEOMETRY =
@@ -20,6 +22,7 @@ describe('ListingsService with PostgreSQL migrations', () => {
   let db: PGlite;
   let service: ListingsService;
   const audit = new AuditLog1793102400000();
+  const accounts = new AuthAccounts1793104000000();
   const land = new LandParcels1793102500000();
   const idFormat = new LandParcelIdFormat1793103100000();
   const listings = new Listings1793103200000();
@@ -32,6 +35,12 @@ describe('ListingsService with PostgreSQL migrations', () => {
       query: (sql: string, params?: unknown[]) => db.query(sql, params),
     } as unknown as QueryRunner;
     await audit.up(runner);
+    await accounts.up(runner);
+    await db.query(
+      `INSERT INTO accounts (id, phone, password_hash, status, role)
+       VALUES ($1, '+22890000099', 'x', 'ACTIF', 'AGENT')`,
+      [AGENT_ID],
+    );
     await land.up(runner);
     await idFormat.up(runner);
     await listings.up(runner);
@@ -39,7 +48,7 @@ describe('ListingsService with PostgreSQL migrations', () => {
       `INSERT INTO parcels
          (id, commune, geom, area_m2, perimeter_m, geometry_hash,
           surveyor_id, survey_session_id, idempotency_key, legal_status, certified)
-       VALUES ($1, 'AGO', ${GEOMETRY}, 450, 90, repeat('a', 64),
+       VALUES ($1, 'AG3', ${GEOMETRY}, 450, 90, repeat('a', 64),
                $2, gen_random_uuid(), gen_random_uuid(), 'INCONNU', true)`,
       [PARCEL_ID, AGENT_ID],
     );
@@ -74,8 +83,11 @@ describe('ListingsService with PostgreSQL migrations', () => {
 
   afterAll(async () => {
     await listings.down(db as unknown as QueryRunner);
+    // L'ancien format (commune en lettres) refuse TG-AG3 : vider avant.
+    await db.query('DELETE FROM parcels');
     await idFormat.down(db as unknown as QueryRunner);
     await land.down(db as unknown as QueryRunner);
+    await accounts.down(db as unknown as QueryRunner);
     await audit.down(db as unknown as QueryRunner);
     await db?.close();
   });
@@ -102,6 +114,36 @@ describe('ListingsService with PostgreSQL migrations', () => {
     });
     expect(page.total).toBe(1);
     expect(page.items[0]?.id).toBe(created.id);
+  });
+
+  it('affiche le badge agent certifie et le retire si l agent est suspendu (EF-302)', async () => {
+    const certified = { ...AGENT, agentCertified: true };
+    const created = await service.create(certified, {
+      parcelId: PARCEL_ID,
+      type: 'TERRAIN',
+      transaction: 'VENTE',
+      title: 'Terrain agent certifie',
+      price: 9_000_000,
+      status: 'PUBLIE',
+    });
+    expect(created.badges.agentCertified).toBe(true);
+    const ids = async () =>
+      (await service.search({ agentCertified: 'true' })).items.map((i) => i.id);
+    expect(await ids()).toContain(created.id);
+
+    await db.query(`UPDATE accounts SET status = 'SUSPENDU' WHERE id = $1`, [
+      AGENT_ID,
+    ]);
+    const after = await service.getPublic(created.id);
+    expect(after.badges.agentCertified).toBe(false);
+    expect(await ids()).not.toContain(created.id);
+
+    await db.query(`UPDATE accounts SET status = 'ACTIF' WHERE id = $1`, [
+      AGENT_ID,
+    ]);
+    expect((await service.getPublic(created.id)).badges.agentCertified).toBe(
+      true,
+    );
   });
 
   it('enregistre les photos privees en base et rend public le contenu publie', async () => {

@@ -7,7 +7,11 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { DataSource } from 'typeorm';
 import { rowsOf } from '../audit/sql-runner';
-import { type AccountRow, toCurrentUser } from './accounts.service';
+import {
+  type AccountRow,
+  hasProfessionalDocument,
+  toCurrentUser,
+} from './accounts.service';
 
 // Garde globale : verifie le jeton d'acces puis relit le compte en base a
 // chaque requete (RG-06). Le jeton ne fournit ni role ni etat faisant
@@ -63,7 +67,14 @@ export class JwtAuthGuard implements CanActivate {
         message: 'Authentification requise ou identifiants invalides.',
       });
     }
-    request.user = toCurrentUser(account);
+    // Badge "agent certifie" (EF-302) : seul un agent actif est verifie.
+    const professionalDocument =
+      account.role === 'AGENT' && account.status === 'ACTIF'
+        ? await hasProfessionalDocument(this.dataSource, account.id).catch(
+            () => false,
+          )
+        : false;
+    request.user = toCurrentUser(account, professionalDocument);
     return true;
   }
 }

@@ -12,6 +12,8 @@ export interface CurrentActorValue {
   role: string;
   registeredSurveyor: boolean;
   accountActive: boolean;
+  // Facultatif : badge "agent certifie" des annonces (EF-302).
+  agentCertified?: boolean;
   // Facultatifs : imprimes sur l'attestation de leve quand ils sont fournis.
   fullName?: string;
   ordreNumber?: string;
@@ -38,6 +40,7 @@ export function actorFromRequest(request: {
     role: user.role,
     registeredSurveyor: user.registeredSurveyor === true,
     accountActive: user.accountActive === true,
+    agentCertified: user.agentCertified === true,
     fullName: optionalText(user.fullName),
     ordreNumber: optionalText(user.ordreNumber),
   };
