@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
+import { AuditService } from '../audit/audit.service';
 import { type CurrentActorValue } from '../audit/current-actor.decorator';
 import { rowsOf } from '../audit/sql-runner';
 import { SMS_SENDER, type SmsSender } from '../auth/sms.sender';
@@ -106,6 +107,7 @@ export class VisitsService {
     private readonly dataSource: DataSource,
     @Inject(PROPERTY_LOOKUP) private readonly properties: PropertyLookup,
     @Inject(SMS_SENDER) private readonly sms: SmsSender,
+    private readonly audit: AuditService,
   ) {}
 
   // Un client demande une visite ; un agent peut aussi en organiser une.
@@ -130,11 +132,25 @@ export class VisitsService {
     const scheduledAt = optionalDate(input.scheduledAt, 'scheduledAt');
     const reminderAt = optionalDate(input.reminderAt, 'reminderAt');
     const id = randomUUID();
-    await this.dataSource.query(
-      `INSERT INTO visits (id, property_id, requester_id, status, scheduled_at, reminder_at)
-       VALUES ($1, $2, $3, 'DEMANDEE', $4, $5)`,
-      [id, property.id, actor.id, scheduledAt, reminderAt],
-    );
+    await this.dataSource.transaction(async (tx) => {
+      await tx.query(
+        `INSERT INTO visits (id, property_id, requester_id, status, scheduled_at, reminder_at)
+         VALUES ($1, $2, $3, 'DEMANDEE', $4, $5)`,
+        [id, property.id, actor.id, scheduledAt, reminderAt],
+      );
+      await this.audit.log(
+        {
+          actorId: actor.id,
+          actorRole: actor.role,
+          action: 'VISIT_REQUEST',
+          resourceType: 'visit',
+          resourceId: id,
+          result: 'SUCCESS',
+          details: { propertyId: property.id },
+        },
+        tx,
+      );
+    });
     return toView((await this.findRow(id))!);
   }
 
@@ -185,15 +201,29 @@ export class VisitsService {
     }
     const scheduledAt = optionalDate(input.scheduledAt, 'scheduledAt');
     const reminderAt = optionalDate(input.reminderAt, 'reminderAt');
-    await this.dataSource.query(
-      `UPDATE visits
-          SET status = $1,
-              scheduled_at = COALESCE($2, scheduled_at),
-              reminder_at = COALESCE($3, reminder_at),
-              updated_at = now()
-        WHERE id = $4`,
-      [status, scheduledAt, reminderAt, visitId],
-    );
+    await this.dataSource.transaction(async (tx) => {
+      await tx.query(
+        `UPDATE visits
+            SET status = $1,
+                scheduled_at = COALESCE($2, scheduled_at),
+                reminder_at = COALESCE($3, reminder_at),
+                updated_at = now()
+          WHERE id = $4`,
+        [status, scheduledAt, reminderAt, visitId],
+      );
+      await this.audit.log(
+        {
+          actorId: actor.id,
+          actorRole: actor.role,
+          action: 'VISIT_STATUS',
+          resourceType: 'visit',
+          resourceId: visitId,
+          result: 'SUCCESS',
+          details: { from: row.status, to: status },
+        },
+        tx,
+      );
+    });
     if (status === 'CONFIRMEE') {
       const updated = await this.findRow(visitId);
       const requester = rowsOf<{ phone: string }>(

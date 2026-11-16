@@ -2,6 +2,8 @@ import type { PGlite } from '@electric-sql/pglite' with {
   'resolution-mode': 'import',
 };
 import { randomUUID } from 'node:crypto';
+import { AuditService } from '../audit/audit.service';
+import { AuditLog1793102400000 } from '../audit/migrations/1793102400000-audit-log';
 import type { DataSource, QueryRunner } from 'typeorm';
 import type { CurrentActorValue } from '../audit/current-actor.decorator';
 import type { SqlRunner } from '../audit/sql-runner';
@@ -70,6 +72,7 @@ describe('Leasing (PostgreSQL)', () => {
       query: (sql, params) => db.query(sql, params),
     };
     const qr = runner as unknown as QueryRunner;
+    await new AuditLog1793102400000().up(qr);
     await new AuthAccounts1793104000000().up(qr);
     await new Leasing1793107000000().up(qr);
     for (const account of [agent, client, stranger]) {
@@ -94,9 +97,10 @@ describe('Leasing (PostgreSQL)', () => {
     } as unknown as DataSource;
     const lookup = new SimulatedPropertyLookup(dataSource);
     sms = new FakeSms();
-    visits = new VisitsService(dataSource, lookup, sms);
-    leases = new LeasesService(dataSource, lookup);
-    inspections = new InspectionsService(dataSource);
+    const audit = new AuditService(dataSource);
+    visits = new VisitsService(dataSource, lookup, sms, audit);
+    leases = new LeasesService(dataSource, lookup, audit);
+    inspections = new InspectionsService(dataSource, audit);
   });
 
   afterAll(async () => {
@@ -379,5 +383,22 @@ describe('Leasing (PostgreSQL)', () => {
         inspections.listForLease(stranger, leaseId),
       ).rejects.toMatchObject({ status: 404 });
     });
+  });
+  // RG-10 : place en dernier, il relit ce que les tests precedents ont fait.
+  it('journalise baux, loyers, visites et etats des lieux', async () => {
+    const { rows } = await db.query<{ action: string; result: string }>(
+      'SELECT action, result FROM audit_log',
+    );
+    const actions = new Set(rows.map((r) => r.action));
+    for (const expected of [
+      'LEASE_CREATE',
+      'RENT_PAID',
+      'VISIT_REQUEST',
+      'VISIT_STATUS',
+      'INSPECTION_CREATE',
+    ]) {
+      expect(actions).toContain(expected);
+    }
+    expect(rows.every((r) => r.result === 'SUCCESS')).toBe(true);
   });
 });

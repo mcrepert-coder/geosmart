@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
+import { AuditService } from '../audit/audit.service';
 import { type CurrentActorValue } from '../audit/current-actor.decorator';
 import { rowsOf } from '../audit/sql-runner';
 import { PROPERTY_LOOKUP, type PropertyLookup } from './property-lookup';
@@ -118,6 +119,7 @@ export class LeasesService {
   constructor(
     private readonly dataSource: DataSource,
     @Inject(PROPERTY_LOOKUP) private readonly properties: PropertyLookup,
+    private readonly audit: AuditService,
   ) {}
 
   // Seul un agent actif cree un bail ; un client ne cree jamais de bail.
@@ -195,6 +197,23 @@ export class LeasesService {
           ],
         );
       }
+      // RG-10 : le bail et sa ligne d'audit dans la meme transaction.
+      await this.audit.log(
+        {
+          actorId: actor.id,
+          actorRole: actor.role,
+          action: 'LEASE_CREATE',
+          resourceType: 'lease',
+          resourceId: leaseId,
+          result: 'SUCCESS',
+          details: {
+            propertyId: property.id,
+            monthlyRent: input.monthlyRent,
+            months: input.months,
+          },
+        },
+        tx,
+      );
     });
     return this.getOne(actor, leaseId);
   }
@@ -247,10 +266,23 @@ export class LeasesService {
     if (rent.paid_at) {
       throw validation('Cette echeance est deja payee.');
     }
-    await this.dataSource.query(
-      'UPDATE lease_rents SET paid_at = now() WHERE id = $1',
-      [rentId],
-    );
+    await this.dataSource.transaction(async (tx) => {
+      await tx.query('UPDATE lease_rents SET paid_at = now() WHERE id = $1', [
+        rentId,
+      ]);
+      await this.audit.log(
+        {
+          actorId: actor.id,
+          actorRole: actor.role,
+          action: 'RENT_PAID',
+          resourceType: 'lease',
+          resourceId: leaseId,
+          result: 'SUCCESS',
+          details: { rentId, amount: Number(rent.amount) },
+        },
+        tx,
+      );
+    });
     const updated = rowsOf<RentRow>(
       await this.dataSource.query('SELECT * FROM lease_rents WHERE id = $1', [
         rentId,

@@ -5,10 +5,12 @@
 import FlutterMacOS
 import Foundation
 
+import flutter_secure_storage_macos
 import reactive_ble_mobile
 import sqflite_darwin
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
+  FlutterSecureStoragePlugin.register(with: registry.registrar(forPlugin: "FlutterSecureStoragePlugin"))
   ReactiveBlePlugin.register(with: registry.registrar(forPlugin: "ReactiveBlePlugin"))
   SqflitePlugin.register(with: registry.registrar(forPlugin: "SqflitePlugin"))
 }

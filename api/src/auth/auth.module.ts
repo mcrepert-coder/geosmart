@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { AdminModule } from '../admin/admin.module';
+import { AuditModule } from '../audit/audit.module';
 import { LeasingModule } from '../leasing/leasing.module';
 import { SyncModule } from '../sync/sync.module';
 import { UsersModule } from '../users/users.module';
@@ -23,6 +24,7 @@ import { LogSmsSender, SMS_SENDER } from './sms.sender';
         secret: process.env.JWT_SECRET,
       }),
     }),
+    AuditModule,
     SyncModule,
     UsersModule,
     AdminModule,
