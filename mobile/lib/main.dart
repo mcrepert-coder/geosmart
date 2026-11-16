@@ -7,6 +7,7 @@ import 'app/database/local_database.dart';
 import 'app/geosmart_app.dart';
 import 'app/runtime_config.dart';
 import 'features/account/data/auth_api.dart';
+import 'features/account/data/secure_session_store.dart';
 import 'features/account/data/sqflite_session_store.dart';
 import 'features/account/presentation/viewmodels/auth_controller.dart';
 import 'features/gnss/data/datasources/native_gnss_source.dart';
@@ -37,8 +38,14 @@ Future<void> main() async {
   final database = await LocalDatabase.open();
   final store = SurveySessionLocalDataSource(database);
   final client = http.Client();
-  final accountStore = SqfliteSessionStore(database);
-  await accountStore.ensureTable();
+  // Session chiffree par le Keystore ; une ancienne session en clair dans
+  // SQLite est migree puis effacee au premier lancement.
+  final legacySessionStore = SqfliteSessionStore(database);
+  await legacySessionStore.ensureTable();
+  final accountStore = SecureSessionStore(
+    const FlutterSecretStorage(),
+    legacy: legacySessionStore,
+  );
   final auth = AuthController(
     api: AuthApi(client, baseUrl: apiBaseUrl),
     store: accountStore,

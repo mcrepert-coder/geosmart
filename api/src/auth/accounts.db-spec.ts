@@ -4,6 +4,8 @@ import type { PGlite } from '@electric-sql/pglite' with {
 import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'node:crypto';
 import type { DataSource, QueryRunner } from 'typeorm';
+import { AuditService } from '../audit/audit.service';
+import { AuditLog1793102400000 } from '../audit/migrations/1793102400000-audit-log';
 import type { SqlRunner } from '../audit/sql-runner';
 import {
   AccountsService,
@@ -44,6 +46,7 @@ describe('AccountsService (PostgreSQL)', () => {
     const runner: SqlRunner = {
       query: (sql, params) => db.query(sql, params),
     };
+    await new AuditLog1793102400000().up(runner as unknown as QueryRunner);
     await new AuthAccounts1793104000000().up(runner as unknown as QueryRunner);
     const dataSource = {
       query: (sql: string, params?: unknown[]) => runner.query(sql, params),
@@ -54,7 +57,12 @@ describe('AccountsService (PostgreSQL)', () => {
     } as unknown as DataSource;
     jwt = new JwtService({ secret: 'secret-de-test' });
     sms = new FakeSms();
-    service = new AccountsService(dataSource, jwt, sms);
+    service = new AccountsService(
+      dataSource,
+      jwt,
+      sms,
+      new AuditService(dataSource),
+    );
   });
 
   afterAll(async () => {
@@ -198,5 +206,41 @@ describe('AccountsService (PostgreSQL)', () => {
     });
     expect(other.id).not.toBe(randomUUID());
     expect(typeof other.id).toBe('string');
+  });
+  // RG-10 : place en dernier, il relit tout ce que les tests precedents ont
+  // journalise.
+  it('journalise inscriptions, verifications et connexions sans le telephone', async () => {
+    await expect(
+      service.login({ phone: '+22899999999', password: 'inconnu-123' }),
+    ).rejects.toMatchObject({ status: 401 });
+    // Vrai mauvais code : un compte encore a verifier.
+    await service.register({ phone: '+22890445566', password });
+    await expect(
+      service.verifyPhone({ phone: '+22890445566', code: '000000' }),
+    ).rejects.toMatchObject({ response: { code: 'VALIDATION_ERROR' } });
+
+    const { rows } = await db.query<{
+      action: string;
+      result: string;
+      resource_type: string;
+      details: Record<string, unknown> | null;
+    }>('SELECT action, result, resource_type, details FROM audit_log');
+    const seen = new Set(rows.map((r) => `${r.action}:${r.result}`));
+    for (const expected of [
+      'ACCOUNT_REGISTER:SUCCESS',
+      'PHONE_VERIFY:SUCCESS',
+      'PHONE_VERIFY:REJECTED',
+      'LOGIN:SUCCESS',
+      'LOGIN:REJECTED',
+      'LOGIN:DENIED',
+      'LOGIN_BLOCKED:DENIED',
+    ]) {
+      expect(seen).toContain(expected);
+    }
+    expect(rows.every((r) => r.resource_type === 'account')).toBe(true);
+    const digits = normalizePhone(phone).replace(/\D/g, '');
+    expect(JSON.stringify(rows)).not.toContain(digits);
+    expect(JSON.stringify(rows)).not.toContain('99999999');
+    expect(JSON.stringify(rows)).not.toContain('90445566');
   });
 });
