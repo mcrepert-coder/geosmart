@@ -43,3 +43,25 @@ Run the Listings checks from this directory:
 flutter test test/features/listings
 flutter analyze
 ```
+
+## Version de production
+
+L'adresse par defaut de l'API (`http://10.0.2.2:3001`) ne sert qu'a l'emulateur. Une
+version de production doit recevoir une adresse `https` a la construction :
+
+```powershell
+Copy-Item .env.release.example .env.release.json
+# Remplacer api.exemple.tg par l'adresse https reelle de l'API.
+flutter build apk --release --dart-define-from-file=.env.release.json
+```
+
+- Le HTTP non chiffre n'est permis qu'en debug et profile (manifestes `debug` et
+  `profile`) : une adresse `http` ne fonctionne pas en release.
+- Avec un compte connecte, la mission est creee sur un chantier choisi dans
+  `GET /projects` (CA-7) ; `GEOSMART_PROJECT_ID` et `GEOSMART_SURVEYOR_ID` ne servent
+  qu'au mode sans compte et restent vides en production.
+- `GEOSMART_DEMO_MODE` et `GEOSMART_GNSS_SIMULATION` restent a `false`.
+- Signature : `android/app/build.gradle.kts` signe encore la release avec la cle de
+  debug. Avant toute publication, creer une cle de signature (hors du depot) et la
+  declarer dans `signingConfigs`. Ne jamais commiter la cle ni son mot de passe.
+

@@ -95,7 +95,7 @@ describe('ListingsService', () => {
         code: 'FORBIDDEN',
         message: 'Pour publier un bien, passez par un agent.',
       },
-    } satisfies Partial<ForbiddenException>);
+    });
     expect(query).not.toHaveBeenCalled();
   });
 

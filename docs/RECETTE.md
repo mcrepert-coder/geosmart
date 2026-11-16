@@ -19,11 +19,29 @@ depuis `mobile/`, et les commandes web depuis `web/`.
 | Critère | Propriétaire | Vérification |
 |---|---|---|
 | CA-2 — chevauchement refusé, limite partagée acceptée | Samuel | `npm run test:db -- --runInBand land-parcels.db-spec.ts` et `npm run test:db -- --runInBand land-http.db-spec.ts` |
-| CA-3 — synchronisation sans perte ni doublon après coupure | Beni / Romuald | `flutter test test/features/gnss/domain/services/sync_queue_processor_test.dart` ; le serveur Sync réel reste à intégrer |
+| CA-3 — synchronisation sans perte ni doublon après coupure | Beni / Romuald | `flutter test test/features/gnss/domain/services/sync_queue_processor_test.dart` et, dans `api/`, `npm run test:db -- --runInBand sync.db-spec.ts` (mission complète, renvoi sans doublon) ; scénario de bout en bout ci-dessous |
 | CA-4 — un agent ne modifie pas une limite | Samuel | `npm run test:db -- --runInBand parcel-update.db-spec.ts` |
 | CA-5 — un client ne publie pas | Marrich | `npm test -- --runInBand listings.service.spec.ts` |
 | CA-6 — agent actif, parcelle certifiée, annonce publique, badges et partage | Marrich | `npm run test:db -- --runInBand listings.db-spec.ts` ; vérifier aussi la carte publique et le lien de partage dans le navigateur |
-| CA-7 — points limités au chantier assigné | Romuald / Beni | `flutter test test/features/gnss/domain/services/sync_queue_processor_test.dart` ; contrôle d'assignation serveur à compléter avec Sync |
+| CA-7 — points limités au chantier assigné | Romuald / Beni | dans `api/`, `npm run test:db -- --runInBand projects.db-spec.ts sync.db-spec.ts` (refus 403 hors chantier assigné ou clos) et `flutter test test/features/gnss/presentation/new_mission_project_test.dart` ; scénario ci-dessous |
+
+## Scénarios de bout en bout CA-3 et CA-7
+
+A rejouer sur l'API lancée avec Docker (`docker compose up`), avec un administrateur,
+un géomètre et deux topographes actifs.
+
+1. Le géomètre crée un chantier : `POST /projects` avec un titre. Réponse 201, statut
+   `OUVERT`.
+2. Il assigne le premier topographe : `PUT /projects/{projectId}/topographers/{accountId}`.
+3. Sur le téléphone du premier topographe, créer une mission sur ce chantier (liste des
+   chantiers dans « Nouvelle mission »), lever trois bornes FIXED, terminer la mission.
+4. Couper le réseau, lancer l'envoi, rétablir le réseau, relancer : la mission passe à
+   `SYNCED` et `GET /projects/{projectId}` indique `missionsCount: 1` (CA-3, pas de
+   doublon).
+5. Le second topographe, non assigné, envoie une mission sur le même chantier : refus
+   403 (CA-7), ligne `SYNC_ITEM` en `DENIED` dans le journal.
+6. Le géomètre clôt le chantier (`POST /projects/{projectId}/close`) : un nouvel envoi
+   du premier topographe est refusé (403).
 
 ## Résultats de l'implémentation Listings
 
@@ -50,5 +68,5 @@ depuis `mobile/`, et les commandes web depuis `web/`.
   restent à traiter séparément ; les autres tests passent.
 
 La recette de bout en bout n'est pas considérée complète tant que le module Auth
-ne fournit pas `agentCertified` et qu'un environnement API/Auth partagé ne permet
-pas de tester les scénarios CA-3 et CA-7 réels.
+ne fournit pas `agentCertified` et que les scénarios CA-3 et CA-7 ci-dessus n'ont
+pas été rejoués sur un vrai téléphone (PR #48 et #49).
