@@ -1,0 +1,22 @@
+# Base PostGIS locale a la place d'Aiven (developpement, essais sur telephone).
+# A combiner avec compose.yaml et compose.local-db.env, voir README.md :
+#   docker compose --env-file .env --env-file compose.local-db.env \
+#     -f compose.yaml -f compose.local-db.yaml up -d
+services:
+  db:
+    profiles: !reset []
+
+  backend:
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-geosmart}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-geosmart}
+      NODE_EXTRA_CA_CERTS: !reset null
+    volumes: !reset []
+    depends_on:
+      db:
+        condition: service_healthy
+
+  admin-bootstrap:
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-geosmart}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-geosmart}
+      NODE_EXTRA_CA_CERTS: !reset null
+    volumes: !reset []
