@@ -48,7 +48,6 @@ void main() {
 
     expect(find.text('Veuillez vous connecter'), findsOneWidget);
     expect(find.text('Connexion'), findsOneWidget);
-    expect(find.byKey(const Key('login-gate-logo')), findsOneWidget);
 
     final size = tester.view.physicalSize / tester.view.devicePixelRatio;
     expect(
@@ -62,20 +61,35 @@ void main() {
       tester.getCenter(find.text('Veuillez vous connecter')).dy,
       lessThan(buttonCenter.dy),
     );
-    expect(find.byType(Center), findsOneWidget);
+    expect(find.byType(Center), findsWidgets);
   });
 
-  testWidgets('le carrousel occupe la largeur moins 10px de chaque cote '
-      'et le quart de la hauteur', (tester) async {
+  testWidgets('le carrousel a ses marges et le quart de la hauteur', (
+    tester,
+  ) async {
     await pumpPage(tester);
 
     final size = tester.view.physicalSize / tester.view.devicePixelRatio;
     final carousel = tester.getSize(find.byType(PageView));
-    expect(carousel.width, closeTo(size.width - 20, 1));
+    expect(carousel.width, closeTo(size.width - 2 * GeoSmartDimens.space4, 1));
     expect(carousel.height, closeTo(size.height * 0.25, 1));
+    expect(
+      tester.getTopLeft(find.byType(PageView)).dy,
+      closeTo(GeoSmartDimens.space4, 1),
+    );
 
     final dots = tester.widget<Row>(find.byKey(const Key('login-carousel-dots')));
     expect(dots.children, hasLength(3));
+  });
+
+  testWidgets('les dots sont centrees horizontalement', (tester) async {
+    await pumpPage(tester);
+
+    final size = tester.view.physicalSize / tester.view.devicePixelRatio;
+    expect(
+      tester.getCenter(find.byKey(const Key('login-carousel-dots'))).dx,
+      size.width / 2,
+    );
   });
 
   testWidgets('le carrousel avance automatiquement toutes les 3 secondes',

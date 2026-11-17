@@ -123,51 +123,39 @@ class _LoginGatePageState extends State<LoginGatePage> {
                 children: [
                   Align(
                     alignment: Alignment.topCenter,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: GeoSmartDimens.space4),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            child: SizedBox(
-                              height: constraints.maxHeight * 0.25,
-                              child: PageView.builder(
-                                controller: _pageController,
-                                itemBuilder: (context, index) =>
-                                    _buildSlide(context, colors, index),
-                                onPageChanged: (index) => setState(
-                                  () => _currentPage = index,
-                                ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            top: GeoSmartDimens.space4,
+                            left: GeoSmartDimens.space4,
+                            right: GeoSmartDimens.space4,
+                          ),
+                          child: SizedBox(
+                            height: constraints.maxHeight * 0.25,
+                            child: PageView.builder(
+                              controller: _pageController,
+                              itemBuilder: (context, index) =>
+                                  _buildSlide(context, colors, index),
+                              onPageChanged: (index) => setState(
+                                () => _currentPage = index,
                               ),
                             ),
                           ),
-                          const SizedBox(height: GeoSmartDimens.space2),
-                          _buildDots(colors),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: GeoSmartDimens.space2),
+                        Center(child: _buildDots(colors)),
+                      ],
                     ),
                   ),
                   Align(
                     alignment: const Alignment(0, 0.25),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Image.asset(
-                          'assets/geosmart_field_app_icon_1024.png',
-                          key: const Key('login-gate-logo'),
-                          width: 96,
-                          height: 96,
-                          fit: BoxFit.contain,
-                        ),
-                        const SizedBox(height: GeoSmartDimens.space3),
-                        Text(
-                          'Veuillez vous connecter',
-                          style: GeoSmartText.h2.copyWith(color: colors.text),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                    child: Text(
+                      'Veuillez vous connecter',
+                      style: GeoSmartText.h2.copyWith(color: colors.text),
+                      textAlign: TextAlign.center,
                     ),
                   ),
                   Align(
