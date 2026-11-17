@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geosmart_mobile/app/geosmart_app.dart';
 import 'package:geosmart_mobile/features/gnss/domain/entities/gnss_fix_quality.dart';
@@ -61,7 +61,7 @@ void main() {
     addTearDown(controller.dispose);
     await controller.start();
     await tester.pumpWidget(GeoSmartApp(controller: controller));
-    await pumpFrames(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('Mes missions'), findsOneWidget);
     await tester.tap(find.text('Leve parcelle A'));
