@@ -9,8 +9,10 @@ under `src/`:
 
 ## Setup
 
-The API requires PostgreSQL with PostGIS. From the repository root, start the
-database and API with:
+The API requires PostgreSQL with PostGIS. From the repository root, set
+`DATABASE_URL` in `.env` to the managed Aiven database (SSL mode
+`verify-full`) and `AIVEN_CA_CERT_PATH` to the downloaded Aiven CA certificate,
+then start the API and web app with:
 
 ```bash
 docker compose up --build

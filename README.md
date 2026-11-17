@@ -46,17 +46,27 @@ GeoSmart seconde l'Etat (ANDF). Il ne le remplace pas : le document produit est 
 
 ## Lancer les services avec Docker
 
-Docker Compose lance l'API NestJS depuis `api/`, le site Next.js et PostgreSQL avec PostGIS :
+Docker Compose lance l'API NestJS depuis `api/` et le site Next.js. Par defaut,
+l'API utilise la base PostgreSQL/PostGIS Aiven configuree dans `DATABASE_URL` :
 
 ```powershell
 Copy-Item .env.docker.example .env
-# Remplacer POSTGRES_PASSWORD et JWT_SECRET par des valeurs aleatoires.
+# Remplacer le mot de passe Aiven, le chemin du CA et JWT_SECRET.
+# Encoder en URL les caracteres speciaux du mot de passe.
 docker compose up --build
 ```
 
-Le site est disponible sur `http://localhost:3000`, l'API sur `http://localhost:3001` et PostgreSQL sur le port `5433` (hote). Les ports peuvent etre changes dans `.env`. Compose refuse de demarrer si les secrets requis ne sont pas remplaces. Utilisez des secrets differents pour chaque environnement, jamais ceux d'exemple.
+Le site est disponible sur `http://localhost:3000` et l'API sur
+`http://localhost:3001`. Compose refuse de demarrer si `DATABASE_URL` ou les
+secrets requis ne sont pas configures. `AIVEN_CA_CERT_PATH` doit pointer vers
+le certificat CA Aiven telecharge; Compose le monte dans l'API et configure
+la verification TLS `verify-full`. Ne commitez jamais le fichier `.env`.
 
-Pour arreter les services sans supprimer les donnees, utilisez `docker compose down`. Pour supprimer aussi le volume de la base locale, utilisez `docker compose down -v`.
+Pour developper sans se connecter a Aiven, la base PostGIS locale optionnelle
+peut etre lancee avec `docker compose --profile local-db up -d db`. Dans ce cas,
+configurez `DATABASE_URL` dans `.env` avec
+`postgresql://geosmart:<mot-de-passe>@localhost:5433/geosmart`. Pour supprimer
+ses donnees locales, utilisez `docker compose down -v`.
 
 L'application Flutter reste dans `mobile/` et se lance avec le SDK Flutter de la machine (`cd mobile`, puis `flutter run`). Docker Compose ne construit pas l'APK.
 
