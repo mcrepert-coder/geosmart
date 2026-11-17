@@ -48,6 +48,7 @@ void main() {
 
     expect(find.text('Veuillez vous connecter'), findsOneWidget);
     expect(find.text('Connexion'), findsOneWidget);
+    expect(find.byKey(const Key('login-gate-logo')), findsOneWidget);
 
     final size = tester.view.physicalSize / tester.view.devicePixelRatio;
     expect(

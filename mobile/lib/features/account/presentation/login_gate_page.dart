@@ -151,10 +151,23 @@ class _LoginGatePageState extends State<LoginGatePage> {
                   ),
                   Align(
                     alignment: const Alignment(0, 0.25),
-                    child: Text(
-                      'Veuillez vous connecter',
-                      style: GeoSmartText.h2.copyWith(color: colors.text),
-                      textAlign: TextAlign.center,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Image.asset(
+                          'assets/geosmart_field_app_icon_1024.png',
+                          key: const Key('login-gate-logo'),
+                          width: 96,
+                          height: 96,
+                          fit: BoxFit.contain,
+                        ),
+                        const SizedBox(height: GeoSmartDimens.space3),
+                        Text(
+                          'Veuillez vous connecter',
+                          style: GeoSmartText.h2.copyWith(color: colors.text),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
                   ),
                   Align(
