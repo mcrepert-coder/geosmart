@@ -217,5 +217,7 @@ Pour la reception des donnees brutes NMEA depuis le Bluetooth SPP ou BLE :
   Commandes de pilotage du recepteur :
   - `connectDevice(address: String)` : Connexion au peripherique Bluetooth SPP/BLE.
   - `disconnectDevice()` : Deconnexion propre.
-  - `sendRtcmData(bytes: ByteArray)` : Injection des trames RTCM provenant du client NTRIP (EF-104) vers le recepteur.
+  - `sendRtcm(bytes: Uint8List)` : Injection des trames RTCM provenant du client NTRIP (EF-104) vers le recepteur.
+
+La specification complete et normative du canal (methodes `startScan`, `startSimulation`, `saveCaster`, `loadCaster`, `clearCaster`, `requestPermissions`, `isBluetoothEnabled`, codes d'erreur et statuts) est definie dans [gnss-channel.md](gnss-channel.md). En cas d'ecart, `gnss-channel.md` fait foi.
 
