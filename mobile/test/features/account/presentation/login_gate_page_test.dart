@@ -42,7 +42,8 @@ void main() {
     return controller;
   }
 
-  testWidgets('affiche le message et le bouton au centre', (tester) async {
+  testWidgets('affiche le message au-dessus du bouton place a 3/4 de la hauteur',
+      (tester) async {
     await pumpPage(tester);
 
     expect(find.text('Veuillez vous connecter'), findsOneWidget);
@@ -53,8 +54,41 @@ void main() {
       tester.getCenter(find.text('Veuillez vous connecter')).dx,
       size.width / 2,
     );
-    expect(tester.getCenter(find.text('Connexion')).dx, size.width / 2);
+    final buttonCenter = tester.getCenter(find.text('Connexion'));
+    expect(buttonCenter.dx, size.width / 2);
+    expect(buttonCenter.dy, closeTo(size.height * 0.75, 24));
+    expect(
+      tester.getCenter(find.text('Veuillez vous connecter')).dy,
+      lessThan(buttonCenter.dy),
+    );
     expect(find.byType(Center), findsOneWidget);
+  });
+
+  testWidgets('le carrousel occupe la largeur moins 10px de chaque cote '
+      'et le quart de la hauteur', (tester) async {
+    await pumpPage(tester);
+
+    final size = tester.view.physicalSize / tester.view.devicePixelRatio;
+    final carousel = tester.getSize(find.byType(PageView));
+    expect(carousel.width, closeTo(size.width - 20, 1));
+    expect(carousel.height, closeTo(size.height * 0.25, 1));
+
+    final dots = tester.widget<Row>(find.byKey(const Key('login-carousel-dots')));
+    expect(dots.children, hasLength(3));
+  });
+
+  testWidgets('le carrousel avance automatiquement toutes les 3 secondes',
+      (tester) async {
+    await pumpPage(tester);
+
+    final pageView = tester.widget<PageView>(find.byType(PageView));
+    final controller = pageView.controller!;
+    final initialPage = controller.page!;
+
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    expect(controller.page, greaterThan(initialPage));
   });
 
   testWidgets('le bouton ouvre l ecran de connexion', (tester) async {
