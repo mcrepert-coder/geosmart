@@ -114,53 +114,52 @@ class _LoginGatePageState extends State<LoginGatePage> {
     final colors = GeoSmartColors.of(context);
     return Scaffold(
       body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints.expand(),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: GeoSmartDimens.space4,
-                    ),
-                    child: SizedBox(
-                      height: constraints.maxHeight * 0.25,
-                      child: PageView.builder(
-                        controller: _pageController,
-                        itemBuilder: (context, index) =>
-                            _buildSlide(context, colors, index),
-                        onPageChanged: (index) => setState(
-                          () => _currentPage = index,
-                        ),
+        // Sans boite a contraintes expand : le Center garde la main et centre
+        // le bloc carrousel, dots, message, bouton a l'ecran.
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: GeoSmartDimens.space4,
+                  ),
+                  child: SizedBox(
+                    height: constraints.maxHeight * 0.25,
+                    child: PageView.builder(
+                      controller: _pageController,
+                      itemBuilder: (context, index) =>
+                          _buildSlide(context, colors, index),
+                      onPageChanged: (index) => setState(
+                        () => _currentPage = index,
                       ),
                     ),
                   ),
-                  const SizedBox(height: GeoSmartDimens.space2),
-                  Center(child: _buildDots(colors)),
-                  const SizedBox(height: GeoSmartDimens.space6),
-                  Text(
-                    'Veuillez vous connecter',
-                    style: GeoSmartText.h2.copyWith(color: colors.text),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: GeoSmartDimens.space4),
-                  Center(
-                    child: FilledButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => LoginPage(auth: widget.auth),
-                        ),
+                ),
+                const SizedBox(height: GeoSmartDimens.space2),
+                Center(child: _buildDots(colors)),
+                const SizedBox(height: GeoSmartDimens.space6),
+                Text(
+                  'Veuillez vous connecter',
+                  style: GeoSmartText.h2.copyWith(color: colors.text),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: GeoSmartDimens.space4),
+                Center(
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => LoginPage(auth: widget.auth),
                       ),
-                      child: const Text('Connexion'),
                     ),
+                    child: const Text('Connexion'),
                   ),
-                ],
-              );
-            },
-          ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
