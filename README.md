@@ -51,14 +51,16 @@ l'API utilise la base PostgreSQL/PostGIS Aiven configuree dans `DATABASE_URL` :
 
 ```powershell
 Copy-Item .env.docker.example .env
-# Remplacer le mot de passe Aiven et JWT_SECRET. Renouveler le mot de passe
-# affiche dans la capture, puis encoder en URL ses caracteres speciaux.
+# Remplacer le mot de passe Aiven, le chemin du CA et JWT_SECRET.
+# Encoder en URL les caracteres speciaux du mot de passe.
 docker compose up --build
 ```
 
 Le site est disponible sur `http://localhost:3000` et l'API sur
 `http://localhost:3001`. Compose refuse de demarrer si `DATABASE_URL` ou les
-secrets requis ne sont pas configures. Ne commitez jamais le fichier `.env`.
+secrets requis ne sont pas configures. `AIVEN_CA_CERT_PATH` doit pointer vers
+le certificat CA Aiven telecharge; Compose le monte dans l'API et configure
+la verification TLS `verify-full`. Ne commitez jamais le fichier `.env`.
 
 Pour developper sans se connecter a Aiven, la base PostGIS locale optionnelle
 peut etre lancee avec `docker compose --profile local-db up -d db`. Dans ce cas,

@@ -24,11 +24,17 @@ services:
       dockerfile: Dockerfile
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      NODE_EXTRA_CA_CERTS: /run/secrets/aiven-ca.pem
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       PORT: 3001
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
       LAND_OVERLAP_TOLERANCE_M2: ${LAND_OVERLAP_TOLERANCE_M2:-0}
       THROTTLE_LIMIT: ${THROTTLE_LIMIT:-300}
+    volumes:
+      - type: bind
+        source: ${AIVEN_CA_CERT_PATH:?Set AIVEN_CA_CERT_PATH in .env}
+        target: /run/secrets/aiven-ca.pem
+        read_only: true
     ports:
       - "127.0.0.1:${API_PORT:-3001}:3001"
     healthcheck:
@@ -51,8 +57,14 @@ services:
     command: ["node", "dist/auth/bootstrap-admin.js"]
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      NODE_EXTRA_CA_CERTS: /run/secrets/aiven-ca.pem
       ADMIN_PHONE: ${ADMIN_PHONE:-}
       ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD:-}
+    volumes:
+      - type: bind
+        source: ${AIVEN_CA_CERT_PATH:?Set AIVEN_CA_CERT_PATH in .env}
+        target: /run/secrets/aiven-ca.pem
+        read_only: true
     profiles:
       - admin-bootstrap
     depends_on:
