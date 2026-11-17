@@ -42,29 +42,32 @@ void main() {
     return controller;
   }
 
-  testWidgets('affiche le message au-dessus du bouton place a 3/4 de la hauteur',
-      (tester) async {
+  testWidgets('affiche carrousel, dots, message et bouton en un bloc centre', (
+    tester,
+  ) async {
     await pumpPage(tester);
 
+    final size = tester.view.physicalSize / tester.view.devicePixelRatio;
     expect(find.text('Veuillez vous connecter'), findsOneWidget);
     expect(find.text('Connexion'), findsOneWidget);
 
-    final size = tester.view.physicalSize / tester.view.devicePixelRatio;
-    expect(
-      tester.getCenter(find.text('Veuillez vous connecter')).dx,
-      size.width / 2,
-    );
-    final buttonCenter = tester.getCenter(find.text('Connexion'));
-    expect(buttonCenter.dx, size.width / 2);
-    expect(buttonCenter.dy, closeTo(size.height * 0.75, 24));
-    expect(
-      tester.getCenter(find.text('Veuillez vous connecter')).dy,
-      lessThan(buttonCenter.dy),
-    );
+    final carousel = tester.getRect(find.byType(PageView));
+    final dots = tester.getRect(find.byKey(const Key('login-carousel-dots')));
+    final message = tester.getRect(find.text('Veuillez vous connecter'));
+    final button = tester.getRect(find.byType(FilledButton));
+
+    expect(carousel.bottom, lessThan(dots.top));
+    expect(dots.bottom, lessThan(message.top));
+    expect(message.bottom, lessThan(button.top));
+    expect(message.top - dots.bottom, closeTo(GeoSmartDimens.space6, 1));
+    expect(button.top - message.bottom, closeTo(GeoSmartDimens.space4, 1));
+
+    expect(message.center.dx, size.width / 2);
+    expect(button.center.dx, size.width / 2);
     expect(find.byType(Center), findsWidgets);
   });
 
-  testWidgets('le carrousel a ses marges et le quart de la hauteur', (
+  testWidgets('le carrousel a ses marges horizontales et le quart de la hauteur', (
     tester,
   ) async {
     await pumpPage(tester);
@@ -73,10 +76,6 @@ void main() {
     final carousel = tester.getSize(find.byType(PageView));
     expect(carousel.width, closeTo(size.width - 2 * GeoSmartDimens.space4, 1));
     expect(carousel.height, closeTo(size.height * 0.25, 1));
-    expect(
-      tester.getTopLeft(find.byType(PageView)).dy,
-      closeTo(GeoSmartDimens.space4, 1),
-    );
 
     final dots = tester.widget<Row>(find.byKey(const Key('login-carousel-dots')));
     expect(dots.children, hasLength(3));

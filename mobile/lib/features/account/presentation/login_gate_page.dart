@@ -8,9 +8,8 @@ import 'viewmodels/auth_controller.dart';
 
 /// Ecran d'accueil de l'utilisateur non connecte (EF-401).
 ///
-/// Un carrousel horizontal en boucle occupe le quart superieur de l'ecran,
-/// avec ses dots juste en dessous. Le message et le bouton restent centres
-/// horizontalement ; le bouton est descendu vers les 3/4 de la hauteur.
+/// Un bloc centre verticalement : carrousel horizontal en boucle, dots
+/// centres juste en dessous, puis le message et le bouton de connexion.
 /// Le formulaire complet est sur [LoginPage].
 class LoginGatePage extends StatefulWidget {
   const LoginGatePage({super.key, required this.auth});
@@ -119,48 +118,36 @@ class _LoginGatePageState extends State<LoginGatePage> {
           constraints: const BoxConstraints.expand(),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              return Stack(
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Align(
-                    alignment: Alignment.topCenter,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            top: GeoSmartDimens.space4,
-                            left: GeoSmartDimens.space4,
-                            right: GeoSmartDimens.space4,
-                          ),
-                          child: SizedBox(
-                            height: constraints.maxHeight * 0.25,
-                            child: PageView.builder(
-                              controller: _pageController,
-                              itemBuilder: (context, index) =>
-                                  _buildSlide(context, colors, index),
-                              onPageChanged: (index) => setState(
-                                () => _currentPage = index,
-                              ),
-                            ),
-                          ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: GeoSmartDimens.space4,
+                    ),
+                    child: SizedBox(
+                      height: constraints.maxHeight * 0.25,
+                      child: PageView.builder(
+                        controller: _pageController,
+                        itemBuilder: (context, index) =>
+                            _buildSlide(context, colors, index),
+                        onPageChanged: (index) => setState(
+                          () => _currentPage = index,
                         ),
-                        const SizedBox(height: GeoSmartDimens.space2),
-                        Center(child: _buildDots(colors)),
-                      ],
+                      ),
                     ),
                   ),
-                  Align(
-                    alignment: const Alignment(0, 0.25),
-                    child: Text(
-                      'Veuillez vous connecter',
-                      style: GeoSmartText.h2.copyWith(color: colors.text),
-                      textAlign: TextAlign.center,
-                    ),
+                  const SizedBox(height: GeoSmartDimens.space2),
+                  Center(child: _buildDots(colors)),
+                  const SizedBox(height: GeoSmartDimens.space6),
+                  Text(
+                    'Veuillez vous connecter',
+                    style: GeoSmartText.h2.copyWith(color: colors.text),
+                    textAlign: TextAlign.center,
                   ),
-                  Align(
-                    // y = 0.5 place le centre du bouton a 75% de la hauteur.
-                    alignment: const Alignment(0, 0.5),
+                  const SizedBox(height: GeoSmartDimens.space4),
+                  Center(
                     child: FilledButton(
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
