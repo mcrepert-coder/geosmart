@@ -599,4 +599,34 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets('garde le meme controleur NTRIP entre deux visites', (
+    tester,
+  ) async {
+    await pumpPage(tester);
+
+    // La route couverte passe offstage pendant le push : l'etat est capture
+    // avant l'ouverture de l'ecran de configuration.
+    final pageState = tester.state(find.byType(GnssPage)) as dynamic;
+    expect(pageState.debugNtripController, isNull);
+
+    await tester.tap(find.byTooltip('Corrections NTRIP'));
+    await tester.pumpAndSettle();
+
+    final first = pageState.debugNtripController as Object;
+    expect(first, isNotNull);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Corrections NTRIP'));
+    await tester.pumpAndSettle();
+
+    final second = pageState.debugNtripController as Object;
+    expect(identical(first, second), isTrue);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }

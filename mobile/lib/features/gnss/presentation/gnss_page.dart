@@ -12,6 +12,7 @@ import '../domain/entities/survey_session_status.dart';
 import '../domain/repositories/sync_queue_store.dart';
 import '../domain/services/survey_measurements.dart';
 import '../domain/services/utm31n.dart';
+import '../infrastructure/method_channel_caster_credential_store.dart';
 import 'ntrip_page.dart';
 import 'source_page.dart';
 import 'viewmodels/ntrip_controller.dart';
@@ -46,7 +47,25 @@ class _GnssPageState extends State<GnssPage> with WidgetsBindingObserver {
   late final StreamSubscription<SurveyEvent> _events;
   GnssFixQuality? _lastQuality;
 
+  /// Controleur NTRIP cree par cet ecran quand aucun n'est injecte.
+  ///
+  /// Il vit aussi longtemps que l'ecran de mesure : la liaison NTRIP ouverte
+  /// dans l'ecran de configuration survit au retour vers la mesure au lieu
+  /// d'etre coupee a chaque pop de la page.
+  NtripController? _ownedNtrip;
+
   SurveyController get _controller => widget.controller;
+
+  NtripController get _ntrip =>
+      widget.ntripController ??
+      (_ownedNtrip ??= NtripController(
+        credentials: MethodChannelCasterCredentialStore(),
+      ));
+
+  /// Controleur NTRIP effectif, pour les tests.
+  @visibleForTesting
+  NtripController? get debugNtripController =>
+      widget.ntripController ?? _ownedNtrip;
 
   @override
   void initState() {
@@ -62,6 +81,7 @@ class _GnssPageState extends State<GnssPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _controller.removeListener(_onControllerChanged);
     unawaited(_events.cancel());
+    _ownedNtrip?.dispose();
     super.dispose();
   }
 
@@ -151,7 +171,7 @@ class _GnssPageState extends State<GnssPage> with WidgetsBindingObserver {
   Future<void> _openNtripPage() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => NtripPage(controller: widget.ntripController),
+        builder: (_) => NtripPage(controller: _ntrip),
       ),
     );
   }
