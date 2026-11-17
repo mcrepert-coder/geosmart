@@ -1,6 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../features/account/presentation/login_page.dart';
+import '../features/account/presentation/login_gate_page.dart';
 import '../features/account/presentation/verification_page.dart';
 import '../features/account/presentation/viewmodels/auth_controller.dart';
 import '../features/gnss/presentation/home_shell.dart';
@@ -105,7 +105,7 @@ class _GeoSmartAppState extends State<GeoSmartApp> {
         AuthStatus.loading => const Scaffold(
           body: Center(child: CircularProgressIndicator()),
         ),
-        AuthStatus.signedOut => LoginPage(auth: auth),
+        AuthStatus.signedOut => LoginGatePage(auth: auth),
         AuthStatus.pendingVerification ||
         AuthStatus.pendingApproval => VerificationPage(auth: auth),
         AuthStatus.signedIn => AuthenticatedHomeShell(
