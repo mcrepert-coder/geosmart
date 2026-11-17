@@ -13,7 +13,9 @@ l'administration. Ils completent les tests automatiques listes dans
 
 ## Preparer la pile
 
-1. Base : `docker compose up -d db`.
+1. Base locale PostGIS : `docker compose --profile local-db up -d db`.
+   Utiliser une base locale de recette et definir `DATABASE_URL` sur
+   `localhost:5433`; ne pas lancer ces scripts sur la base Aiven de production.
 2. API, depuis `api/` : `npm run build`, puis la lancer en ecrivant son journal
    dans un fichier (les codes SMS simules y sont lus) :
 
