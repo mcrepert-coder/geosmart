@@ -102,10 +102,10 @@ class _GeoSmartAppState extends State<GeoSmartApp> {
     return ListenableBuilder(
       listenable: auth,
       builder: (context, _) => switch (auth.status) {
-        AuthStatus.loading => const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
-        AuthStatus.signedOut => LoginGatePage(auth: auth),
+        // Premier ecran vu au lancement, session sauvegardee ou non. Si une
+        // session est restauree pendant le chargement, la coque connectee
+        // remplace cette page des que le statut change.
+        AuthStatus.loading || AuthStatus.signedOut => LoginGatePage(auth: auth),
         AuthStatus.pendingVerification ||
         AuthStatus.pendingApproval => VerificationPage(auth: auth),
         AuthStatus.signedIn => AuthenticatedHomeShell(
