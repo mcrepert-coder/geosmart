@@ -58,6 +58,7 @@ class BluetoothGnssConnector(
     @Volatile private var connectedAddress: String? = null
     @Volatile private var shouldReconnect = false
     @Volatile private var reconnectAttempt = 0
+    @Volatile private var everConnected = false
     @Volatile private var closed = false
     @Volatile private var reconnectFuture: ScheduledFuture<*>? = null
     @Volatile private var connecting = false
@@ -174,6 +175,7 @@ class BluetoothGnssConnector(
         connectedAddress = address
         if (!isReconnect) {
             reconnectAttempt = 0
+            everConnected = false
         }
         listener.onStatus(GnssStatus.CONNECTING, null)
 
@@ -200,7 +202,9 @@ class BluetoothGnssConnector(
                 connecting = false
                 listener.onStatus(GnssStatus.RECONNECTING, error.message)
                 onResult(false, error.message ?: "Connexion Bluetooth refusee.")
-                scheduleReconnect(address)
+                if (ReconnectPolicy.shouldRetryAfterFailure(isReconnect, everConnected)) {
+                    scheduleReconnect(address)
+                }
                 return@execute
             }
 
@@ -209,6 +213,7 @@ class BluetoothGnssConnector(
             assembler.reset()
             connecting = false
             reconnectAttempt = 0
+            everConnected = true
             listener.onStatus(GnssStatus.CONNECTED, null)
             onResult(true, null)
             readLoop(candidate)
@@ -235,6 +240,7 @@ class BluetoothGnssConnector(
     fun disconnect() {
         shouldReconnect = false
         cancelReconnect()
+        everConnected = false
         closeSocket()
         listener.onStatus(GnssStatus.DISCONNECTED, null)
     }
