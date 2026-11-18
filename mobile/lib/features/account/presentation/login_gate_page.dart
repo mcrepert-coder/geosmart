@@ -73,13 +73,13 @@ class _LoginGatePageState extends State<LoginGatePage> {
           borderRadius: BorderRadius.circular(GeoSmartDimens.radiusLg),
         ),
         child: Align(
-          alignment: Alignment.centerLeft,
+          alignment: Alignment.center,
           child: Padding(
             padding: const EdgeInsets.all(GeoSmartDimens.space4),
             child: Text(
               _slides[index % _slides.length],
-              style: GeoSmartText.bodyLg.copyWith(color: colors.text),
-              textAlign: TextAlign.left,
+              style: GeoSmartText.h2.copyWith(color: colors.text),
+              textAlign: TextAlign.center,
             ),
           ),
         ),
