@@ -8,6 +8,6 @@ async function bootstrap() {
   // l'application (autre origine), d'ou cross-origin.
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.enableCors({ origin: process.env.WEB_ORIGIN ?? 'http://localhost:3000' });
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(process.env.API_PORT ?? 3000);
 }
 bootstrap();
