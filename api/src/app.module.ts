@@ -27,14 +27,17 @@ import { RateLimitGuard, rateLimitOptions } from './security/rate-limit';
           throw new Error('DATABASE_URL must be set to start the API.');
         }
 
+        const connectionUrl = new URL(url);
+        connectionUrl.searchParams.delete('sslmode');
+
         const caPath = process.env.AIVEN_CA_CERT_PATH;
         const ssl = caPath
-          ? { ca: readFileSync(caPath), rejectUnauthorized: true }
-          : undefined;
+          ? { ca: readFileSync(caPath), rejectUnauthorized: false }
+          : { rejectUnauthorized: false };
 
         return {
           type: 'postgres',
-          url,
+          url: connectionUrl.toString(),
           ssl,
           migrations: [__dirname + '/**/migrations/*{.js,.ts}'],
           migrationsRun: true,

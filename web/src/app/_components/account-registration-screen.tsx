@@ -5,8 +5,7 @@ import { useState } from "react";
 import { CheckCircle2, ShieldCheck, UserPlus } from "lucide-react";
 import { PhoneField } from "./auth-code";
 import { PasswordField } from "./password-field";
-import { LISTINGS_API_PATH } from "@/lib/listings-api";
-import { registerAccount, verifyAccountPhone } from "@/lib/auth-api";
+import { AUTH_API_CONFIGURED, registerAccount, verifyAccountPhone } from "@/lib/auth-api";
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : "Une erreur inattendue est survenue.";
@@ -85,7 +84,7 @@ export function AccountRegistrationScreen() {
               Inscrivez-vous avec votre numéro de téléphone. Votre rôle sera attribué après
               vérification par l’administration.
             </p>
-            {!LISTINGS_API_PATH && (
+            {!AUTH_API_CONFIGURED && (
               <p className="gs-alert gs-alert--warning mt-5" role="status">
                 Le service d’inscription n’est pas configuré. Définissez NEXT_PUBLIC_API_URL.
               </p>
@@ -137,7 +136,7 @@ export function AccountRegistrationScreen() {
                 <button
                   type="submit"
                   className="gs-btn gs-btn--primary gs-btn--lg gs-btn--block"
-                  disabled={submitting || !LISTINGS_API_PATH}
+                  disabled={submitting || !AUTH_API_CONFIGURED}
                 >
                   {submitting ? "Création..." : "Créer mon compte"}
                 </button>

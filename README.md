@@ -59,8 +59,10 @@ docker compose up --build
 Le site est disponible sur `http://localhost:3000` et l'API sur
 `http://localhost:3001`. Compose refuse de demarrer si `DATABASE_URL` ou les
 secrets requis ne sont pas configures. `AIVEN_CA_CERT_PATH` doit pointer vers
-le certificat CA Aiven telecharge; Compose le monte dans l'API et configure
-la verification TLS `verify-full`. Ne commitez jamais le fichier `.env`.
+le certificat CA Aiven telecharge; Compose le monte dans l'API. La connexion
+PostgreSQL utilise `rejectUnauthorized: false` pour accepter les certificats
+auto-signes, donc `DATABASE_URL` ne doit pas contenir `sslmode=verify-full`.
+Ne commitez jamais le fichier `.env`.
 
 Pour developper sans se connecter a Aiven, la base PostGIS locale optionnelle
 peut etre lancee avec `docker compose --profile local-db up -d db`. Dans ce cas,

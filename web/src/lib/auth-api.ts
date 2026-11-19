@@ -1,4 +1,5 @@
-import { LISTINGS_API_PATH } from "./listings-api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") ?? "";
+export const AUTH_API_CONFIGURED = API_URL !== "";
 
 function apiErrorMessage(result: unknown): string | undefined {
   if (typeof result !== "object" || result === null || !("message" in result)) {
@@ -13,11 +14,11 @@ function apiErrorMessage(result: unknown): string | undefined {
 }
 
 async function postAuth<T>(endpoint: string, body: object): Promise<T> {
-  if (!LISTINGS_API_PATH) {
+  if (!API_URL) {
     throw new Error("Le service de comptes n’est pas configuré.");
   }
 
-  const response = await fetch(`${LISTINGS_API_PATH}/auth/${endpoint}`, {
+  const response = await fetch(`${API_URL}/auth/${endpoint}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

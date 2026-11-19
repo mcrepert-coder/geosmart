@@ -1,5 +1,6 @@
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { DataSource } from 'typeorm';
 import { rowsOf } from '../audit/sql-runner';
 import { BCRYPT_ROUNDS, normalizePhone } from './accounts.service';
@@ -26,9 +27,17 @@ async function bootstrapAdmin(): Promise<void> {
   }
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  const connectionUrl = new URL(databaseUrl);
+  connectionUrl.searchParams.delete('sslmode');
+  const caPath = process.env.AIVEN_CA_CERT_PATH;
+  const ssl = caPath
+    ? { ca: readFileSync(caPath), rejectUnauthorized: false }
+    : { rejectUnauthorized: false };
+
   const dataSource = new DataSource({
     type: 'postgres',
-    url: databaseUrl,
+    url: connectionUrl.toString(),
+    ssl,
     synchronize: false,
   });
   await dataSource.initialize();

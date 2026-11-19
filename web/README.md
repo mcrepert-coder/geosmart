@@ -28,6 +28,9 @@ est intégrée au build client ; elle doit donc être fournie lors de la
 construction de l’image Docker ou avant le build Next.js. Pour Docker Compose,
 `API_INTERNAL_URL` configure séparément la cible du proxy Listings et des routes
 serveur/proxy entre conteneurs (par défaut `http://backend:3001`).
+Les routes d’authentification du navigateur ciblent directement
+`${NEXT_PUBLIC_API_URL}/auth/...` ; le préfixe `/listings-api` est réservé au
+proxy du catalogue et des biens.
 `WEB_ORIGIN` est l’origine publique du site web : les routes de modification
 refusent les requêtes dont l’`Origin` ne correspond ni à cette valeur ni à celle
 de la requête.
