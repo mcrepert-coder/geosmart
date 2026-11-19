@@ -9,8 +9,11 @@ export default function Page() {
   if (DEMO_MODE_ENABLED) return <AgentRentsScreen />;
   return (
     <DemoUnavailable title="Loyers et quittances">
-      Le suivi des loyers se fait pour l’instant dans l’application mobile (baux et
-      loyers). Cet écran du site n’est pas encore relié à l’API.
+      <p>
+        Le suivi des loyers, encaissements et quittances n’est pas encore relié à l’API sur le
+        site. Cette gestion est disponible dans l’application mobile (baux et loyers) et dans
+        l’espace agent en mode démonstration.
+      </p>
     </DemoUnavailable>
   );
 }

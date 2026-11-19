@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { Check, FileText, Upload, X } from "lucide-react";
+import { Check, FileText, KeyRound, Smartphone, Upload, UserRound, X } from "lucide-react";
 import { ROLE_LABEL, type Role } from "@/lib/data";
 import { addAccount } from "@/lib/demo-store";
 import { AuthCode, DEMO_CODE, PhoneField, formatPhone } from "./auth-code";
@@ -56,9 +56,20 @@ function Stepper({ step }: { step: number }) {
 export function DevenirAgentScreen() {
   if (!DEMO_MODE_ENABLED) {
     return (
-      <DemoUnavailable title="Inscription non disponible">
-        Le dépôt de dossier n’est pas encore relié à un service sécurisé de
-        comptes et de stockage de pièces. Les fichiers ne seront pas enregistrés.
+      <DemoUnavailable title="Devenir agent ou géomètre">
+        <p>
+          Le dossier professionnel (rôle agent ou géomètre) n’est pas encore déposé via ce
+          parcours en mode connecté. Créez un compte, puis déposez vos pièces justificatives
+          depuis votre espace : l’administration attribuera votre rôle après vérification.
+        </p>
+        <div className="mt-4 flex flex-col gap-2">
+          <Link className="gs-btn gs-btn--primary gs-btn--block" href="/inscription">
+            Créer un compte
+          </Link>
+          <Link className="gs-btn gs-btn--secondary gs-btn--block" href="/connexion">
+            Se connecter et déposer mes pièces
+          </Link>
+        </div>
       </DemoUnavailable>
     );
   }
@@ -94,7 +105,17 @@ function DemoRegistrationScreen() {
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  const submit = () => {
+  const submitPhone = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (phone.length !== 8) {
+      setPhoneError("Numéro incomplet : 8 chiffres après +228.");
+      return;
+    }
+    setStep(1);
+  };
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
     if (name.trim().length < 3) {
       setFormError("Indiquez votre nom complet.");
       return;
@@ -120,7 +141,7 @@ function DemoRegistrationScreen() {
 
   return (
     <div className="gs-wrap gs-wrap--narrow flex flex-1 items-start justify-center py-10 md:py-16">
-      <div className="gs-card w-full max-w-xl p-6 md:p-8">
+      <section className="gs-card gs-form-card w-full max-w-xl">
         <h1 className="gs-h1 gs-display">Devenir agent ou géomètre</h1>
         <p className="mt-1 text-[14px] text-[var(--text-muted)]">
           Le rôle souhaité est confirmé par l&apos;administrateur, pièces à l&apos;appui.
@@ -130,7 +151,14 @@ function DemoRegistrationScreen() {
         </div>
 
         {step === 0 && (
-          <div className="mt-6">
+          <form className="gs-form-stack" onSubmit={submitPhone}>
+            <span className="gs-form-icon">
+              <Smartphone size={24} aria-hidden />
+            </span>
+            <div>
+              <p className="gs-module text-[var(--primary)]">Étape 1 sur 4</p>
+              <h2 className="gs-h2 gs-display mt-1">Votre numéro</h2>
+            </div>
             <PhoneField
               id="reg-phone"
               value={phone}
@@ -140,32 +168,39 @@ function DemoRegistrationScreen() {
                 if (phoneError) setPhoneError("");
               }}
             />
-            <button
-              className="gs-btn gs-btn--primary gs-btn--block mt-5"
-              onClick={() => {
-                if (phone.length !== 8) {
-                  setPhoneError("Numéro incomplet : 8 chiffres après +228.");
-                  return;
-                }
-                setStep(1);
-              }}
-            >
-              Recevoir le code
-            </button>
-            <p className="gs-demo mt-4 rounded-[10px] px-3 py-2">
-              Démo hors ligne : le code de validation est {DEMO_CODE}.
-            </p>
-          </div>
+            <div className="gs-form-actions">
+              <button type="submit" className="gs-btn gs-btn--primary gs-btn--lg gs-btn--block">
+                Recevoir le code
+              </button>
+              <p className="gs-form-note">
+                Démo hors ligne : le code de validation est {DEMO_CODE}.
+              </p>
+            </div>
+          </form>
         )}
 
         {step === 1 && (
-          <div className="mt-6">
+          <div className="gs-form-stack">
+            <span className="gs-form-icon">
+              <KeyRound size={24} aria-hidden />
+            </span>
+            <div>
+              <p className="gs-module text-[var(--primary)]">Étape 2 sur 4</p>
+              <h2 className="gs-h2 gs-display mt-1">Code de validation</h2>
+            </div>
             <AuthCode phone={phone} onSuccess={() => setStep(2)} onBack={() => setStep(0)} />
           </div>
         )}
 
         {step === 2 && (
-          <div className="mt-6">
+          <form className="gs-form-stack" onSubmit={submit}>
+            <span className="gs-form-icon">
+              <UserRound size={24} aria-hidden />
+            </span>
+            <div>
+              <p className="gs-module text-[var(--primary)]">Étape 3 sur 4</p>
+              <h2 className="gs-h2 gs-display mt-1">Votre dossier</h2>
+            </div>
             <label className="gs-label" htmlFor="reg-name">
               Nom complet
             </label>
@@ -184,6 +219,7 @@ function DemoRegistrationScreen() {
               {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
                 <button
                   key={r}
+                  type="button"
                   role="radio"
                   aria-checked={role === r}
                   className={`rounded-[10px] border p-3 text-left transition-colors ${
@@ -205,6 +241,7 @@ function DemoRegistrationScreen() {
             </div>
             <p className="gs-label mt-5">Pièces justificatives</p>
             <button
+              type="button"
               className="gs-btn gs-btn--secondary gs-btn--block"
               onClick={() => fileRef.current?.click()}
             >
@@ -233,6 +270,7 @@ function DemoRegistrationScreen() {
                     <span className="min-w-0 flex-1 truncate">{p.name}</span>
                     <span className="gs-caption flex-none">{(p.size / 1000).toFixed(0)} ko</span>
                     <button
+                      type="button"
                       className="gs-iconbtn h-8 w-8 flex-none"
                       aria-label={`Retirer ${p.name}`}
                       onClick={() => setPieces((prev) => prev.filter((_, j) => j !== i))}
@@ -244,10 +282,12 @@ function DemoRegistrationScreen() {
               </div>
             )}
             {formError && <p className="gs-error mt-3" role="alert">{formError}</p>}
-            <button className="gs-btn gs-btn--primary gs-btn--block mt-5" onClick={submit}>
-              Envoyer le dossier
-            </button>
-          </div>
+            <div className="gs-form-actions">
+              <button type="submit" className="gs-btn gs-btn--primary gs-btn--lg gs-btn--block">
+                Envoyer le dossier
+              </button>
+            </div>
+          </form>
         )}
 
         {step === 3 && (
@@ -302,7 +342,7 @@ function DemoRegistrationScreen() {
             </div>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

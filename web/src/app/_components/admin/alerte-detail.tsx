@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Copy, Lock, Send, X } from "lucide-react";
 import { ALERTS, type OverlapAlert } from "@/lib/data";
 import { chainIntegrity, contactGeometre, markExamined, useDemoStore } from "@/lib/demo-store";
 import { formatDate, formatStamp, formatSurface } from "@/lib/format";
 import { CertBadge, LegalBadge } from "../badges";
+import { useDialog } from "../use-dialog";
 import { OverlapMap } from "./overlap-map";
 
 function timeOf(iso: string): string {
@@ -32,12 +33,8 @@ export function AlerteDetail({ alert }: { alert: OverlapAlert }) {
     return () => clearTimeout(t);
   }, [toast]);
 
-  useEffect(() => {
-    if (!contactOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setContactOpen(false);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [contactOpen]);
+  const contactRef = useRef<HTMLDivElement>(null);
+  useDialog(contactOpen, () => setContactOpen(false), contactRef);
 
   const intact = chainIntegrity(journal);
 
@@ -167,6 +164,7 @@ export function AlerteDetail({ alert }: { alert: OverlapAlert }) {
         <div className="fixed inset-0 z-[1200] grid place-items-center p-4">
           <div className="gs-scrim" onClick={() => setContactOpen(false)} />
           <div
+            ref={contactRef}
             role="dialog"
             aria-modal="true"
             aria-label="Contacter le géomètre"
@@ -180,7 +178,7 @@ export function AlerteDetail({ alert }: { alert: OverlapAlert }) {
                   {geometre ? ` · ${geometre.phone}` : ""}
                 </p>
               </div>
-              <button className="gs-iconbtn" onClick={() => setContactOpen(false)} aria-label="Fermer" autoFocus>
+              <button className="gs-iconbtn" onClick={() => setContactOpen(false)} aria-label="Fermer">
                 <X size={18} />
               </button>
             </div>

@@ -11,7 +11,7 @@ export function DemoUnavailable({
     <main className="gs-wrap flex flex-1 items-center justify-center py-16">
       <section className="gs-card max-w-xl p-6 md:p-8">
         <h1 className="gs-h2 gs-display">{title}</h1>
-        <p className="mt-3 text-[14px] text-[var(--text-muted)]">{children}</p>
+        <div className="mt-3 text-[14px] text-[var(--text-muted)]">{children}</div>
         <p className="mt-4 text-[14px] text-[var(--text-muted)]">
           Les données d’exemple sont désactivées. Pour examiner les maquettes en
           développement uniquement, activez <code>NEXT_PUBLIC_DEMO_MODE=true</code>.

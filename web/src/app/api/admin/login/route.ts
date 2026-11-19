@@ -8,8 +8,12 @@ import {
   type AdminActor,
   type AdminTokens,
 } from "@/lib/admin-server";
+import { rejectCrossSiteMutation } from "@/lib/request-guard";
 
 export async function POST(request: NextRequest) {
+  const blocked = rejectCrossSiteMutation(request);
+  if (blocked) return blocked;
+
   const body: unknown = await request.json().catch(() => null);
   if (
     typeof body !== "object" ||

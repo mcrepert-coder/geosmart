@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchApi, parseApiJson, type AdminTokens } from "@/lib/admin-server";
 import { setUserCookies, type UserActor } from "@/lib/account-server";
+import { rejectCrossSiteMutation } from "@/lib/request-guard";
 
 export async function POST(request: NextRequest) {
+  const blocked = rejectCrossSiteMutation(request);
+  if (blocked) return blocked;
+
   const body: unknown = await request.json().catch(() => null);
   if (
     typeof body !== "object" ||

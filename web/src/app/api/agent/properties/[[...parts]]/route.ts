@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchApi, refreshAdminTokens } from "@/lib/admin-server";
 import { agentAccessToken, setAgentCookies } from "@/lib/agent-server";
+import { rejectCrossSiteMutation } from "@/lib/request-guard";
 
 // Relais de l'espace agent vers contracts/listings.yaml, avec le jeton de
 // l'agent : mes biens, creation, modification, photos. Les lectures
@@ -40,6 +41,8 @@ function upstreamPath(request: NextRequest, parts: string[]): string | null {
 }
 
 async function proxy(request: NextRequest, context: RouteContext) {
+  const blocked = rejectCrossSiteMutation(request);
+  if (blocked) return blocked;
   const { parts = [] } = await context.params;
   const path = upstreamPath(request, parts);
   if (!path) {

@@ -11,9 +11,12 @@ import {
   LogOut,
   RefreshCw,
   ScrollText,
+  ShieldCheck,
+  TriangleAlert,
   Users,
 } from "lucide-react";
 import { ROLE_LABEL, type Role } from "@/lib/data";
+import { PasswordField } from "../password-field";
 
 type AdminActor = {
   id: string;
@@ -158,51 +161,56 @@ export function AdminLoginScreen() {
 
   return (
     <div className="gs-wrap gs-wrap--narrow flex flex-1 items-start justify-center py-12 md:py-20">
-      <form className="gs-card w-full max-w-md p-6 md:p-8" onSubmit={submit}>
+      <form className="gs-card gs-form-card w-full max-w-md" onSubmit={submit}>
+        <span className="gs-form-icon">
+          <ShieldCheck size={24} aria-hidden />
+        </span>
         <p className="gs-module text-[var(--primary)]">Espace sécurisé</p>
         <h1 className="gs-h1 gs-display mt-2">Administration</h1>
         <p className="mt-2 text-sm text-[var(--text-muted)]">
           Connectez-vous avec un compte administrateur actif.
         </p>
-        <label className="gs-label mt-6" htmlFor="admin-phone">
-          Téléphone
-        </label>
-        <input
-          id="admin-phone"
-          className="gs-input"
-          type="tel"
-          autoComplete="username"
-          required
-          value={phone}
-          onChange={(event) => setPhone(event.target.value)}
-        />
-        <label className="gs-label mt-4" htmlFor="admin-password">
-          Mot de passe
-        </label>
-        <input
-          id="admin-password"
-          className="gs-input"
-          type="password"
-          autoComplete="current-password"
-          required
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-        {error && (
-          <p className="gs-error mt-4" role="alert">
-            {error}
-          </p>
-        )}
-        <button
-          className="gs-btn gs-btn--primary gs-btn--block mt-6"
-          type="submit"
-          disabled={submitting}
-        >
-          {submitting ? "Connexion..." : "Se connecter"}
-        </button>
-        <Link href="/" className="gs-btn gs-btn--ghost gs-btn--block mt-2">
-          <ArrowLeft size={16} aria-hidden /> Retour au site public
-        </Link>
+        <div className="gs-form-stack">
+          <div className="gs-field">
+            <label className="gs-label" htmlFor="admin-phone">
+              Téléphone
+            </label>
+            <input
+              id="admin-phone"
+              className="gs-input"
+              type="tel"
+              inputMode="tel"
+              autoComplete="username"
+              required
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+            />
+          </div>
+          <PasswordField
+            id="admin-password"
+            label="Mot de passe"
+            value={password}
+            required
+            onChange={setPassword}
+          />
+          {error && (
+            <p className="gs-alert gs-alert--danger" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="gs-form-actions">
+            <button
+              className="gs-btn gs-btn--primary gs-btn--lg gs-btn--block"
+              type="submit"
+              disabled={submitting}
+            >
+              {submitting ? "Connexion..." : "Se connecter"}
+            </button>
+            <Link href="/" className="gs-btn gs-btn--ghost gs-btn--block">
+              <ArrowLeft size={16} aria-hidden /> Retour au site public
+            </Link>
+          </div>
+        </div>
       </form>
     </div>
   );
@@ -216,6 +224,7 @@ export function AdminLiveShell({ children }: { children: React.ReactNode }) {
     pathname === "/admin" ||
     pathname === "/admin/comptes" ||
     pathname === "/admin/journal" ||
+    pathname === "/admin/alertes" ||
     pathname === "/admin/connexion";
   const [actor, setActor] = useState<AdminActor | null>(null);
   const [checking, setChecking] = useState(true);
@@ -250,7 +259,7 @@ export function AdminLiveShell({ children }: { children: React.ReactNode }) {
   if (onLogin) return <AdminLoginScreen />;
   if (checking) {
     return (
-      <div className="flex flex-1 items-center justify-center">
+      <div className="flex flex-1 items-center justify-center" role="status">
         <LoaderCircle
           className="animate-spin text-[var(--primary)]"
           size={28}
@@ -264,7 +273,7 @@ export function AdminLiveShell({ children }: { children: React.ReactNode }) {
       <div className="gs-wrap flex flex-1 items-center justify-center">
         <div className="gs-card max-w-lg p-6 text-center">
           <p className="gs-h3">Connexion administrateur requise</p>
-          <p className="gs-help mt-2">
+          <p className="gs-help mt-2" role={error ? "alert" : "status"}>
             {error || "Redirection vers la connexion..."}
           </p>
           {error && (
@@ -283,6 +292,7 @@ export function AdminLiveShell({ children }: { children: React.ReactNode }) {
 
   const links = [
     { href: "/admin", label: "Tableau de bord", icon: LayoutDashboard },
+    { href: "/admin/alertes", label: "Alertes", icon: TriangleAlert },
     { href: "/admin/comptes", label: "Comptes", icon: Users },
     { href: "/admin/journal", label: "Journal", icon: ScrollText },
   ];
@@ -364,9 +374,13 @@ export function AdminLiveDashboard() {
       <p className="mt-1 text-[13px] text-[var(--text-muted)]">
         Données chargées depuis le service d’administration.
       </p>
-      {error && <p className="gs-alert gs-alert--danger mt-5">{error}</p>}
+      {error && (
+        <p className="gs-alert gs-alert--danger mt-5" role="alert">
+          {error}
+        </p>
+      )}
       {loading ? (
-        <p className="gs-help mt-6">Chargement des comptes…</p>
+        <p className="gs-help mt-6" role="status">Chargement des comptes…</p>
       ) : (
         <>
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
@@ -581,7 +595,7 @@ export function AdminLiveAccounts() {
         </p>
       )}
       {loading ? (
-        <p className="gs-help mt-6">Chargement des comptes…</p>
+        <p className="gs-help mt-6" role="status">Chargement des comptes…</p>
       ) : shown.length === 0 ? (
         <div className="gs-card mt-5 p-6 text-center">
           <p className="gs-h3">Aucun compte pour ce filtre</p>
@@ -626,7 +640,7 @@ export function AdminLiveAccounts() {
                   </button>
                   {documentsOpen[account.id] &&
                     (documentsBusy === account.id ? (
-                      <p className="gs-help mt-3">Chargement…</p>
+                      <p className="gs-help mt-3" role="status">Chargement…</p>
                     ) : (
                       <ul className="mt-3 space-y-2">
                         {(documents[account.id] ?? []).map((document) => (
@@ -930,7 +944,7 @@ export function AdminLiveJournal() {
         <span className="gs-caption">{shown.length} entrée(s)</span>
       </div>
       {loading ? (
-        <p className="gs-help mt-5">Chargement du journal…</p>
+        <p className="gs-help mt-5" role="status">Chargement du journal…</p>
       ) : (
         <div className="gs-card gs-card--flush mt-4 overflow-x-auto">
           <table className="gs-table">

@@ -7,6 +7,7 @@ import {
   refreshAdminTokens,
 } from "@/lib/admin-server";
 import { cookies } from "next/headers";
+import { rejectCrossSiteMutation } from "@/lib/request-guard";
 
 type RouteContext = { params: Promise<{ parts?: string[] }> };
 
@@ -34,6 +35,9 @@ function isAllowedPath(parts: string[], method: string): boolean {
 }
 
 async function proxy(request: NextRequest, context: RouteContext) {
+  const blocked = rejectCrossSiteMutation(request);
+  if (blocked) return blocked;
+
   const { parts = [] } = await context.params;
   if (!isAllowedPath(parts, request.method)) {
     return NextResponse.json({ message: "Route admin inconnue." }, { status: 404 });

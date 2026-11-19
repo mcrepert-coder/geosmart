@@ -82,7 +82,7 @@ export function ParcelLookup() {
 
   return (
     <div className="flex flex-col gap-6">
-      <form onSubmit={submit} noValidate className="gs-card">
+      <form onSubmit={submit} noValidate className="gs-card gs-form-card">
         <label htmlFor="parcel-id" className="gs-label">
           Identifiant de parcelle
         </label>

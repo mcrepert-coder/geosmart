@@ -19,6 +19,7 @@ function check(name, ok, detail = '') {
 
 async function call(method, url, { token, body, cookie, form } = {}) {
   const headers = {};
+  if (url.startsWith(WEB)) headers.Origin = WEB;
   if (token) headers.Authorization = `Bearer ${token}`;
   if (cookie) headers.Cookie = cookie;
   let payload;

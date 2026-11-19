@@ -7,6 +7,7 @@ import {
   fetchApi,
   refreshAdminTokens,
 } from "@/lib/admin-server";
+import { rejectCrossSiteMutation } from "@/lib/request-guard";
 
 // Relais des alertes de chevauchement (contracts/land.yaml, ecran W3) :
 // GET /overlap-alerts et POST /overlap-alerts/{auditSeq}/review.
@@ -36,6 +37,9 @@ function upstreamPath(request: NextRequest, parts: string[]): string | null {
 }
 
 async function proxy(request: NextRequest, context: RouteContext) {
+  const blocked = rejectCrossSiteMutation(request);
+  if (blocked) return blocked;
+
   const { parts = [] } = await context.params;
   const path = upstreamPath(request, parts);
   if (!path) {

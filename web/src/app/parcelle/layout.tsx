@@ -1,20 +1,9 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Inter, Sora } from "next/font/google";
 import Link from "next/link";
 import { DEMO_MODE } from "./_lib/api";
 import { Notice } from "./_components/notice";
 import { ParcelleNav } from "./_components/parcelle-nav";
 import "./parcelle.css";
-
-// Polices du design system (Sora, Inter, IBM Plex Mono), chargees ici
-// seulement tant que le socle commun du site n'existe pas.
-const sora = Sora({ subsets: ["latin"], weight: ["600", "700"], variable: "--font-sora" });
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["500", "600"],
-  variable: "--font-plex-mono",
-});
 
 export const metadata: Metadata = {
   title: {
@@ -27,10 +16,7 @@ export const metadata: Metadata = {
 
 export default function ParcelleLayout({ children }: LayoutProps<"/parcelle">) {
   return (
-    <div
-      lang="fr"
-      className={`gs-root ${sora.variable} ${inter.variable} ${plexMono.variable}`}
-    >
+    <div className="flex flex-1 flex-col">
       {DEMO_MODE && (
         <p className="gs-demo px-4 py-2 text-center" role="status">
           Données d&apos;exemple : l&apos;API n&apos;est pas encore branchée. Essayez

@@ -33,7 +33,7 @@ interface ApiPropertyPage {
   total: number;
 }
 
-function mapProperty(item: ApiPropertySummary): Property {
+export function mapProperty(item: ApiPropertySummary): Property {
   const photoUrl = item.primaryPhotoUrl
     ? item.primaryPhotoUrl.startsWith("http")
       ? item.primaryPhotoUrl
@@ -65,39 +65,54 @@ function mapProperty(item: ApiPropertySummary): Property {
   };
 }
 
-export async function fetchPublicListings(signal?: AbortSignal): Promise<Property[]> {
-  if (!LISTINGS_API_PATH) throw new Error("L’API Listings n’est pas configurée.");
-  const firstUrl = new URL(`${LISTINGS_API_PATH}/properties`, window.location.origin);
-  firstUrl.searchParams.set("page", "1");
-  firstUrl.searchParams.set("pageSize", "100");
-  const firstResponse = await fetch(firstUrl, { signal });
-  if (!firstResponse.ok) {
-    throw new Error(`Le catalogue est indisponible (HTTP ${firstResponse.status}).`);
+async function fetchPage(
+  page: number,
+  pageSize: number,
+  signal?: AbortSignal,
+): Promise<ApiPropertyPage> {
+  const url = new URL(`${LISTINGS_API_PATH}/properties`, window.location.origin);
+  url.searchParams.set("page", String(page));
+  url.searchParams.set("pageSize", String(pageSize));
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(
+      page === 1
+        ? `Le catalogue est indisponible (HTTP ${response.status}).`
+        : `Le catalogue est incomplet (HTTP ${response.status}).`,
+    );
   }
-  const firstPage = (await firstResponse.json()) as ApiPropertyPage;
+  const result = (await response.json()) as ApiPropertyPage;
   if (
-    !Array.isArray(firstPage.items) ||
-    !Number.isInteger(firstPage.pageSize) ||
-    firstPage.pageSize < 1 ||
-    !Number.isInteger(firstPage.total) ||
-    firstPage.total < 0
+    !Array.isArray(result.items) ||
+    !Number.isInteger(result.pageSize) ||
+    result.pageSize < 1 ||
+    (page === 1 && (!Number.isInteger(result.total) || result.total < 0))
   ) {
     throw new Error("La réponse du catalogue n’a pas le format attendu.");
   }
+  return result;
+}
+
+export async function fetchPublicListings(signal?: AbortSignal): Promise<Property[]> {
+  if (!LISTINGS_API_PATH) throw new Error("L’API Listings n’est pas configurée.");
+  const firstPage = await fetchPage(1, 100, signal);
   const pages = [firstPage];
-  for (let page = 2; page <= Math.ceil(firstPage.total / firstPage.pageSize); page += 1) {
-    const url = new URL(`${LISTINGS_API_PATH}/properties`, window.location.origin);
-    url.searchParams.set("page", String(page));
-    url.searchParams.set("pageSize", String(firstPage.pageSize));
-    const response = await fetch(url, { signal });
-    if (!response.ok) {
-      throw new Error(`Le catalogue est incomplet (HTTP ${response.status}).`);
+  const totalPages = Math.ceil(firstPage.total / firstPage.pageSize);
+  if (totalPages > 1) {
+    const remaining = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+    const concurrency = 4;
+    for (let i = 0; i < remaining.length; i += concurrency) {
+      const batch = remaining.slice(i, i + concurrency);
+      const results = await Promise.all(
+        batch.map((page) => fetchPage(page, firstPage.pageSize, signal)),
+      );
+      for (const result of results) {
+        if (result.pageSize !== firstPage.pageSize) {
+          throw new Error("La réponse du catalogue n’a pas le format attendu.");
+        }
+        pages.push(result);
+      }
     }
-    const result = (await response.json()) as ApiPropertyPage;
-    if (!Array.isArray(result.items) || result.pageSize !== firstPage.pageSize) {
-      throw new Error("La réponse du catalogue n’a pas le format attendu.");
-    }
-    pages.push(result);
   }
   return pages.flatMap((page) => page.items).map(mapProperty);
 }

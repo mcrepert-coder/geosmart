@@ -44,14 +44,27 @@ export function AttestationCheck() {
     if (next.number || next.file || !file) return;
 
     setState({ phase: "loading" });
-    const hash = await sha256File(file);
-    const result = await verifyAttestation(n, hash);
-    setState({ phase: "done", hash, result });
+    try {
+      const hash = await sha256File(file);
+      const result = await verifyAttestation(n, hash);
+      setState({ phase: "done", hash, result });
+    } catch {
+      setState({
+        phase: "done",
+        hash: "",
+        result: {
+          ok: false,
+          kind: "network",
+          message:
+            "Impossible de calculer l’empreinte SHA-256 sur ce navigateur. Utilisez un navigateur récent en connexion sécurisée.",
+        },
+      });
+    }
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <form onSubmit={submit} noValidate className="gs-card flex flex-col gap-5">
+      <form onSubmit={submit} noValidate className="gs-card gs-form-card flex flex-col gap-5">
         <div>
           <label htmlFor="att-number" className="gs-label">
             Numéro d&apos;attestation <span className="text-[var(--danger)]">*</span>

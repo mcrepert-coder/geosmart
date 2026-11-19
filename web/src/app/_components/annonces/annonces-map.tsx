@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -10,7 +11,6 @@ import {
 import {
   Marker,
   Polygon,
-  TileLayer,
   Tooltip,
   useMap,
   useMapEvents,
@@ -19,6 +19,7 @@ import { BasemapOverlays, SafeMap } from "../safe-map";
 import {
   CRS,
   divIcon,
+  TileLayer as LeafletTileLayer,
   type LatLngBoundsExpression,
   type MapOptions,
 } from "leaflet";
@@ -255,6 +256,7 @@ function GeoBasemap({
   onLoad: () => void;
   onUnavailable: () => void;
 }) {
+  const map = useMap();
   const done = useRef(false);
   useEffect(() => {
     const t = setTimeout(() => {
@@ -262,23 +264,36 @@ function GeoBasemap({
     }, 5000);
     return () => clearTimeout(t);
   }, [onUnavailable]);
-  return (
-    <TileLayer
-      url={ESRI_SAT}
-      maxZoom={19}
-      attribution="Imagerie © Esri, Maxar, Earthstar Geographics"
-      eventHandlers={{
-        load: () => {
-          done.current = true;
-          onLoad();
-        },
-        tileerror: () => {
-          done.current = true;
-          onUnavailable();
-        },
-      }}
-    />
-  );
+  useLayoutEffect(() => {
+    if (!map.getPane("tilePane") || !map.getContainer().isConnected) {
+      onUnavailable();
+      return;
+    }
+
+    const layer = new LeafletTileLayer(ESRI_SAT, {
+      maxZoom: 19,
+      attribution: "Imagerie © Esri, Maxar, Earthstar Geographics",
+    });
+    const handleLoad = () => {
+      done.current = true;
+      onLoad();
+    };
+    const handleTileError = () => {
+      done.current = true;
+      onUnavailable();
+    };
+
+    layer.on("load", handleLoad);
+    layer.on("tileerror", handleTileError);
+    layer.addTo(map);
+
+    return () => {
+      layer.off("load", handleLoad);
+      layer.off("tileerror", handleTileError);
+      layer.remove();
+    };
+  }, [map, onLoad, onUnavailable]);
+  return null;
 }
 
 type Cluster = { ids: string[]; center: [number, number]; props: Property[] };

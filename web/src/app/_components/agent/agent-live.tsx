@@ -2,10 +2,19 @@
 
 import Link from "next/link";
 import { createContext, useContext, useEffect, useState } from "react";
-import { ArrowLeft, ImagePlus, LogOut, Plus, RefreshCw, Share2 } from "lucide-react";
+import { ArrowLeft, Briefcase, ImagePlus, LogOut, Plus, RefreshCw, Share2 } from "lucide-react";
+import {
+  EMPTY_DRAFT,
+  listingPayload,
+  validateDraft,
+  type Draft,
+  type ListingStatus as Status,
+} from "@/lib/agent-listing-form";
+import { errorText, isUnauthorized, readJson } from "@/lib/http";
 import { LISTINGS_API_PATH } from "@/lib/listings-api";
 import { formatPrice } from "@/lib/format";
 import { LogoMark } from "../logo";
+import { PasswordField } from "../password-field";
 
 // Espace agent relie a l'API (EF-301, EF-302, EF-308, CA-5, CA-6) : connexion
 // d'un compte AGENT, ses biens, publication rattachee a une parcelle, photos
@@ -19,7 +28,7 @@ export type AgentActor = {
   fullName?: string;
 };
 
-type Status = "BROUILLON" | "PUBLIE" | "RETIRE";
+/* Status imported as ListingStatus (alias Status) */
 
 type AgentListing = {
   id: string;
@@ -58,23 +67,7 @@ export function useAgent(): AgentActor {
   return actor;
 }
 
-export async function readJson<T>(response: Response): Promise<T> {
-  const body: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const message =
-      typeof body === "object" && body !== null && "message" in body
-        ? Array.isArray(body.message)
-          ? body.message.join(" ")
-          : String(body.message)
-        : `Erreur du serveur (${response.status}).`;
-    throw new Error(message);
-  }
-  return body as T;
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
+export { readJson };
 
 /// Statut affiche a l'agent : il sait pourquoi il peut ou non publier.
 export function agentStatusLabel(actor: AgentActor): { label: string; tone: string } {
@@ -176,89 +169,62 @@ function AgentLogin({ onLoggedIn }: { onLoggedIn: (actor: AgentActor) => void })
   };
 
   return (
-    <div className="mx-auto max-w-sm p-6 md:p-10">
-      <h1 className="gs-h1 gs-display">Espace agent</h1>
-      <p className="mt-2 text-[13px] text-[var(--text-muted)]">
-        Connectez-vous avec votre compte agent validé pour publier vos biens.
-      </p>
-      <form className="gs-card mt-5 grid gap-3 p-4" onSubmit={submit}>
-        <label className="gs-label" htmlFor="agent-phone">
-          Téléphone
-        </label>
-        <input
-          id="agent-phone"
-          className="gs-input"
-          autoComplete="username"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-        />
-        <label className="gs-label" htmlFor="agent-password">
-          Mot de passe
-        </label>
-        <input
-          id="agent-password"
-          className="gs-input"
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        {error && (
-          <p className="gs-alert gs-alert--danger" role="alert">
-            {error}
+    <div className="gs-wrap gs-wrap--narrow flex flex-1 items-start justify-center py-12 md:py-20">
+      <div className="w-full max-w-md">
+        <form className="gs-card gs-form-card" onSubmit={submit}>
+          <span className="gs-form-icon">
+            <Briefcase size={24} aria-hidden />
+          </span>
+          <p className="gs-module text-[var(--primary)]">Espace agent</p>
+          <h1 className="gs-h1 gs-display mt-2">Connexion</h1>
+          <p className="mt-2 text-[14px] text-[var(--text-muted)]">
+            Connectez-vous avec votre compte agent validé pour publier vos biens.
           </p>
-        )}
-        <button className="gs-btn gs-btn--primary" disabled={sending}>
-          {sending ? "Connexion…" : "Se connecter"}
-        </button>
-      </form>
-      <p className="mt-4 text-[13px]">
-        Pas encore de compte ?{" "}
-        <Link className="underline" href="/devenir-agent">
-          Devenir agent
-        </Link>
-      </p>
+          <div className="gs-form-stack">
+            <div className="gs-field">
+              <label className="gs-label" htmlFor="agent-phone">
+                Téléphone
+              </label>
+              <input
+                id="agent-phone"
+                className="gs-input"
+                type="tel"
+                inputMode="tel"
+                autoComplete="username"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </div>
+            <PasswordField
+              id="agent-password"
+              label="Mot de passe"
+              value={password}
+              onChange={setPassword}
+            />
+            {error && (
+              <p className="gs-alert gs-alert--danger" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="gs-form-actions">
+              <button className="gs-btn gs-btn--primary gs-btn--lg gs-btn--block" disabled={sending}>
+                {sending ? "Connexion…" : "Se connecter"}
+              </button>
+            </div>
+          </div>
+        </form>
+        <p className="gs-help mt-5 text-center">
+          Pas encore de compte ?{" "}
+          <Link className="font-semibold text-[var(--primary)] underline" href="/devenir-agent">
+            Devenir agent
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }
 
-type Draft = {
-  parcelId: string;
-  type: "TERRAIN" | "MAISON";
-  transaction: "VENTE" | "LOCATION";
-  title: string;
-  description: string;
-  price: string;
-  pricePeriod: "MOIS" | "AN";
-  zone: string;
-};
-
-const EMPTY_DRAFT: Draft = {
-  parcelId: "",
-  type: "TERRAIN",
-  transaction: "VENTE",
-  title: "",
-  description: "",
-  price: "",
-  pricePeriod: "MOIS",
-  zone: "",
-};
-
-/// Corps de POST /properties a partir du formulaire.
-export function listingPayload(draft: Draft, status: Status) {
-  return {
-    parcelId: draft.parcelId.trim().toUpperCase(),
-    type: draft.type,
-    transaction: draft.transaction,
-    title: draft.title.trim(),
-    description: draft.description.trim(),
-    price: Number(draft.price),
-    currency: "XOF",
-    pricePeriod: draft.transaction === "LOCATION" ? draft.pricePeriod : null,
-    zone: draft.zone.trim() || null,
-    status,
-  };
-}
+export { EMPTY_DRAFT, listingPayload, validateDraft };
 
 export function AgentLiveListings() {
   const actor = useAgent();
@@ -280,7 +246,9 @@ export function AgentLiveListings() {
         if (active) setItems(page.items);
       })
       .catch((loadError: unknown) => {
-        if (active) setError(errorText(loadError));
+        if (!active) return;
+        if (isUnauthorized(loadError)) { window.location.reload(); return; }
+        setError(errorText(loadError));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -303,6 +271,7 @@ export function AgentLiveListings() {
       setToast(done);
       reload();
     } catch (actionError: unknown) {
+      if (isUnauthorized(actionError)) { window.location.reload(); return; }
       setError(errorText(actionError));
     } finally {
       setBusy(null);
@@ -310,6 +279,11 @@ export function AgentLiveListings() {
   };
 
   const create = async (status: Status) => {
+    const invalid = validateDraft(draft);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
     setCreating(true);
     setError("");
     try {
@@ -324,6 +298,7 @@ export function AgentLiveListings() {
       setToast(status === "PUBLIE" ? "Bien publié." : "Brouillon enregistré.");
       reload();
     } catch (createError: unknown) {
+      if (isUnauthorized(createError)) { window.location.reload(); return; }
       setError(errorText(createError));
     } finally {
       setCreating(false);
@@ -371,6 +346,7 @@ export function AgentLiveListings() {
       );
       setShares((current) => ({ ...current, [item.id]: payload }));
     } catch (shareError: unknown) {
+      if (isUnauthorized(shareError)) { window.location.reload(); return; }
       setError(errorText(shareError));
     }
   };
@@ -416,11 +392,18 @@ export function AgentLiveListings() {
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           <div>
             <label className="gs-label" htmlFor="lst-parcel">Parcelle</label>
-            <input id="lst-parcel" className="gs-input" placeholder="TG-AG3-00457" {...field("parcelId")} />
+            <input
+              id="lst-parcel"
+              className="gs-input"
+              placeholder="TG-AG3-00457"
+              pattern="TG-[A-Za-z0-9]{3}-[0-9]{5,6}"
+              required
+              {...field("parcelId")}
+            />
           </div>
           <div>
             <label className="gs-label" htmlFor="lst-title">Titre</label>
-            <input id="lst-title" className="gs-input" {...field("title")} />
+            <input id="lst-title" className="gs-input" required {...field("title")} />
           </div>
           <div>
             <label className="gs-label" htmlFor="lst-type">Type</label>
@@ -438,7 +421,16 @@ export function AgentLiveListings() {
           </div>
           <div>
             <label className="gs-label" htmlFor="lst-price">Prix (FCFA)</label>
-            <input id="lst-price" className="gs-input" inputMode="numeric" {...field("price")} />
+            <input
+              id="lst-price"
+              className="gs-input"
+              type="number"
+              min="1"
+              step="1"
+              inputMode="numeric"
+              required
+              {...field("price")}
+            />
           </div>
           {draft.transaction === "LOCATION" && (
             <div>
@@ -477,7 +469,9 @@ export function AgentLiveListings() {
       </section>
 
       {loading ? (
-        <p className="gs-help mt-5">Chargement de vos biens…</p>
+        <p className="gs-help mt-5" role="status">
+          Chargement de vos biens…
+        </p>
       ) : items.length === 0 ? (
         <p className="gs-help mt-5">Aucun bien pour l’instant.</p>
       ) : (

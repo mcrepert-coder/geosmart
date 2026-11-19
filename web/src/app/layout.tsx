@@ -33,7 +33,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="fr"
       className={`${sora.variable} ${inter.variable} ${plexMono.variable} h-full antialiased`}
     >
-      <body className="gs-root min-h-full flex flex-col">{children}</body>
+      <body className="gs-root min-h-full flex flex-col">
+        <a className="gs-skip" href="#contenu">
+          Aller au contenu
+        </a>
+        <div id="contenu" className="flex flex-1 flex-col" tabIndex={-1}>
+          {children}
+        </div>
+      </body>
     </html>
   );
 }

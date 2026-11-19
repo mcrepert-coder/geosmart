@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { FileUp, LogOut } from "lucide-react";
+import { FileUp, LogOut, UserRound } from "lucide-react";
+import { fileProblem, requiredDocuments } from "@/lib/account-documents";
+import { errorText, isUnauthorized, readJson } from "@/lib/http";
+import { PasswordField } from "./password-field";
 
 // Mon compte (EF-403) : tout compte se connecte, y compris en attente de
 // validation, pour deposer ses pieces justificatives. Sans elles,
@@ -43,41 +46,6 @@ const ROLE_LABEL: Record<string, string> = {
   CLIENT: "Client",
 };
 
-export const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "application/pdf"];
-
-/// Pieces exigees par l'administration pour valider le compte (EF-403).
-export function requiredDocuments(role: string): string[] {
-  const required = ["la pièce d’identité"];
-  if (role === "AGENT") {
-    required.push("une pièce professionnelle (carte professionnelle, agrément ou RCCM)");
-  }
-  if (role === "GEOMETRE") required.push("l’attestation d’inscription à l’Ordre");
-  return required;
-}
-
-/// Contrôle avant envoi, comme le serveur : JPEG, PNG ou PDF, 5 Mo au plus.
-export function fileProblem(file: { type: string; size: number }): string | null {
-  if (!ACCEPTED_TYPES.includes(file.type)) return "Format accepté : JPEG, PNG ou PDF.";
-  if (file.size > MAX_DOCUMENT_BYTES) return "Le fichier dépasse 5 Mo.";
-  if (file.size === 0) return "Le fichier est vide.";
-  return null;
-}
-
-async function readJson<T>(response: Response): Promise<T> {
-  const body: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const message =
-      typeof body === "object" && body !== null && "message" in body
-        ? String(body.message)
-        : `Erreur du serveur (${response.status}).`;
-    throw new Error(message);
-  }
-  return body as T;
-}
-
-const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
 export function AccountLiveScreen() {
   const [actor, setActor] = useState<Actor | null>(null);
   const [checking, setChecking] = useState(true);
@@ -98,7 +66,8 @@ export function AccountLiveScreen() {
     };
   }, []);
 
-  if (checking) return <div className="gs-skeleton mx-auto mt-10 h-8 w-64" />;
+  if (checking)
+    return <div className="gs-skeleton mx-auto mt-10 h-8 w-64" role="status" aria-label="Chargement du compte" />;
   if (!actor) return <AccountLogin onLoggedIn={setActor} />;
   return <AccountPanel actor={actor} onLogout={() => setActor(null)} />;
 }
@@ -130,27 +99,58 @@ function AccountLogin({ onLoggedIn }: { onLoggedIn: (actor: Actor) => void }) {
   };
 
   return (
-    <div className="mx-auto max-w-sm p-6 md:p-10">
-      <h1 className="gs-h1 gs-display">Se connecter</h1>
-      <p className="mt-2 text-[13px] text-[var(--text-muted)]">
-        Un compte en attente de validation peut se connecter pour déposer ses pièces
-        justificatives.
-      </p>
-      <form className="gs-card mt-5 grid gap-3 p-4" onSubmit={submit}>
-        <label className="gs-label" htmlFor="acc-phone">Téléphone</label>
-        <input id="acc-phone" className="gs-input" autoComplete="username" value={phone}
-          onChange={(e) => setPhone(e.target.value)} />
-        <label className="gs-label" htmlFor="acc-password">Mot de passe</label>
-        <input id="acc-password" className="gs-input" type="password" autoComplete="current-password"
-          value={password} onChange={(e) => setPassword(e.target.value)} />
-        {error && <p className="gs-alert gs-alert--danger" role="alert">{error}</p>}
-        <button className="gs-btn gs-btn--primary" disabled={sending}>
-          {sending ? "Connexion…" : "Se connecter"}
-        </button>
-      </form>
-      <p className="mt-4 text-[13px]">
-        Pas encore de compte ? <Link className="underline" href="/inscription">Créer un compte</Link>
-      </p>
+    <div className="gs-wrap gs-wrap--narrow flex flex-1 items-start justify-center py-12 md:py-20">
+      <div className="w-full max-w-md">
+        <form className="gs-card gs-form-card" onSubmit={submit}>
+          <span className="gs-form-icon">
+            <UserRound size={24} aria-hidden />
+          </span>
+          <p className="gs-module text-[var(--primary)]">Mon compte</p>
+          <h1 className="gs-h1 gs-display mt-2">Se connecter</h1>
+          <p className="mt-2 text-[14px] text-[var(--text-muted)]">
+            Un compte en attente de validation peut se connecter pour déposer ses pièces
+            justificatives.
+          </p>
+          <div className="gs-form-stack">
+            <div className="gs-field">
+              <label className="gs-label" htmlFor="acc-phone">
+                Téléphone
+              </label>
+              <input
+                id="acc-phone"
+                className="gs-input"
+                type="tel"
+                inputMode="tel"
+                autoComplete="username"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </div>
+            <PasswordField
+              id="acc-password"
+              label="Mot de passe"
+              value={password}
+              onChange={setPassword}
+            />
+            {error && (
+              <p className="gs-alert gs-alert--danger" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="gs-form-actions">
+              <button className="gs-btn gs-btn--primary gs-btn--lg gs-btn--block" disabled={sending}>
+                {sending ? "Connexion…" : "Se connecter"}
+              </button>
+            </div>
+          </div>
+        </form>
+        <p className="gs-help mt-5 text-center">
+          Pas encore de compte ?{" "}
+          <Link className="font-semibold text-[var(--primary)] underline" href="/inscription">
+            Créer un compte
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }
@@ -173,7 +173,9 @@ function AccountPanel({ actor, onLogout }: { actor: Actor; onLogout: () => void 
         if (active) setDocuments(list);
       })
       .catch((e: unknown) => {
-        if (active) setError(errorText(e));
+        if (!active) return;
+        if (isUnauthorized(e)) { onLogout(); return; }
+        setError(errorText(e));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -181,7 +183,7 @@ function AccountPanel({ actor, onLogout }: { actor: Actor; onLogout: () => void 
     return () => {
       active = false;
     };
-  }, [version]);
+  }, [version, onLogout]);
 
   const upload = async () => {
     if (!file) return;
@@ -202,6 +204,7 @@ function AccountPanel({ actor, onLogout }: { actor: Actor; onLogout: () => void 
       setLoading(true);
       setVersion((v) => v + 1);
     } catch (e: unknown) {
+      if (isUnauthorized(e)) { onLogout(); return; }
       setError(errorText(e));
     } finally {
       setSending(false);
