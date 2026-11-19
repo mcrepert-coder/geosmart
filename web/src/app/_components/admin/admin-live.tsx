@@ -11,6 +11,7 @@ import {
   LogOut,
   RefreshCw,
   ScrollText,
+  TriangleAlert,
   Users,
 } from "lucide-react";
 import { ROLE_LABEL, type Role } from "@/lib/data";
@@ -215,6 +216,7 @@ export function AdminLiveShell({ children }: { children: React.ReactNode }) {
   const supportedPath =
     pathname === "/admin" ||
     pathname === "/admin/comptes" ||
+    pathname === "/admin/alertes" ||
     pathname === "/admin/journal" ||
     pathname === "/admin/connexion";
   const [actor, setActor] = useState<AdminActor | null>(null);
@@ -284,6 +286,7 @@ export function AdminLiveShell({ children }: { children: React.ReactNode }) {
   const links = [
     { href: "/admin", label: "Tableau de bord", icon: LayoutDashboard },
     { href: "/admin/comptes", label: "Comptes", icon: Users },
+    { href: "/admin/alertes", label: "Alertes", icon: TriangleAlert },
     { href: "/admin/journal", label: "Journal", icon: ScrollText },
   ];
 
@@ -781,9 +784,9 @@ export function AdminUnavailableScreen() {
           Cette rubrique n’est pas encore reliée à l’API
         </h1>
         <p className="gs-help mt-2">
-          Les données de démonstration sont désactivées. Pour le moment, seules
-          la connexion administrateur, le tableau de bord des comptes et la
-          gestion des comptes sont connectés.
+          Les données de démonstration sont désactivées. Pour le moment, seuls
+          la connexion administrateur, le tableau de bord, la gestion des
+          comptes, les alertes de chevauchement et le journal sont connectés.
         </p>
       </div>
     </div>
