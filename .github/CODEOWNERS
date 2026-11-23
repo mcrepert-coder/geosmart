@@ -1,26 +1,31 @@
 # Proprietaires par dossier. Comptes GitHub :
 # Moruald001 = Romuald, NegusMasseme = Samuel, y6502192-spec = Beni, Gold1705 = Marrich,
 # mcrepert-coder = LGR
+# Sur GitHub, la derniere regle qui correspond l'emporte : les regles generales d'abord, les dossiers precis ensuite.
 
 *                                   @Gold1705 @mcrepert-coder
+/web/                               @Gold1705
 
-/mobile/app/src/main/java/com/geosmart/field/gnss/       @Moruald001
-/mobile/app/src/main/java/com/geosmart/field/survey/     @Moruald001
-/mobile/app/src/main/java/com/geosmart/field/cogo/       @Moruald001
-/mobile/app/src/main/java/com/geosmart/field/map/        @Moruald001
-/mobile/app/src/test/java/com/geosmart/field/gnss/       @Moruald001
-/mobile/app/src/test/java/com/geosmart/field/survey/     @Moruald001
-/mobile/app/src/test/java/com/geosmart/field/map/        @Moruald001
 /contracts/survey.md                @Moruald001
+/contracts/gnss-channel.md          @Moruald001
+/mobile/android/app/src/main/kotlin/com/geosmart/field/gnss/ @Moruald001
+/mobile/lib/features/gnss/                                  @Moruald001
+/mobile/lib/features/survey/                                @Moruald001
+/mobile/lib/features/cogo/                                  @Moruald001
+/mobile/lib/features/map/                                   @Moruald001
+/mobile/test/features/gnss/                                 @Moruald001
+/mobile/test/features/survey/                               @Moruald001
+/mobile/test/features/cogo/                                 @Moruald001
+/mobile/test/features/map/                                  @Moruald001
 
 /api/src/land/                      @NegusMasseme
 /api/src/audit/                     @NegusMasseme
 /api/test/land/                     @NegusMasseme
 /api/test/audit/                    @NegusMasseme
 /contracts/land.yaml                @NegusMasseme
-/mobile/app/src/main/java/com/geosmart/field/land/       @NegusMasseme
-/mobile/app/src/test/java/com/geosmart/field/land/       @NegusMasseme
-/web/parcelle/                      @NegusMasseme
+/web/src/app/parcelle/              @NegusMasseme
+/mobile/lib/features/land/                                  @NegusMasseme
+/mobile/test/features/land/                                 @NegusMasseme
 
 /api/src/auth/                      @y6502192-spec
 /api/src/users/                     @y6502192-spec
@@ -34,22 +39,24 @@
 /contracts/auth.yaml                @y6502192-spec
 /contracts/sync.yaml                @y6502192-spec
 /contracts/leasing.yaml             @y6502192-spec
-/mobile/app/src/main/java/com/geosmart/field/account/    @y6502192-spec
-/mobile/app/src/main/java/com/geosmart/field/sync/       @y6502192-spec
-/mobile/app/src/main/java/com/geosmart/field/leasing/    @y6502192-spec
-/mobile/app/src/test/java/com/geosmart/field/account/    @y6502192-spec
-/mobile/app/src/test/java/com/geosmart/field/sync/       @y6502192-spec
-/mobile/app/src/test/java/com/geosmart/field/leasing/    @y6502192-spec
+/mobile/lib/features/account/                               @y6502192-spec
+/mobile/lib/features/sync/                                  @y6502192-spec
+/mobile/lib/features/leasing/                               @y6502192-spec
+/mobile/test/features/account/                              @y6502192-spec
+/mobile/test/features/sync/                                 @y6502192-spec
+/mobile/test/features/leasing/                              @y6502192-spec
 
 /api/src/listings/                  @Gold1705
 /api/test/listings/                 @Gold1705
 /contracts/listings.yaml            @Gold1705
-/mobile/app/src/main/java/com/geosmart/field/listings/   @Gold1705
-/mobile/app/src/test/java/com/geosmart/field/listings/   @Gold1705
-/web/                               @Gold1705
+/mobile/lib/features/listings/                              @Gold1705
+/mobile/test/features/listings/                             @Gold1705
 /docs/                              @Gold1705 @mcrepert-coder
 /.github/                           @Gold1705 @mcrepert-coder
 /api/src/app.module.ts              @Gold1705
 /api/package.json                   @Gold1705
-/mobile/build.gradle.kts            @Gold1705
-/mobile/settings.gradle.kts         @Gold1705
+/mobile/pubspec.yaml                @Gold1705
+/mobile/lib/main.dart               @Gold1705
+/mobile/lib/theme/                  @Gold1705
+/mobile/android/build.gradle.kts    @Gold1705
+/mobile/android/settings.gradle.kts @Gold1705

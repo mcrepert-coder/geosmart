@@ -1,0 +1,773 @@
+openapi: 3.0.3
+info:
+  title: GeoSmart - module synchronisation hors ligne (sync)
+  version: 0.1.0
+  description: |
+    Proprietaire : Beni (AGLAMEY-SEGBEAYA Kanleto Beni).
+    Concerne : Romuald (envoi des bornes de terrain), Samuel (reception des points
+    pour le foncier) et les modules utilisant la file locale.
+
+    Exigences reprises : EF-405, RG-01, RG-04, RG-06, RG-08, CA-3 et CA-7.
+    Le telephone conserve d'abord les donnees dans SQLite ; le serveur n'est contacte
+    que par la file locale de synchronisation, via POST /sync.
+
+    Deux entites sont acceptees, toutes deux avec action CREATE :
+    - survey_session : la mission terminee avec toutes ses bornes. C'est le format
+      envoye par le telephone (contracts/survey.md, section 3 ; SurveySession.toSyncPayload) ;
+    - survey_point : une borne seule, conservee pour compatibilite.
+    Les autres entites et actions ne sont pas definies par les documents consultes.
+
+    L'authentification utilise le bearer JWT defini dans contracts/auth.yaml. Le role
+    est relu en base a chaque requete (RG-06). Pour les points de chantier, le serveur
+    doit verifier que le topographe est assigne au chantier concerne (CA-7).
+  x-team-decisions:
+    - id: batch-format
+      decision: |
+        Un element par requete. L'unite envoyee par le telephone est la mission
+        (survey_session) avec toutes ses bornes ; il n'y a pas d'autre format de lot.
+    - id: success-response
+      decision: |
+        Le serveur renvoie un accuse par element : SyncReceipt (clientId, result
+        ACCEPTED ou DUPLICATE, id serveur).
+    - id: idempotency-conflict
+      question: |
+        Le renvoi du meme element avec le meme clientId ne doit pas creer de doublon.
+        Le traitement d'un clientId reutilise avec un contenu different n'est pas
+        specifie ; le 409 propose dans ce contrat attend une validation.
+    - id: point-purpose
+      question: |
+        Le contrat Terrain distingue les points indicatifs des bornes officielles, mais
+        ne definit pas de champ dans la charge utile pour les distinguer. Preciser si les
+        points non FIXED sont synchronisables comme points indicatifs et comment le serveur
+        identifie un point soumis comme limite fonciere officielle.
+    - id: survey-projects
+      decision: |
+        Les chantiers (EF-109) sont crees par un administrateur ou un geometre actif,
+        qui y assigne des topographes actifs. Le geometre ne gere que ses chantiers.
+        POST /sync refuse (403) les points d'un chantier qui n'est pas assigne au
+        topographe ou qui est clos (CA-7).
+    - id: sync-permissions
+      question: |
+        CA-7 confirme le droit du topographe assigne a ajouter des points au chantier.
+        Les autorisations de synchronisation pour d'autres roles ou types d'entite ne sont
+        pas definies.
+
+servers:
+  - url: http://localhost:3001
+
+tags:
+  - name: synchronisation
+  - name: chantiers
+
+paths:
+  /sync:
+    post:
+      tags: [synchronisation]
+      summary: Synchroniser un element de la file locale
+      description: |
+        Une requete porte un seul element : clientId, entityType, action et payload.
+
+        Pour entityType survey_session, la mission doit etre au statut COMPLETED,
+        avoir au moins trois bornes au clientId et au pointNumber uniques, et toutes
+        ses bornes en fixQuality FIXED. Une seule borne non FIXED rejette la mission
+        entiere ; rien n'est insere partiellement. Les champs facultatifs peuvent
+        valoir null.
+
+        Pour survey_point comme pour survey_session, le role TOPOGRAPHE est autorise
+        pour ajouter des points uniquement au chantier qui lui est assigne (CA-7). Le
+        role courant est relu en base pour chaque requete (RG-06).
+
+        Le client conserve localement chaque element en attente jusqu'a son acceptation.
+        Apres une interruption, il peut renvoyer le meme element avec le meme clientId ;
+        le serveur ne doit alors pas creer de doublon (CA-3, RG-08). Un element refuse
+        doit rester conserve localement avec le motif de refus.
+
+        Un point non FIXED ne peut pas etre enregistre comme point officiel de limite
+        fonciere (RG-01). Le format actuel ne permettant pas de distinguer explicitement
+        un point indicatif d'une limite officielle, cette distinction reste a valider.
+      security:
+        - bearerAuth: []
+      x-required-roles:
+        - TOPOGRAPHE
+      x-role-condition: |
+        Le topographe doit etre assigne au projectId du point transmis. Toute extension
+        a d'autres roles ou types d'entite doit etre definie par leurs contrats respectifs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncItem'
+            examples:
+              mission:
+                summary: Mission terminee (format du telephone)
+                value:
+                  clientId: b7e4c2a1-3f6d-4e89-9a02-5c1d8e7f6a3b
+                  entityType: survey_session
+                  action: CREATE
+                  payload:
+                    projectId: 8f3b6c2a-9e12-4c56-8a71-3b5e4a2c1d0f
+                    surveyorId: 2d9a4c7e-1b3f-4a8d-9c6e-7f2b5a1d0c8e
+                    title: Leve parcelle Adakpame
+                    status: COMPLETED
+                    perimeterMeters: 128.4
+                    areaSquareMeters: 1024.0
+                    createdAt: '2026-10-28T08:15:00.000Z'
+                    completedAt: '2026-10-28T09:42:00.000Z'
+                    points:
+                      - clientId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+                        pointNumber: 1
+                        pointName: B1
+                        latitude: 6.137254
+                        longitude: 1.212547
+                        altitude: 24.35
+                        accuracy: 0.012
+                        fixQuality: FIXED
+                        satellitesCount: 18
+                        pdop: 1.2
+                        hdop: 0.8
+                        vdop: 0.9
+                        instrument: UM982
+                        recordedAt: '2026-10-28T08:20:00.000Z'
+                        isValidated: true
+                      - clientId: c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f
+                        pointNumber: 2
+                        latitude: 6.137312
+                        longitude: 1.212611
+                        altitude: 24.41
+                        fixQuality: FIXED
+                        satellitesCount: 19
+                        pdop: 1.1
+                        instrument: UM982
+                        recordedAt: '2026-10-28T08:32:00.000Z'
+                      - clientId: d3e4f5a6-b7c8-4d9e-8f0a-2b3c4d5e6f7a
+                        pointNumber: 3
+                        latitude: 6.137268
+                        longitude: 1.212689
+                        altitude: 24.37
+                        fixQuality: FIXED
+                        satellitesCount: 18
+                        pdop: 1.2
+                        instrument: UM982
+                        recordedAt: '2026-10-28T08:44:00.000Z'
+              borne:
+                summary: Borne seule
+                value:
+                  clientId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+                  entityType: survey_point
+                  action: CREATE
+                  payload:
+                    projectId: 8f3b6c2a-9e12-4c56-8a71-3b5e4a2c1d0f
+                    pointNumber: 1
+                    pointName: B1
+                    latitude: 6.137254
+                    longitude: 1.212547
+                    altitude: 24.35
+                    fixQuality: FIXED
+                    satellitesCount: 18
+                    pdop: 1.2
+                    hdop: 0.8
+                    vdop: 0.9
+                    instrument: UM982
+                    recordedAt: '2026-10-25T14:32:00.000Z'
+      responses:
+        '200':
+          description: |
+            Element accepte (ACCEPTED) ou renvoi idempotent sans creation de doublon
+            (DUPLICATE, meme id que le premier envoi).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncReceipt'
+              example:
+                clientId: b7e4c2a1-3f6d-4e89-9a02-5c1d8e7f6a3b
+                result: ACCEPTED
+                id: 5e0c8a14-2f7b-4d3a-9b61-0c4e7d2a9f18
+        '400':
+          $ref: '#/components/responses/InvalidItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+
+  /projects:
+    post:
+      tags: [chantiers]
+      summary: Creer un chantier de leve (EF-109)
+      security:
+        - bearerAuth: []
+      x-required-roles: [ADMIN, GEOMETRE]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+            example:
+              title: Leve parcelle Adakpame
+      responses:
+        '201':
+          description: Chantier cree, ouvert, sans topographe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [chantiers]
+      summary: Lister les chantiers visibles
+      description: |
+        ADMIN : tous les chantiers. GEOMETRE : ceux qu'il a crees. TOPOGRAPHE : ceux
+        qui lui sont assignes (pour choisir le projectId de ses missions).
+      security:
+        - bearerAuth: []
+      x-required-roles: [ADMIN, GEOMETRE, TOPOGRAPHE]
+      responses:
+        '200':
+          description: Chantiers, du plus recent au plus ancien
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /projects/topographers:
+    get:
+      tags: [chantiers]
+      summary: Lister les topographes actifs a assigner
+      description: Identifiant et nom seulement ; le telephone n'est jamais expose.
+      security:
+        - bearerAuth: []
+      x-required-roles: [ADMIN, GEOMETRE]
+      responses:
+        '200':
+          description: Topographes actifs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id]
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    fullName:
+                      type: string
+                      nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /projects/{projectId}:
+    get:
+      tags: [chantiers]
+      summary: Suivre un chantier (topographes, missions recues)
+      description: Un chantier que le compte ne peut pas voir est renvoye en 404.
+      security:
+        - bearerAuth: []
+      x-required-roles: [ADMIN, GEOMETRE, TOPOGRAPHE]
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Chantier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProjectNotFound'
+
+  /projects/{projectId}/topographers/{accountId}:
+    put:
+      tags: [chantiers]
+      summary: Assigner un topographe au chantier (CA-7)
+      description: |
+        Le compte doit etre un topographe actif. Assigner deux fois ne cree pas de
+        doublon. Un chantier clos refuse toute assignation (409).
+      security:
+        - bearerAuth: []
+      x-required-roles: [ADMIN, GEOMETRE]
+      x-role-condition: Le geometre ne gere que les chantiers qu'il a crees.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: Chantier avec ses topographes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProjectNotFound'
+        '409':
+          description: Chantier clos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: PROJECT_CLOSED
+                message: Le chantier est clos.
+    delete:
+      tags: [chantiers]
+      summary: Retirer un topographe du chantier
+      description: Le topographe retire ne peut plus synchroniser de points sur ce chantier.
+      security:
+        - bearerAuth: []
+      x-required-roles: [ADMIN, GEOMETRE]
+      x-role-condition: Le geometre ne gere que les chantiers qu'il a crees.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: Chantier avec ses topographes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProjectNotFound'
+
+  /projects/{projectId}/close:
+    post:
+      tags: [chantiers]
+      summary: Clore un chantier
+      description: Un chantier clos n'accepte plus de points (POST /sync renvoie 403).
+      security:
+        - bearerAuth: []
+      x-required-roles: [ADMIN, GEOMETRE]
+      x-role-condition: Le geometre ne gere que les chantiers qu'il a crees.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Chantier clos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProjectNotFound'
+
+components:
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      description: Compte du topographe
+      schema:
+        type: string
+        format: uuid
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Project:
+      type: object
+      required: [id, title, status, createdBy, createdAt, topographers, missionsCount, pointsCount]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Valeur a utiliser comme projectId dans POST /sync.
+        title:
+          type: string
+        status:
+          type: string
+          enum: [OUVERT, CLOS]
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+        topographers:
+          type: array
+          items:
+            type: object
+            required: [id, assignedAt]
+            properties:
+              id:
+                type: string
+                format: uuid
+              fullName:
+                type: string
+                nullable: true
+              assignedAt:
+                type: string
+                format: date-time
+        missionsCount:
+          type: integer
+          description: Missions (survey_session) recues par POST /sync pour ce chantier.
+        pointsCount:
+          type: integer
+          description: Bornes seules (survey_point) recues pour ce chantier.
+
+    SyncItem:
+      type: object
+      additionalProperties: false
+      required: [clientId, entityType, action, payload]
+      properties:
+        clientId:
+          type: string
+          format: uuid
+          description: Identifiant unique de l'element dans la file locale (RG-08).
+        entityType:
+          type: string
+          enum: [survey_session, survey_point]
+          description: |
+            survey_session pour une mission complete (format du telephone),
+            survey_point pour une borne seule.
+        action:
+          type: string
+          enum: [CREATE]
+          description: CREATE est la seule action montree par l'exemple Terrain.
+        payload:
+          description: SurveySessionPayload pour survey_session, SurveyPointPayload pour survey_point.
+          oneOf:
+            - $ref: '#/components/schemas/SurveySessionPayload'
+            - $ref: '#/components/schemas/SurveyPointPayload'
+
+    SyncReceipt:
+      type: object
+      required: [clientId, result, id]
+      properties:
+        clientId:
+          type: string
+          format: uuid
+        result:
+          type: string
+          enum: [ACCEPTED, DUPLICATE]
+        id:
+          type: string
+          format: uuid
+          description: Identifiant serveur de l'element accepte.
+
+    SurveySessionPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - projectId
+        - status
+        - perimeterMeters
+        - areaSquareMeters
+        - createdAt
+        - completedAt
+        - points
+      properties:
+        projectId:
+          type: string
+          format: uuid
+          description: Identifiant du chantier assigne.
+        surveyorId:
+          type: string
+          nullable: true
+          description: |
+            Identifiant du topographe cote telephone. Le serveur retient le compte
+            connecte comme auteur de l'envoi.
+        title:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [COMPLETED]
+          description: Seule une mission terminee est synchronisable.
+        perimeterMeters:
+          type: number
+          minimum: 0
+          description: Perimetre calcule en UTM 31N.
+        areaSquareMeters:
+          type: number
+          minimum: 0
+          description: Surface calculee en UTM 31N.
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        points:
+          type: array
+          minItems: 3
+          description: Bornes ordonnees, clientId et pointNumber uniques, toutes FIXED.
+          items:
+            $ref: '#/components/schemas/SessionPoint'
+
+    SessionPoint:
+      type: object
+      additionalProperties: false
+      required:
+        - clientId
+        - pointNumber
+        - latitude
+        - longitude
+        - altitude
+        - fixQuality
+        - satellitesCount
+        - pdop
+        - instrument
+        - recordedAt
+      description: |
+        Borne d'une mission : memes champs que SurveyPointPayload, sans projectId
+        (celui de la mission s'applique), avec son propre clientId. Les champs
+        facultatifs peuvent valoir null.
+      properties:
+        clientId:
+          type: string
+          format: uuid
+        pointNumber:
+          type: integer
+          minimum: 1
+        pointName:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+        altitude:
+          type: number
+        accuracy:
+          type: number
+          nullable: true
+        fixQuality:
+          type: string
+          enum: [FIXED, FLOAT, AUTONOME, INVALIDE]
+        satellitesCount:
+          type: integer
+        pdop:
+          type: number
+        hdop:
+          type: number
+          nullable: true
+        vdop:
+          type: number
+          nullable: true
+        instrument:
+          type: string
+        recordedAt:
+          type: string
+          format: date-time
+        isValidated:
+          type: boolean
+          nullable: true
+
+    SurveyPointPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - projectId
+        - pointNumber
+        - latitude
+        - longitude
+        - altitude
+        - fixQuality
+        - satellitesCount
+        - pdop
+        - instrument
+        - recordedAt
+      properties:
+        projectId:
+          type: string
+          format: uuid
+          description: Identifiant du chantier auquel le point est rattache.
+        pointNumber:
+          type: integer
+          description: Numero d'ordre de la borne dans le tour de la parcelle.
+        pointName:
+          type: string
+          description: Libelle optionnel, par exemple B1.
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+          description: Latitude WGS84 en degres decimaux.
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+          description: Longitude WGS84 en degres decimaux.
+        altitude:
+          type: number
+          description: Hauteur ou altitude en metres.
+        accuracy:
+          type: number
+          description: Precision horizontale estimee en metres.
+        fixQuality:
+          type: string
+          enum: [FIXED, FLOAT, AUTONOME, INVALIDE]
+          description: |
+            Qualite GNSS. Un point non FIXED ne peut pas etre enregistre comme point
+            officiel de limite fonciere (RG-01).
+        satellitesCount:
+          type: integer
+          description: Nombre de satellites utilises dans la solution.
+        pdop:
+          type: number
+          description: Dilution de precision 3D.
+        hdop:
+          type: number
+          description: Dilution de precision horizontale.
+        vdop:
+          type: number
+          description: Dilution de precision verticale.
+        instrument:
+          type: string
+          description: Identifiant de l'instrument, par exemple UM982 ou Simulateur.
+        recordedAt:
+          type: string
+          format: date-time
+          description: Horodatage UTC de la mesure.
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+          description: Message lisible sans detail interne.
+        details:
+          type: object
+          properties:
+            clientId:
+              type: string
+              format: uuid
+            reason:
+              type: string
+              description: Motif a conserver localement avec l'element refuse.
+
+  responses:
+    Validation:
+      description: Donnees invalides
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: VALIDATION_ERROR
+            message: Le compte a assigner doit etre un topographe actif.
+    ProjectNotFound:
+      description: Chantier introuvable ou non visible pour ce compte
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: NOT_FOUND
+            message: Chantier introuvable.
+    InvalidItem:
+      description: |
+        Element mal forme ou point refuse comme borne officielle, notamment si fixQuality
+        n'est pas FIXED. Le motif doit permettre au client de conserver le refus localement.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: VALIDATION_ERROR
+            message: Le point ne peut pas etre enregistre comme limite fonciere officielle.
+            details:
+              clientId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+              reason: fixQuality doit etre FIXED pour une limite fonciere officielle.
+    Unauthorized:
+      description: Jeton absent ou invalide
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: UNAUTHORIZED
+            message: Connexion requise.
+    Forbidden:
+      description: |
+        Role non autorise ou topographe non assigne au chantier du point (CA-7).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: FORBIDDEN
+            message: Le topographe n'est pas assigne a ce chantier.
+            details:
+              clientId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+              reason: Le projectId ne correspond pas a un chantier assigne au topographe.
+    IdempotencyConflict:
+      description: |
+        Proposition a valider : le meme clientId est deja connu avec un contenu different.
+        Le contrat impose l'absence de doublon lors d'un renvoi identique, mais ne definit
+        pas le traitement d'un clientId reutilise pour un autre contenu.
+      x-proposed-behavior: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: IDEMPOTENCY_CONFLICT
+            message: Ce clientId est deja associe a un element different.
+            details:
+              clientId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+              reason: Le contenu ne correspond pas a celui du premier envoi.

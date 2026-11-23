@@ -30,7 +30,7 @@ GeoSmart seconde l'Etat (ANDF). Il ne le remplace pas : le document produit est 
 | Dossier | Contenu | Responsable principal |
 |---|---|---|
 | `api/` | Serveur NestJS + PostgreSQL/PostGIS | voir docs/RESPONSABILITES.md (un sous-dossier par personne) |
-| `mobile/` | Application Android Kotlin | idem |
+| `mobile/` | Application Flutter (Dart) avec le module materiel en Kotlin natif (`mobile/android/`) | idem |
 | `web/` | Site web : annonces (Marrich), verification d'une parcelle (Samuel) | Marrich et Samuel |
 | `contracts/` | Contrat d'API (OpenAPI), un fichier par module | chaque proprietaire de module |
 | `docs/` | Cahier des charges, responsabilites, workflow Git | Marrich (integrateur) |
@@ -43,6 +43,34 @@ GeoSmart seconde l'Etat (ANDF). Il ne le remplace pas : le document produit est 
 3. Lire `docs/RESPONSABILITES.md` : trouver son nom, ses dossiers, ses livrables.
 4. Lire `docs/WORKFLOW-GIT.md` : branches, PR, revue.
 5. Lire `docs/REGLES-DE-TRAVAIL.md` : regles communes, fichiers partages, historique propre.
+
+## Lancer les services avec Docker
+
+Docker Compose lance l'API NestJS depuis `api/` et le site Next.js. Par defaut,
+l'API utilise la base PostgreSQL/PostGIS Aiven configuree dans `DATABASE_URL` :
+
+```powershell
+Copy-Item .env.docker.example .env
+# Remplacer le mot de passe Aiven, le chemin du CA et JWT_SECRET.
+# Encoder en URL les caracteres speciaux du mot de passe.
+docker compose up --build
+```
+
+Le site est disponible sur `http://localhost:3000` et l'API sur
+`http://localhost:3001`. Compose refuse de demarrer si `DATABASE_URL` ou les
+secrets requis ne sont pas configures. `AIVEN_CA_CERT_PATH` doit pointer vers
+le certificat CA Aiven telecharge; Compose le monte dans l'API. La connexion
+PostgreSQL utilise `rejectUnauthorized: false` pour accepter les certificats
+auto-signes, donc `DATABASE_URL` ne doit pas contenir `sslmode=verify-full`.
+Ne commitez jamais le fichier `.env`.
+
+Pour developper sans se connecter a Aiven, la base PostGIS locale optionnelle
+peut etre lancee avec `docker compose --profile local-db up -d db`. Dans ce cas,
+configurez `DATABASE_URL` dans `.env` avec
+`postgresql://geosmart:<mot-de-passe>@localhost:5433/geosmart`. Pour supprimer
+ses donnees locales, utilisez `docker compose down -v`.
+
+L'application Flutter reste dans `mobile/` et se lance avec le SDK Flutter de la machine (`cd mobile`, puis `flutter run`). Docker Compose ne construit pas l'APK.
 
 ## Regles d'or
 

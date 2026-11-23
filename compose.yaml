@@ -1,0 +1,97 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    profiles:
+      - local-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-geosmart}
+      POSTGRES_USER: ${POSTGRES_USER:-geosmart}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      NODE_EXTRA_CA_CERTS: /run/secrets/aiven-ca.pem
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      PORT: 3001
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      # Adresses publiques des liens de partage et des photos : obligatoires en
+      # production, sinon la fiche d'un bien repond 500.
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:3001}
+      LAND_OVERLAP_TOLERANCE_M2: ${LAND_OVERLAP_TOLERANCE_M2:-0}
+      THROTTLE_LIMIT: ${THROTTLE_LIMIT:-300}
+    volumes:
+      - type: bind
+        source: ${AIVEN_CA_CERT_PATH:?Set AIVEN_CA_CERT_PATH in .env}
+        target: /run/secrets/aiven-ca.pem
+        read_only: true
+    ports:
+      - "127.0.0.1:${API_PORT:-3001}:3001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  admin-bootstrap:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    command: ["node", "dist/auth/bootstrap-admin.js"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      NODE_EXTRA_CA_CERTS: /run/secrets/aiven-ca.pem
+      ADMIN_PHONE: ${ADMIN_PHONE:-}
+      ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD:-}
+    volumes:
+      - type: bind
+        source: ${AIVEN_CA_CERT_PATH:?Set AIVEN_CA_CERT_PATH in .env}
+        target: /run/secrets/aiven-ca.pem
+        read_only: true
+    profiles:
+      - admin-bootstrap
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+        NEXT_PUBLIC_DEMO_MODE: ${NEXT_PUBLIC_DEMO_MODE:-false}
+        API_INTERNAL_URL: ${API_INTERNAL_URL:-http://backend:3001}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    environment:
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://backend:3001}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      ADMIN_COOKIE_SECURE: ${ADMIN_COOKIE_SECURE:-true}
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

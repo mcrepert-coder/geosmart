@@ -1,0 +1,578 @@
+openapi: 3.0.3
+info:
+  title: GeoSmart - module location (leasing)
+  version: 0.1.0
+  description: |
+    Propriétaire : Beni (AGLAMEY-SEGBEAYA Kanleto Beni).
+    Concerne : Marrich (annonces et site web), les agents immobiliers et les clients.
+
+    Exigences reprises : EF-305 à EF-307 et EF-309.
+    Les fonctionnalités confirmées sont les demandes et le suivi des visites avec rappel,
+    les états des lieux d'entrée et de sortie avec photos horodatées et signature du
+    locataire, ainsi que la gestion des baux, des échéances de loyer et des retards.
+
+    Les chemins de ce contrat sont des propositions à valider : les documents du projet
+    décrivent les fonctionnalités, mais ne fixent pas les routes HTTP de Leasing.
+    Les champs non établis et les transitions ne sont pas imposés par les schémas.
+
+    L'authentification s'appuie sur le bearer JWT de contracts/auth.yaml. Les permissions
+    indiquées se limitent aux capacités confirmées dans le cahier des charges : un client
+    peut demander une visite ; un agent peut organiser des visites et gérer des baux.
+    Aucune permission n'est déduite pour les autres opérations.
+
+    Flooz et T-Money (Mixx by Yas) sont prévus en phase 3. Aucune route de paiement ni
+    aucun paiement réel ne sont disponibles dans la version 1.
+  x-dependencies:
+    authentication:
+      contract: contracts/auth.yaml
+      scheme: bearerAuth
+      note: Le rôle courant est relu en base à chaque requête (RG-06).
+    listings:
+      contract: contracts/listings.yaml
+      endpoint: GET /properties/{propertyId}
+      note: |
+        La responsabilité de Beni indique que Leasing consomme cette route pour rattacher
+        une visite à un bien. contracts/listings.yaml définit maintenant GET
+        /properties/{propertyId}, avec un identifiant UUID et une réponse Property. Le champ
+        `propertyId` est utilisé pour la référence.
+    land:
+      contract: contracts/land.yaml
+      note: |
+        Le cahier des charges prévoit le statut d'une parcelle et des annonces liées aux
+        parcelles. Aucun appel direct de Leasing vers le module Foncier n'est documenté.
+  x-team-decisions:
+    - id: leasing-paths
+      question: Valider les chemins HTTP proposés avant implémentation.
+    - id: visit-fields-and-lifecycle
+      question: |
+        Définir les champs d'une demande de visite, les statuts, leurs transitions,
+        les acteurs autorisés à les modifier et les informations nécessaires au rappel.
+    - id: reminder-delivery
+      question: |
+        Préciser si le rappel est enregistré ou planifié en version 1. Son envoi par SMS
+        attend un fournisseur ; le canal et le comportement de reprise restent à définir.
+    - id: lease-and-rent-data
+      question: |
+        Définir les champs d'un bail et la structure des échéances et paiements. La règle
+        de calcul et la représentation d'un retard ne sont pas précisées.
+    - id: inspection-evidence
+      question: |
+        Définir le transport et le stockage des photos, ainsi que le format et la méthode
+        de capture de la signature du locataire.
+    - id: inspection-permissions
+      question: |
+        Préciser quel rôle de GeoSmart représente le locataire et qui peut créer, consulter
+        ou signer un état des lieux.
+    - id: payment-phase
+      question: |
+        Les paiements Flooz et T-Money (Mixx by Yas) sont en phase 3 ; définir leur contrat
+        séparément avant toute intégration. Aucun paiement réel n'est exposé ici.
+    - id: leasing-conflicts
+      question: |
+        Aucun conflit Leasing justifiant HTTP 409 n'est spécifié. Ajouter une telle réponse
+        seulement après définition d'un cas métier concret.
+
+servers:
+  - url: http://localhost:3001
+
+tags:
+  - name: visites
+  - name: baux
+  - name: etats-des-lieux
+
+paths:
+  /visits:
+    post:
+      tags: [visites]
+      summary: Demander une visite
+      description: |
+        Chemin proposé à valider. Le cahier des charges confirme qu'un client peut demander
+        une visite et qu'un agent organise des visites. Le rattachement à un bien immobilier
+        utilise l'identifiant propertyId (UUID) et s'appuie sur l'endpoint
+        GET /properties/{propertyId} du contrat Listings, qui retourne une ressource
+        conforme au schéma Property. Les champs du formulaire et les règles
+        d'acceptation ne sont pas établis ici.
+      x-proposed-path: true
+      x-confirmed-capabilities:
+        - CLIENT peut demander une visite
+        - AGENT peut organiser des visites
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitRequest'
+      responses:
+        '201':
+          description: Demande de visite enregistrée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Visit'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [visites]
+      summary: Lister mes visites
+      description: |
+        Visites demandees par le compte connecte, de la plus recente a la plus ancienne.
+        L'administrateur voit toutes les visites.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Visites
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Visit'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /visits/{visitId}:
+    parameters:
+      - $ref: '#/components/parameters/VisitId'
+    get:
+      tags: [visites]
+      summary: Consulter une visite et son statut
+      description: |
+        Chemin proposé à valider. Le suivi du statut est confirmé, mais les statuts,
+        transitions et permissions de consultation ne sont pas définis dans les documents.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Visite et statut courant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Visit'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /visits/{visitId}/status:
+    parameters:
+      - $ref: '#/components/parameters/VisitId'
+    put:
+      tags: [visites]
+      summary: Changer le statut d'une visite
+      description: |
+        Transitions permises : DEMANDEE vers CONFIRMEE ou ANNULEE, CONFIRMEE vers FAITE ou
+        ANNULEE. CONFIRMEE et FAITE sont reserves a l'agent (ou a l'administrateur) ; le
+        demandeur peut annuler sa demande. La confirmation envoie un SMS au demandeur.
+        Chaque changement est journalise (VISIT_STATUS).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [CONFIRMEE, FAITE, ANNULEE]
+                scheduledAt:
+                  type: string
+                  format: date-time
+                reminderAt:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Visite avec son nouveau statut
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Visit'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /leases/{leaseId}/rents/{rentId}/pay:
+    parameters:
+      - $ref: '#/components/parameters/LeaseId'
+      - name: rentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [baux]
+      summary: Marquer une echeance de loyer comme payee
+      description: |
+        Paiement constate hors application (le paiement Mobile Money n'est pas branche).
+        Reserve a l'agent du bail ou a l'administrateur ; journalise (RENT_PAID).
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Echeance payee
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rent'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /leases:
+    post:
+      tags: [baux]
+      summary: Enregistrer un contrat de location
+      description: |
+        Chemin proposé à valider. Le cahier des charges confirme la gestion des baux par
+        les agents, mais ne définit ni les champs du contrat ni les conditions de création.
+      x-proposed-path: true
+      x-confirmed-capabilities:
+        - AGENT peut gérer des baux
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaseInput'
+      responses:
+        '201':
+          description: Contrat enregistré
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lease'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /leases/{leaseId}:
+    parameters:
+      - $ref: '#/components/parameters/LeaseId'
+    get:
+      tags: [baux]
+      summary: Consulter un bail et ses échéances
+      description: |
+        Chemin proposé à valider. Les échéances et les retards de loyer doivent être suivis,
+        mais leurs champs, leur mode de calcul et les permissions de consultation restent
+        à définir.
+      x-proposed-path: true
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Informations du bail et échéances communiquées
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lease'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /leases/{leaseId}/inspections:
+    parameters:
+      - $ref: '#/components/parameters/LeaseId'
+    post:
+      tags: [etats-des-lieux]
+      summary: Enregistrer un état des lieux
+      description: |
+        Chemin proposé à valider. Les états des lieux d'entrée et de sortie doivent inclure
+        des photos horodatées et la signature du locataire. Le format de la signature,
+        l'envoi des fichiers et leur stockage ne sont pas fixés par ce contrat.
+      x-proposed-path: true
+      x-confirmed-requirements:
+        - Etat des lieux d'entrée ou de sortie
+        - Photos horodatées
+        - Signature du locataire
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InspectionInput'
+      responses:
+        '201':
+          description: Etat des lieux enregistré
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Inspection'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [etats-des-lieux]
+      summary: Lister les etats des lieux d'un bail
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Etats des lieux du bail (entree, sortie)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Inspection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    VisitId:
+      name: visitId
+      in: path
+      required: true
+      schema:
+        type: string
+        description: Format d'identifiant à définir.
+    LeaseId:
+      name: leaseId
+      in: path
+      required: true
+      schema:
+        type: string
+        description: Format d'identifiant à définir.
+
+  schemas:
+    Rent:
+      type: object
+      required: [id, dueDate, amount, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        dueDate:
+          type: string
+          format: date
+        amount:
+          type: number
+        status:
+          type: string
+          enum: [A_PAYER, PAYEE, EN_RETARD]
+        paidAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    VisitRequest:
+      type: object
+      description: |
+        Le champ propertyId identifie le bien par son UUID conformément au contrat Listings.
+        Les autres champs du formulaire de demande restent à spécifier.
+      additionalProperties: true
+      properties:
+        propertyId:
+          type: string
+          format: uuid
+          description: Identifiant unique du bien immobilier.
+      required:
+        - propertyId
+
+    Visit:
+      type: object
+      description: |
+        Représentation indicative. Le suivi du statut et le rappel sont confirmés, mais
+        leur structure n'est pas documentée. Aucun énuméré de statut ni transition n'est imposé.
+      additionalProperties: true
+      properties:
+        status:
+          type: string
+          description: Valeurs et transitions à définir par l'équipe.
+        reminder:
+          type: object
+          description: |
+            Détails du rappel à définir. L'envoi SMS dépend de la disponibilité d'un
+            fournisseur SMS et n'est pas garanti dans cette version.
+          additionalProperties: true
+
+    LeaseInput:
+      type: object
+      description: |
+        Schéma volontairement non contraint : les champs du contrat de location et les
+        conditions de création n'ont pas été définis dans les documents du projet.
+      additionalProperties: true
+      properties:
+        rentDueDates:
+          type: array
+          description: Échéances de loyer ; les règles de récurrence et le calcul des retards restent à définir.
+          items:
+            type: string
+            format: date
+          x-proposed-field: true
+
+    Lease:
+      type: object
+      description: |
+        Informations relatives au bail, échéances des loyers et suivi des retards. La
+        structure des échéances, paiements et retards est à valider ; aucune règle de calcul
+        du retard n'est exprimée par le schéma.
+      additionalProperties: true
+      properties:
+        rentDueDates:
+          type: array
+          description: Proposition de représentation des dates d'échéance.
+          items:
+            type: string
+            format: date
+          x-proposed-field: true
+        latePayments:
+          type: array
+          description: |
+            Suivi des retards à définir. Aucun statut, montant ou calcul de retard n'est
+            prescrit dans ce contrat.
+          items:
+            type: object
+            additionalProperties: true
+          x-proposed-field: true
+
+    InspectionInput:
+      type: object
+      description: |
+        Etat des lieux d'entrée ou de sortie. Le type d'état est connu, mais le schéma des
+        photos, leur contenu, le stockage et le format de la signature restent à décider.
+      additionalProperties: true
+      properties:
+        kind:
+          type: string
+          enum: [ENTRY, EXIT]
+          description: Etat des lieux d'entrée ou de sortie.
+          x-proposed-field: true
+        photos:
+          type: array
+          description: Photos horodatées ; représentation et transport à définir.
+          items:
+            $ref: '#/components/schemas/InspectionPhoto'
+          x-proposed-field: true
+        tenantSignature:
+          description: Signature du locataire ; format et méthode de capture à définir.
+          x-proposed-field: true
+
+    Inspection:
+      type: object
+      description: Représentation d'un état des lieux ; les champs non fixés restent à définir.
+      additionalProperties: true
+      properties:
+        kind:
+          type: string
+          enum: [ENTRY, EXIT]
+          description: Etat des lieux d'entrée ou de sortie.
+          x-proposed-field: true
+        photos:
+          type: array
+          description: Photos horodatées ; représentation et stockage à définir.
+          items:
+            $ref: '#/components/schemas/InspectionPhoto'
+          x-proposed-field: true
+        tenantSignature:
+          description: Signature du locataire ; format non fixe.
+          x-proposed-field: true
+
+    InspectionPhoto:
+      type: object
+      description: |
+        Les photos doivent être horodatées. Le champ timestamp et le moyen de transmettre
+        ou stocker le contenu de la photo sont des propositions à valider.
+      additionalProperties: true
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Horodatage de la photo.
+          x-proposed-field: true
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+          description: Message lisible sans détail interne.
+        details:
+          type: object
+
+  responses:
+    Validation:
+      description: Données de requête invalides
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: VALIDATION_ERROR
+            message: Les données fournies sont invalides.
+    Unauthorized:
+      description: Jeton absent ou invalide
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: UNAUTHORIZED
+            message: Connexion requise.
+    Forbidden:
+      description: Rôle ou droit d'accès insuffisant
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: FORBIDDEN
+            message: Action non autorisée pour votre rôle.
+    NotFound:
+      description: Visite ou bail introuvable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: NOT_FOUND
+            message: Ressource introuvable.

@@ -1,5 +1,6 @@
 # Secrets et environnement
 .env
+.env.local
 *.pem
 *.key
 *.jks
@@ -20,6 +21,7 @@ build/
 *.iml
 
 # Fichiers du systeme
+.vscode/
 .DS_Store
 Thumbs.db
 
@@ -27,3 +29,21 @@ Thumbs.db
 *.sqlite
 *.db
 uploads/
+
+# Next.js
+.next/
+out/
+web/next-env.d.ts
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+mobile/.packages
+mobile/pubspec.lock
+!mobile/pubspec.lock
+mobile/coverage/
+
+ROADMAP_ROMUALD.md
+GeoSmart-Field_Design-system-et-maquettes.pdf
+AGENTS.md

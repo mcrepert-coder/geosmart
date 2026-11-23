@@ -1,0 +1,167 @@
+import 'dart:async';
+
+import 'package:material_ui/material_ui.dart';
+
+import '../../../app/theme/geosmart_theme.dart';
+import 'login_page.dart';
+import 'viewmodels/auth_controller.dart';
+
+/// Ecran d'accueil de l'utilisateur non connecte (EF-401).
+///
+/// Un bloc centre verticalement : carrousel horizontal en boucle, dots
+/// centres juste en dessous, puis le message et le bouton de connexion.
+/// Le formulaire complet est sur [LoginPage].
+class LoginGatePage extends StatefulWidget {
+  const LoginGatePage({super.key, required this.auth});
+
+  final AuthController auth;
+
+  @override
+  State<LoginGatePage> createState() => _LoginGatePageState();
+}
+
+class _LoginGatePageState extends State<LoginGatePage> {
+  /// Trois elements, repetes un grand nombre de fois pour un defilement
+  /// sans retour en arriere visible quand on repasse du dernier au premier.
+  static const List<String> _slides = [
+    'Leve GNSS RTK : 1 a 2 cm de precision',
+    'Parcelles securisees, sans chevauchement',
+    'Annonces, visites et locations au meme endroit',
+  ];
+
+  static const int _cycles = 1000;
+  static final int _initialPage = _slides.length * _cycles;
+  static const Duration _autoScrollInterval = Duration(seconds: 3);
+  static const Duration _slideAnimation = Duration(milliseconds: 400);
+
+  late final PageController _pageController = PageController(
+    initialPage: _initialPage,
+  );
+  Timer? _autoScrollTimer;
+  int _currentPage = _initialPage;
+
+  @override
+  void initState() {
+    super.initState();
+    _autoScrollTimer = Timer.periodic(_autoScrollInterval, (_) => _nextSlide());
+  }
+
+  @override
+  void dispose() {
+    _autoScrollTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _nextSlide() {
+    if (!mounted || !_pageController.hasClients) return;
+    final page = (_pageController.page ?? _currentPage).round();
+    _pageController.animateToPage(
+      page + 1,
+      duration: _slideAnimation,
+      curve: Curves.easeInOut,
+    );
+  }
+
+  Widget _buildSlide(BuildContext context, GeoSmartColors colors, int index) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: GeoSmartDimens.space1),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.surface,
+          border: Border.all(color: colors.border),
+          borderRadius: BorderRadius.circular(GeoSmartDimens.radiusLg),
+        ),
+        child: Align(
+          alignment: Alignment.center,
+          child: Padding(
+            padding: const EdgeInsets.all(GeoSmartDimens.space4),
+            child: Text(
+              _slides[index % _slides.length],
+              style: GeoSmartText.h2.copyWith(color: colors.text),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDots(GeoSmartColors colors) {
+    final active = _currentPage % _slides.length;
+    return Row(
+      key: const Key('login-carousel-dots'),
+      mainAxisSize: MainAxisSize.min,
+      children: List<Widget>.generate(_slides.length, (index) {
+        final selected = index == active;
+        return AnimatedContainer(
+          key: ValueKey<String>('login-carousel-dot-$index'),
+          duration: const Duration(milliseconds: 250),
+          width: selected ? 16 : 8,
+          height: 8,
+          margin: const EdgeInsets.symmetric(horizontal: GeoSmartDimens.space1),
+          decoration: BoxDecoration(
+            color: selected ? colors.primary : colors.borderStrong,
+            borderRadius: BorderRadius.circular(GeoSmartDimens.radiusPill),
+          ),
+        );
+      }),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = GeoSmartColors.of(context);
+    return Scaffold(
+      body: Center(
+        // Sans boite a contraintes expand : le Center garde la main et centre
+        // le bloc carrousel, dots, message, bouton a l'ecran.
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: GeoSmartDimens.space4,
+                  ),
+                  child: SizedBox(
+                    height: constraints.maxHeight * 0.25,
+                    child: PageView.builder(
+                      controller: _pageController,
+                      itemBuilder: (context, index) =>
+                          _buildSlide(context, colors, index),
+                      onPageChanged: (index) => setState(
+                        () => _currentPage = index,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: GeoSmartDimens.space2),
+                Center(child: _buildDots(colors)),
+                const SizedBox(height: GeoSmartDimens.space6),
+                Text(
+                  'Veuillez vous connecter',
+                  style: GeoSmartText.h2.copyWith(color: colors.text),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: GeoSmartDimens.space4),
+                Center(
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => LoginPage(auth: widget.auth),
+                      ),
+                    ),
+                    child: const Text('Connexion'),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}

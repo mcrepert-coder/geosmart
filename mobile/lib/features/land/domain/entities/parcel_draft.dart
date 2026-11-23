@@ -1,0 +1,203 @@
+import '../../../gnss/domain/entities/gnss_fix_quality.dart';
+import '../../../gnss/domain/entities/survey_point.dart';
+import '../geometry/polygon_metrics.dart';
+import 'bornage.dart';
+
+/// Communes de l'identifiant `TG-<commune>-<numero>` (Grand Lome pour le
+/// pilote, issue #24). Copie de `api/src/land/communes.json`, car le telephone
+/// doit les proposer sans reseau : `communes_test.dart` echoue si elles different.
+const Map<String, String> communes = {
+  'GO1': 'Golfe 1',
+  'GO2': 'Golfe 2',
+  'GO3': 'Golfe 3',
+  'GO4': 'Golfe 4',
+  'GO5': 'Golfe 5',
+  'GO6': 'Golfe 6',
+  'GO7': 'Golfe 7',
+  'AG1': 'Agoe-Nyive 1',
+  'AG2': 'Agoe-Nyive 2',
+  'AG3': 'Agoe-Nyive 3',
+  'AG4': 'Agoe-Nyive 4',
+  'AG5': 'Agoe-Nyive 5',
+  'AG6': 'Agoe-Nyive 6',
+};
+
+/// Plafond de bornes d'une parcelle, le meme que le serveur (MAX_VERTICES) :
+/// au-dela, POST et PATCH /parcels repondent 400.
+const int maxParcelPoints = 500;
+
+/// Statut juridique declare lors du leve (maquette T5).
+enum DeclaredStatus {
+  titre('Titré', 'TITRE'),
+  coutumier('Coutumier', 'COUTUMIER_NON_TITRE'),
+  litige('En litige', 'EN_LITIGE');
+
+  const DeclaredStatus(this.label, this.serialized);
+
+  final String label;
+  final String serialized;
+}
+
+/// Ce qui empeche de mettre la parcelle en file d'envoi.
+enum DraftBlocker {
+  tooFewPoints,
+  tooManyPoints,
+  flatPolygon,
+  selfIntersection,
+  noCommune,
+  noStatus,
+  noTitleNumber,
+}
+
+/// Parcelle en cours de construction sur le telephone, avant la file d'envoi
+/// (RG-08). Immuable : chaque modification renvoie un nouveau brouillon.
+class ParcelDraft {
+  ParcelDraft({
+    required this.surveySessionId,
+    required List<SurveyPoint> points,
+    this.commune,
+    this.locality,
+    this.declaredStatus,
+    this.titleNumber,
+    this.bornage,
+  }) : points = List.unmodifiable(points),
+       metrics = PolygonMetrics.fromWgs84([
+         for (final p in points) (latitude: p.latitude, longitude: p.longitude),
+       ]);
+
+  final String surveySessionId;
+
+  /// Bornes dans l'ordre du tour de la parcelle.
+  final List<SurveyPoint> points;
+  final String? commune;
+  final String? locality;
+  final DeclaredStatus? declaredStatus;
+  final String? titleNumber;
+
+  /// Bornage contradictoire, facultatif (EF-208).
+  final Bornage? bornage;
+  final PolygonMetrics metrics;
+
+  int get fixedCount => points.where((p) => p.fixQuality.canRecordPoint).length;
+
+  /// RG-03 : une borne hors RTK Fixed n'empeche pas l'envoi, mais la parcelle
+  /// ne sera pas certifiee et ne donnera pas d'attestation.
+  bool get allPointsFixed => points.isNotEmpty && fixedCount == points.length;
+
+  /// Ce qui empeche d'envoyer la geometrie, seul critere pour une
+  /// modification (la commune et le statut ne changent pas).
+  List<DraftBlocker> get geometryBlockers => [
+    if (points.length < 3) DraftBlocker.tooFewPoints,
+    if (points.length > maxParcelPoints) DraftBlocker.tooManyPoints,
+    if (metrics.selfIntersects) DraftBlocker.selfIntersection,
+    if (points.length >= 3 && !metrics.selfIntersects && !metrics.isValid)
+      DraftBlocker.flatPolygon,
+  ];
+
+  List<DraftBlocker> get blockers => [
+    ...geometryBlockers,
+    if (commune == null) DraftBlocker.noCommune,
+    if (declaredStatus == null) DraftBlocker.noStatus,
+    if (declaredStatus == DeclaredStatus.titre &&
+        (titleNumber?.trim().isEmpty ?? true))
+      DraftBlocker.noTitleNumber,
+  ];
+
+  bool get canQueue => blockers.isEmpty;
+
+  ParcelDraft copyWith({
+    List<SurveyPoint>? points,
+    String? commune,
+    String? locality,
+    DeclaredStatus? declaredStatus,
+    String? titleNumber,
+    Bornage? bornage,
+  }) {
+    return ParcelDraft(
+      surveySessionId: surveySessionId,
+      points: points ?? this.points,
+      commune: commune ?? this.commune,
+      locality: locality ?? this.locality,
+      declaredStatus: declaredStatus ?? this.declaredStatus,
+      titleNumber: titleNumber ?? this.titleNumber,
+      bornage: bornage ?? this.bornage,
+    );
+  }
+
+  /// Deplace une borne dans la liste (appui long puis glisser).
+  ParcelDraft reorder(int oldIndex, int newIndex) {
+    final list = [...points];
+    final moved = list.removeAt(oldIndex);
+    list.insert(newIndex > oldIndex ? newIndex - 1 : newIndex, moved);
+    return copyWith(points: list);
+  }
+
+  /// Message de la maquette : "Les cotes B2-B3 et B4-B5 se croisent."
+  String? crossingMessage() {
+    if (!metrics.selfIntersects) return null;
+    String side(int i) =>
+        '${points[i].pointName}-${points[(i + 1) % points.length].pointName}';
+    final c = metrics.crossings.first;
+    return 'Les côtés ${side(c.first)} et ${side(c.second)} se croisent. Réordonnez les bornes.';
+  }
+
+  /// Corps de POST /parcels (contracts/land.yaml, ParcelCreate).
+  /// Le statut declare n'y figure pas encore : le serveur ne l'accepte que de
+  /// l'administrateur avec sa source (question 3 de l'issue #24).
+  Map<String, dynamic> toCreatePayload() {
+    assert(canQueue, 'Brouillon incomplet : $blockers');
+    return {
+      'surveySessionId': surveySessionId,
+      'commune': commune,
+      if (locality != null && locality!.trim().isNotEmpty)
+        'locality': locality!.trim(),
+      ..._geometryPayload(),
+    };
+  }
+
+  /// Corps de PATCH /parcels/:id (ParcelUpdate, EF-205) : nouvelle limite,
+  /// avec la version que le geometre a sous les yeux pour ne rien ecraser.
+  Map<String, dynamic> toUpdatePayload({
+    required int expectedVersion,
+    String? reason,
+  }) {
+    assert(geometryBlockers.isEmpty, 'Geometrie invalide : $geometryBlockers');
+    return {
+      'expectedVersion': expectedVersion,
+      if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      ..._geometryPayload(),
+    };
+  }
+
+  Map<String, dynamic> _geometryPayload() {
+    final ring = [
+      for (final p in points) [p.longitude, p.latitude],
+      [points.first.longitude, points.first.latitude],
+    ];
+    return {
+      'geometry': {
+        'type': 'Polygon',
+        'coordinates': [ring],
+      },
+      'boundaries': [
+        for (final p in points)
+          {
+            'pointNumber': p.pointNumber,
+            'surveyPointId': p.id,
+            'name': p.pointName,
+            'fixQuality': _serverFixQuality(p.fixQuality),
+            'pdop': p.pdop,
+            'satellitesCount': p.satellitesCount,
+            'instrument': p.instrument,
+            'recordedAt': p.recordedAt.toUtc().toIso8601String(),
+          },
+      ],
+      if (bornage != null) 'bornage': bornage!.toJson(),
+    };
+  }
+}
+
+// Le serveur connait FIXED, FLOAT, AUTONOME et INVALIDE : un point DGPS est
+// envoye comme AUTONOME (non certifiable dans les deux cas).
+String _serverFixQuality(GnssFixQuality quality) =>
+    quality == GnssFixQuality.dgps ? 'AUTONOME' : quality.serialized;

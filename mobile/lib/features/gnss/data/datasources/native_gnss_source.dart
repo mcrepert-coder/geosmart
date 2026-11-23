@@ -1,0 +1,173 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+
+import '../../domain/entities/gnss_device.dart';
+import '../../domain/entities/gnss_position.dart';
+import '../../domain/repositories/gnss_position_source.dart';
+import '../../domain/repositories/gnss_source_status.dart';
+import '../../infrastructure/gnss_channel.dart';
+import 'nmea_position_decoder.dart';
+
+/// Source de positions branchee sur le pont natif Android.
+///
+/// Sans adresse connue, [start] cherche un recepteur dans les appareils
+/// appaires et a proximite. Sans appareil reconnu, aucune position n'arrive :
+/// l'ecran de mesure reste en attente au lieu d'inventer une position.
+class NativeGnssSource implements GnssPositionSource, GnssSourceStatus {
+  /// Message affiche tant que l'adaptateur Bluetooth est desactive.
+  static const String bluetoothDisabledMessage =
+      'Bluetooth desactive. Activez-le pour recevoir les positions.';
+  NativeGnssSource({
+    GnssChannel? channel,
+    NmeaPositionDecoder? decoder,
+    String? initialAddress,
+  }) : _channel = channel ?? GnssChannel(),
+       _decoder = decoder ?? NmeaPositionDecoder(),
+       _address = initialAddress;
+
+  final GnssChannel _channel;
+  final NmeaPositionDecoder _decoder;
+  final StreamController<GnssPosition> _positions =
+      StreamController<GnssPosition>.broadcast();
+
+  StreamSubscription<String>? _subscription;
+  List<GnssDevice> _devices = const [];
+  String? _address;
+  String? _error;
+  bool _bluetoothDisabled = false;
+  bool _started = false;
+
+  /// Adresse MAC du recepteur connecte, nulle avant connexion.
+  String? get address => _address;
+
+  /// Derniere liste d'appareils renvoyee par le natif.
+  List<GnssDevice> get devices => List.unmodifiable(_devices);
+
+  /// Dernier refus ou echec lisible, nul quand la source fonctionne.
+  @override
+  String? get error => _error;
+
+  @override
+  bool get bluetoothDisabled => _bluetoothDisabled;
+
+  @override
+  bool get isSimulation => false;
+
+  @override
+  Stream<GnssPosition> get positions => _positions.stream;
+
+  /// Relit l'etat de l'adaptateur Bluetooth du telephone.
+  @override
+  Future<bool> refreshBluetoothState() async {
+    final enabled = await _channel.isBluetoothEnabled();
+    _bluetoothDisabled = !enabled;
+    if (!enabled) {
+      _error = bluetoothDisabledMessage;
+    } else if (_error == bluetoothDisabledMessage) {
+      _error = null;
+    }
+    return enabled;
+  }
+
+  /// Recherche les recepteurs autour du telephone.
+  Future<List<GnssDevice>> scan() async {
+    _error = null;
+    if (!await refreshBluetoothState()) {
+      _devices = const [];
+      return devices;
+    }
+    if (!await _channel.requestBluetoothPermissions()) {
+      _error = 'Les autorisations Bluetooth sont refusees.';
+      _devices = const [];
+      return devices;
+    }
+    _devices = await _channel.startScan();
+    return devices;
+  }
+
+  /// Connecte une adresse connue et retient la cible des prochains demarrages.
+  Future<bool> connect(String address) async {
+    _error = null;
+    if (!await refreshBluetoothState()) return false;
+    return _connect(address);
+  }
+
+  Future<bool> _connect(String address) async {
+    if (!await _channel.requestBluetoothPermissions()) {
+      _error = 'Les autorisations Bluetooth sont refusees.';
+      return false;
+    }
+    final connected = await _channel.connectDevice(address);
+    if (connected) {
+      _address = address;
+    } else {
+      _error = 'Connexion Bluetooth impossible.';
+    }
+    return connected;
+  }
+
+  Future<bool> disconnect() {
+    return _channel.disconnectDevice();
+  }
+
+  @override
+  Future<void> start() async {
+    if (_started) return;
+    _started = true;
+    _error = null;
+    _subscription ??= _channel.nmeaStream.listen(
+      _onLine,
+      onError: (Object error) {
+        debugPrint('NativeGnssSource stream: $error');
+      },
+    );
+
+    if (!await refreshBluetoothState()) {
+      _started = false;
+      return;
+    }
+
+    if (_address != null) {
+      if (!await _connect(_address!)) _started = false;
+      return;
+    }
+    final found = await scan();
+    if (_error != null) {
+      _started = false;
+      return;
+    }
+    final target = _preferred(found);
+    if (target == null) {
+      _error = 'Aucun recepteur GNSS trouve. Saisissez son adresse MAC.';
+      _started = false;
+      return;
+    }
+    if (!await _connect(target.address)) _started = false;
+  }
+
+  @override
+  Future<void> stop() async {
+    _started = false;
+    await _subscription?.cancel();
+    _subscription = null;
+    await _channel.disconnectDevice();
+  }
+
+  void _onLine(String line) {
+    final position = _decoder.feed(line);
+    if (position != null && !_positions.isClosed) {
+      _positions.add(position);
+    }
+  }
+
+  GnssDevice? _preferred(List<GnssDevice> devices) {
+    for (final device in devices) {
+      if (device.isBonded && device.looksLikeReceiver) return device;
+    }
+    for (final device in devices) {
+      if (device.looksLikeReceiver) return device;
+    }
+    return null;
+  }
+}
