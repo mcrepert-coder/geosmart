@@ -8,7 +8,7 @@
          Le HTTP non chiffre n'est permis qu'en debug et profile (manifestes dedies). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="geosmart_mobile"
+        android:label="GeoSmart Field"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

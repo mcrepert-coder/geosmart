@@ -62,18 +62,11 @@ secrets requis ne sont pas configures. `AIVEN_CA_CERT_PATH` doit pointer vers
 le certificat CA Aiven telecharge; Compose le monte dans l'API et configure
 la verification TLS `verify-full`. Ne commitez jamais le fichier `.env`.
 
-Pour developper sans se connecter a Aiven (sans `DATABASE_URL` Aiven ni certificat),
-lancez la base PostGIS locale avec `compose.local-db.yaml`. Seuls `POSTGRES_PASSWORD`
-et `JWT_SECRET` sont necessaires dans `.env` :
-
-```powershell
-docker compose --env-file .env --env-file compose.local-db.env -f compose.yaml -f compose.local-db.yaml up -d
-```
-
-L'API joint alors la base par `db:5432` (le reseau Docker), sans certificat Aiven, et
-attend qu'elle soit prete. Depuis la machine, la base reste sur le port `5433`.
-Utilisez les memes options pour `stop`, `down` ou `logs` ; `down -v` supprime aussi
-les donnees locales.
+Pour developper sans se connecter a Aiven, la base PostGIS locale optionnelle
+peut etre lancee avec `docker compose --profile local-db up -d db`. Dans ce cas,
+configurez `DATABASE_URL` dans `.env` avec
+`postgresql://geosmart:<mot-de-passe>@localhost:5433/geosmart`. Pour supprimer
+ses donnees locales, utilisez `docker compose down -v`.
 
 L'application Flutter reste dans `mobile/` et se lance avec le SDK Flutter de la machine (`cd mobile`, puis `flutter run`). Docker Compose ne construit pas l'APK.
 
