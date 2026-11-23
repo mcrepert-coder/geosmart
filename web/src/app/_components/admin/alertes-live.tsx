@@ -175,7 +175,7 @@ export function AdminLiveAlerts() {
       )}
 
       {loading ? (
-        <p className="gs-help mt-5">Chargement des alertes…</p>
+        <p className="gs-help mt-5" role="status">Chargement des alertes…</p>
       ) : alerts.length === 0 ? (
         <p className="gs-help mt-5">
           {state === "open" ? "Aucune alerte non examinée." : "Aucune alerte."}

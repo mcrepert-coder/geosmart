@@ -10,9 +10,10 @@ under `src/`:
 ## Setup
 
 The API requires PostgreSQL with PostGIS. From the repository root, set
-`DATABASE_URL` in `.env` to the managed Aiven database (SSL mode
-`verify-full`) and `AIVEN_CA_CERT_PATH` to the downloaded Aiven CA certificate,
-then start the API and web app with:
+`DATABASE_URL` in `.env` to the managed Aiven database and `AIVEN_CA_CERT_PATH`
+to the downloaded Aiven CA certificate. The API configures TLS with
+`rejectUnauthorized: false` to support self-signed certificates; do not add
+`sslmode=verify-full` to `DATABASE_URL`. Then start the API and web app with:
 
 ```bash
 docker compose up --build

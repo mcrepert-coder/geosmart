@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRef, useState } from "react";
 import { Camera, Clapperboard, Link2, X } from "lucide-react";
 import type { Property } from "@/lib/data";
 import { TYPE_LABEL } from "@/lib/data";
@@ -8,6 +9,7 @@ import { formatPrice, formatSurface } from "@/lib/format";
 import { downloadShareCard, type ShareFormat } from "@/lib/share-card";
 import { CertBadge, LegalBadge } from "../badges";
 import { Notice } from "../notice";
+import { useDialog } from "../use-dialog";
 import { PropertyGallery } from "./property-gallery";
 
 export function PropertyDrawer({
@@ -19,32 +21,38 @@ export function PropertyDrawer({
   onClose: () => void;
   onToast: (msg: string) => void;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const drawerRef = useRef<HTMLElement>(null);
+  useDialog(true, onClose, drawerRef);
 
   const [exporting, setExporting] = useState<ShareFormat | null>(null);
-  const shareUrl = `${window.location.origin}/?bien=${property.id}`;
-  const badge = property.parcelCertified ? "Parcelle certifiée" : "Parcelle non certifiée";
-  const message = `Réf. ${property.parcelId} - ${property.title} - ${formatPrice(property.price)} - ${formatSurface(property.surfaceM2)} - ${badge} - ${shareUrl}`;
+  const sharePath = `/?bien=${encodeURIComponent(property.id)}`;
+
+  const absoluteUrl = () =>
+    typeof window === "undefined" ? sharePath : `${window.location.origin}${sharePath}`;
+  const message = (url: string) =>
+    `Réf. ${property.parcelId} - ${property.title} - ${formatPrice(property.price)} - ${formatSurface(property.surfaceM2)} - ${property.parcelCertified ? "Parcelle certifiée" : "Parcelle non certifiée"} - ${url}`;
 
   const copy = async (then: string) => {
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      await navigator.clipboard.writeText(absoluteUrl());
       onToast(then);
     } catch {
       onToast("Copie impossible sur ce navigateur");
     }
   };
 
+  const shareWhatsapp = () => {
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(message(absoluteUrl()))}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
+
   const exportVisual = async (format: ShareFormat, label: string) => {
     setExporting(format);
     try {
-      await downloadShareCard(property, format, shareUrl);
+      await downloadShareCard(property, format, absoluteUrl());
       onToast(`Visuel ${label} téléchargé, prêt à publier.`);
     } catch {
       onToast("Export impossible sur ce navigateur");
@@ -57,6 +65,7 @@ export function PropertyDrawer({
     <>
       <div className="gs-scrim" onClick={onClose} aria-hidden />
       <aside
+        ref={drawerRef}
         className="gs-drawer"
         role="dialog"
         aria-modal="true"
@@ -64,7 +73,7 @@ export function PropertyDrawer({
       >
         <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
           <span className="gs-module">Annonces · Fiche du bien</span>
-          <button className="gs-iconbtn" onClick={onClose} aria-label="Fermer la fiche" autoFocus>
+          <button className="gs-iconbtn" onClick={onClose} aria-label="Fermer la fiche">
             <X size={18} />
           </button>
         </div>
@@ -114,23 +123,22 @@ export function PropertyDrawer({
             <p className="text-[14px] leading-[22px] text-[var(--text-muted)]">
               {property.description}
             </p>
-            <a
-            className="font-semibold text-[var(--primary)] underline"
-            href={`/parcelle?id=${encodeURIComponent(property.parcelId)}`}
+            <Link
+              className="font-semibold text-[var(--primary)] underline"
+              href={`/parcelle?id=${encodeURIComponent(property.parcelId)}`}
             >
-            Vérifier le statut de la parcelle
-            </a>
+              Vérifier le statut de la parcelle
+            </Link>
             <Notice>Ne vaut pas titre foncier</Notice>
             <div className="flex flex-col gap-2 border-t border-[var(--border)] pt-4">
               <p className="gs-label">Partager l&apos;annonce</p>
-              <a
+              <button
+                type="button"
                 className="gs-btn gs-btn--primary gs-btn--block"
-                href={`https://wa.me/?text=${encodeURIComponent(message)}`}
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={shareWhatsapp}
               >
                 Partager sur WhatsApp
-              </a>
+              </button>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   className="gs-btn gs-btn--secondary"

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Briefcase, Check, ShieldCheck } from "lucide-react";
+import { Briefcase, Check, KeyRound, ShieldCheck, Smartphone } from "lucide-react";
 import { AuthCode, DEMO_CODE, PhoneField } from "./auth-code";
 import { DEMO_MODE_ENABLED } from "@/lib/runtime-config";
 import { AccountLiveScreen } from "./compte-live";
@@ -17,17 +17,30 @@ function DemoConnexionScreen() {
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState("");
 
+  const submitPhone = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (phone.length !== 8) {
+      setPhoneError("Numéro incomplet : 8 chiffres après +228.");
+      return;
+    }
+    setStep("code");
+  };
+
   return (
     <div className="gs-wrap gs-wrap--narrow flex flex-1 items-start justify-center py-10 md:py-16">
-      <div className="gs-card w-full max-w-md p-6 md:p-8">
+      <section className="gs-card gs-form-card w-full max-w-md">
         {step === "phone" && (
-          <>
-            <h1 className="gs-h1 gs-display">Se connecter</h1>
-            <p className="mt-1 text-[14px] text-[var(--text-muted)]">
+          <form onSubmit={submitPhone}>
+            <span className="gs-form-icon">
+              <Smartphone size={24} aria-hidden />
+            </span>
+            <p className="gs-module text-[var(--primary)]">Accès sécurisé</p>
+            <h1 className="gs-h1 gs-display mt-2">Se connecter</h1>
+            <p className="mt-2 text-[14px] text-[var(--text-muted)]">
               Votre numéro vérifié ouvre votre espace : client, agent, géomètre ou
               administrateur.
             </p>
-            <div className="mt-6">
+            <div className="gs-form-stack">
               <PhoneField
                 id="login-phone"
                 value={phone}
@@ -37,40 +50,37 @@ function DemoConnexionScreen() {
                   if (phoneError) setPhoneError("");
                 }}
               />
+              <div className="gs-form-actions">
+                <button type="submit" className="gs-btn gs-btn--primary gs-btn--lg gs-btn--block">
+                  Recevoir le code
+                </button>
+                <p className="gs-form-note">
+                  Démo hors ligne : le code de validation est {DEMO_CODE}.
+                </p>
+              </div>
             </div>
-            <button
-              className="gs-btn gs-btn--primary gs-btn--block mt-5"
-              onClick={() => {
-                if (phone.length !== 8) {
-                  setPhoneError("Numéro incomplet : 8 chiffres après +228.");
-                  return;
-                }
-                setStep("code");
-              }}
-            >
-              Recevoir le code
-            </button>
-            <p className="gs-demo mt-4 rounded-[10px] px-3 py-2">
-              Démo hors ligne : le code de validation est {DEMO_CODE}.
-            </p>
-            <p className="gs-help mt-4">
+            <p className="gs-help mt-5 text-center">
               Pas encore de compte ?{" "}
               <Link href="/inscription" className="font-semibold text-[var(--primary)] underline">
                 Créer un compte
               </Link>
             </p>
-          </>
+          </form>
         )}
         {step === "code" && (
-          <>
-            <h1 className="gs-h1 gs-display">Code de validation</h1>
-            <p className="mt-1 text-[14px] text-[var(--text-muted)]">
+          <div>
+            <span className="gs-form-icon">
+              <KeyRound size={24} aria-hidden />
+            </span>
+            <p className="gs-module text-[var(--primary)]">Étape 2 sur 2</p>
+            <h1 className="gs-h1 gs-display mt-2">Code de validation</h1>
+            <p className="mt-2 text-[14px] text-[var(--text-muted)]">
               Saisissez les 6 chiffres reçus par SMS. Le collage est accepté.
             </p>
-            <div className="mt-6">
+            <div className="gs-form-stack">
               <AuthCode phone={phone} onSuccess={() => setStep("done")} onBack={() => setStep("phone")} />
             </div>
-          </>
+          </div>
         )}
         {step === "done" && (
           <div className="text-center">
@@ -82,7 +92,7 @@ function DemoConnexionScreen() {
               Session ouverte au +228 {phone.replace(/(\d{2})(?=\d)/g, "$1 ")}. En démonstration,
               choisissez l&apos;espace correspondant à votre rôle.
             </p>
-            <div className="mt-6 flex flex-col gap-2">
+            <div className="gs-form-actions mt-6">
               <Link href="/admin" className="gs-btn gs-btn--primary gs-btn--block">
                 <ShieldCheck size={17} aria-hidden />
                 Ouvrir l&apos;espace administrateur
@@ -97,7 +107,7 @@ function DemoConnexionScreen() {
             </div>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

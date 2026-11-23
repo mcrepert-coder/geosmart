@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -27,6 +27,7 @@ import {
   validateAccount,
 } from "@/lib/demo-store";
 import { formatDate, formatReceived, isSinceYesterday } from "@/lib/format";
+import { useDialog } from "../use-dialog";
 
 const STATUS_LABEL: Record<AccountStatus, string> = {
   EN_ATTENTE: "En attente",
@@ -64,11 +65,8 @@ function PieceModal({
   piece: string;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialog(true, onClose, dialogRef);
 
   const isOrdre = piece.includes("Ordre");
   const isRccm = piece.includes("RCCM");
@@ -78,6 +76,7 @@ function PieceModal({
     <div className="fixed inset-0 z-[1200] grid place-items-center p-4">
       <div className="gs-scrim" onClick={onClose} />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={`Pièce jointe · ${piece}`}
@@ -93,7 +92,7 @@ function PieceModal({
               <p className="gs-caption">{account.name}</p>
             </div>
           </div>
-          <button className="gs-iconbtn" onClick={onClose} aria-label="Fermer" autoFocus>
+          <button className="gs-iconbtn" onClick={onClose} aria-label="Fermer">
             <X size={18} />
           </button>
         </div>
@@ -381,12 +380,8 @@ export function ComptesScreen() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDrawerOpen(false);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [drawerOpen]);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useDialog(drawerOpen, () => setDrawerOpen(false), drawerRef);
 
   const selected = accounts.find((a) => a.id === selectedId) ?? null;
   const pending = accounts.filter((a) => a.status === "EN_ATTENTE");
@@ -563,13 +558,14 @@ export function ComptesScreen() {
         <div className="xl:hidden">
           <div className="gs-scrim" onClick={() => setDrawerOpen(false)} />
           <div
+            ref={drawerRef}
             className="gs-drawer overflow-y-auto p-4"
             role="dialog"
             aria-modal="true"
             aria-label={`Compte · ${selected.name}`}
           >
             <div className="mb-3 flex justify-end">
-              <button className="gs-iconbtn" onClick={() => setDrawerOpen(false)} aria-label="Fermer" autoFocus>
+              <button className="gs-iconbtn" onClick={() => setDrawerOpen(false)} aria-label="Fermer">
                 <X size={18} />
               </button>
             </div>

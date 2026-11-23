@@ -167,7 +167,11 @@ describe('Leasing (PostgreSQL)', () => {
       // A l'heure : un SMS au demandeur, journalise.
       expect(await reminders.sendDue(new Date(due.getTime() + 60_000))).toBe(1);
       expect(sms.sent).toHaveLength(sentBefore + 1);
-      expect(sms.sent[sms.sent.length - 1].message).toMatch(/^Rappel : visite/);
+      const reminder = sms.sent[sms.sent.length - 1];
+      expect(reminder.phone).toBeTruthy();
+      expect(reminder.message).toMatch(/^Rappel : visite/);
+      expect(reminder.message).toContain('Villa Agoe');
+      expect(reminder.message).not.toContain('undefined');
       const { rows: audit } = await db.query<{ action: string }>(
         'SELECT action FROM audit_log ORDER BY seq DESC LIMIT 1',
       );
@@ -193,6 +197,22 @@ describe('Leasing (PostgreSQL)', () => {
       );
       expect(rows[0].reminder_sent_at).toBeNull();
       expect(sent).toBe(0);
+    });
+
+    it('n envoie qu un rappel meme avec deux cycles concurrents', async () => {
+      const visit = await visits.request(client, { propertyId });
+      const due = new Date(Date.now() + 60_000);
+      await visits.updateStatus(agent, visit.id, {
+        status: 'CONFIRMEE',
+        reminderAt: due.toISOString(),
+      });
+      const sentBefore = sms.sent.length;
+      const counts = await Promise.all([
+        reminders.sendDue(due),
+        reminders.sendDue(due),
+      ]);
+      expect(counts.reduce((total, count) => total + count, 0)).toBe(1);
+      expect(sms.sent).toHaveLength(sentBefore + 1);
     });
 
     it('le demandeur ne confirme pas lui-meme sa visite', async () => {

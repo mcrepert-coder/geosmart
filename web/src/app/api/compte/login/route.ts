@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchApi, parseApiJson, type AdminTokens } from "@/lib/admin-server";
 import { setUserCookies, type UserActor } from "@/lib/account-server";
+import { isAgent, setAgentCookies } from "@/lib/agent-server";
+import { rejectCrossSiteMutation } from "@/lib/request-guard";
 
 export async function POST(request: NextRequest) {
+  const blocked = rejectCrossSiteMutation(request);
+  if (blocked) return blocked;
+
   const body: unknown = await request.json().catch(() => null);
   if (
     typeof body !== "object" ||
@@ -48,5 +53,6 @@ export async function POST(request: NextRequest) {
   }
   const response = NextResponse.json({ actor });
   setUserCookies(response, tokens);
+  if (isAgent(actor)) setAgentCookies(response, tokens);
   return response;
 }

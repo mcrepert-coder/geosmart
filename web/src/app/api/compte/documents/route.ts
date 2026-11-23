@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchApi, refreshAdminTokens } from "@/lib/admin-server";
 import { setUserCookies, userAccessToken } from "@/lib/account-server";
+import { rejectCrossSiteMutation } from "@/lib/request-guard";
 
 // Relais de /accounts/me/documents (contracts/auth.yaml, EF-403) : liste et
 // depot des pieces justificatives du compte connecte.
 
 async function proxy(request: NextRequest) {
+  const blocked = rejectCrossSiteMutation(request);
+  if (blocked) return blocked;
   try {
     const session = await userAccessToken();
     let tokens = session.tokens;

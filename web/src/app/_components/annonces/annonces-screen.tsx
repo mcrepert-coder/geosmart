@@ -8,6 +8,7 @@ import { fetchPublicListings, LISTINGS_API_PATH, LISTINGS_DEMO_ENABLED } from "@
 import { PropertyCard } from "./property-card";
 import { PropertyDrawer } from "./property-drawer";
 import { HeroTopo } from "./hero-topo";
+import { useDialog } from "../use-dialog";
 
 const AnnoncesMap = dynamic(() => import("./annonces-map"), {
   ssr: false,
@@ -151,6 +152,8 @@ export function AnnoncesScreen({ initialSelectedId }: { initialSelectedId: strin
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersRef = useRef<HTMLDivElement>(null);
+  useDialog(filtersOpen, () => setFiltersOpen(false), filtersRef);
   const [toast, setToast] = useState<string | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -332,7 +335,13 @@ export function AnnoncesScreen({ initialSelectedId }: { initialSelectedId: strin
       {filtersOpen && (
         <>
           <div className="gs-scrim" onClick={() => setFiltersOpen(false)} aria-hidden />
-          <div className="gs-sheet p-5" role="dialog" aria-modal="true" aria-label="Filtres">
+          <div
+            ref={filtersRef}
+            className="gs-sheet p-5"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Filtres"
+          >
             <div className="mb-4 flex items-center justify-between">
               <p className="gs-h3">Filtres</p>
               <button className="gs-iconbtn" onClick={() => setFiltersOpen(false)} aria-label="Fermer les filtres">

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Eye, FileText, Search, X } from "lucide-react";
 import {
   ADMIN_STATS,
@@ -18,6 +18,7 @@ import { formatDate, formatPrice, formatStamp, formatSurface } from "@/lib/forma
 import { downloadAttestation } from "@/lib/pdf";
 import { CertBadge, LegalBadge } from "../badges";
 import { Notice } from "../notice";
+import { useDialog } from "../use-dialog";
 
 export function Dashboard() {
   const { accounts, journal, examined } = useDemoStore();
@@ -235,13 +236,8 @@ export function ParcellesScreen() {
   const [q, setQ] = useState("");
   const [legal, setLegal] = useState<"TOUS" | LegalStatus>("TOUS");
   const [sel, setSel] = useState<Property | null>(null);
-
-  useEffect(() => {
-    if (!sel) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setSel(null);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [sel]);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useDialog(Boolean(sel), () => setSel(null), drawerRef);
 
   const rows = PROPERTIES.filter((p) => {
     const okLegal = legal === "TOUS" || p.legalStatus === legal;
@@ -341,7 +337,13 @@ export function ParcellesScreen() {
       {sel && (
         <div>
           <div className="gs-scrim" onClick={() => setSel(null)} />
-          <div className="gs-drawer overflow-y-auto p-5" role="dialog" aria-modal="true" aria-label={`Parcelle ${sel.parcelId}`}>
+          <div
+            ref={drawerRef}
+            className="gs-drawer overflow-y-auto p-5"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Parcelle ${sel.parcelId}`}
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="gs-mono gs-h3">{sel.parcelId}</p>
@@ -350,7 +352,7 @@ export function ParcellesScreen() {
                   <CertBadge certified={sel.parcelCertified} kind="parcelle" />
                 </div>
               </div>
-              <button className="gs-iconbtn" onClick={() => setSel(null)} aria-label="Fermer" autoFocus>
+              <button className="gs-iconbtn" onClick={() => setSel(null)} aria-label="Fermer">
                 <X size={18} />
               </button>
             </div>
@@ -381,13 +383,8 @@ export function ParcellesScreen() {
 
 export function AttestationsScreen() {
   const [preview, setPreview] = useState<Attestation | null>(null);
-
-  useEffect(() => {
-    if (!preview) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setPreview(null);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [preview]);
+  const previewRef = useRef<HTMLDivElement>(null);
+  useDialog(Boolean(preview), () => setPreview(null), previewRef);
 
   return (
     <div className="p-4 md:p-8">
@@ -433,6 +430,7 @@ export function AttestationsScreen() {
         <div className="fixed inset-0 z-[1200] grid place-items-center p-4">
           <div className="gs-scrim" onClick={() => setPreview(null)} />
           <div
+            ref={previewRef}
             role="dialog"
             aria-modal="true"
             aria-label={`Aperçu ${preview.id}`}
@@ -440,7 +438,7 @@ export function AttestationsScreen() {
           >
             <div className="flex items-start justify-between gap-3">
               <p className="gs-notice">Ne vaut pas titre foncier</p>
-              <button className="gs-iconbtn" onClick={() => setPreview(null)} aria-label="Fermer" autoFocus>
+              <button className="gs-iconbtn" onClick={() => setPreview(null)} aria-label="Fermer">
                 <X size={18} />
               </button>
             </div>

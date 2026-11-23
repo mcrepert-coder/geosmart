@@ -29,11 +29,12 @@ export function PhoneField({
       </label>
       <div className="gs-phone-control" aria-invalid={error ? true : undefined}>
         <span className="gs-phone-prefix">
-          +228
+          <Smartphone size={16} aria-hidden /> +228
         </span>
         <input
           id={id}
           className="gs-input"
+          type="tel"
           inputMode="numeric"
           autoComplete="tel-national"
           placeholder="90 12 34 56"
@@ -150,7 +151,7 @@ export function AuthCode({
         <Smartphone size={16} aria-hidden />
         Code envoyé au +228 {formatPhone(phone)}
       </p>
-      <div className="mt-4 flex justify-between gap-2" onPaste={onPaste}>
+      <div className="gs-otp-row mt-4" onPaste={onPaste}>
         {digits.map((d, i) => (
           <input
             key={i}

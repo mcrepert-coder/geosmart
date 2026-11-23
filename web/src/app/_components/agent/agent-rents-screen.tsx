@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Download, Loader2, Send, Wallet } from "lucide-react";
 import {
   PAY_METHOD_LABEL,
@@ -13,6 +13,7 @@ import {
   useDemoStore,
 } from "@/lib/demo-store";
 import { formatPrice } from "@/lib/format";
+import { useDialog } from "../use-dialog";
 
 const METHODS: PayMethod[] = ["FLOOZ", "TMONEY", "MIXX"];
 
@@ -58,6 +59,8 @@ export function AgentRentsScreen() {
   const [method, setMethod] = useState<PayMethod>("FLOOZ");
   const [phone, setPhone] = useState("");
   const [processing, setProcessing] = useState(false);
+  const payRef = useRef<HTMLDivElement>(null);
+  useDialog(Boolean(payFor), () => !processing && setPayFor(null), payRef);
   const [lastQuittance, setLastQuittance] = useState<RentEntry | null>(null);
   const [reminded, setReminded] = useState<string[]>([]);
 
@@ -229,6 +232,8 @@ export function AgentRentsScreen() {
                         </button>
                         <button
                           className="gs-btn gs-btn--ghost gs-btn--sm"
+                          disabled={!canManage}
+                          title={canManage ? undefined : "Compte non validé"}
                           onClick={() => {
                             sendRentReminder(r.id);
                             setReminded((v) => (v.includes(r.id) ? v : [...v, r.id]));
@@ -260,6 +265,7 @@ export function AgentRentsScreen() {
           <div className="gs-scrim" onClick={() => !processing && setPayFor(null)} aria-hidden />
           <div className="pointer-events-none fixed inset-0 z-[1200] flex items-center justify-center p-4">
             <div
+              ref={payRef}
               role="dialog"
               aria-modal="true"
               aria-label="Encaissement Mobile Money"
@@ -286,6 +292,8 @@ export function AgentRentsScreen() {
                 <span className="gs-label">Numéro du payeur</span>
                 <input
                   className="gs-input mt-1 w-full"
+                  type="tel"
+                  inputMode="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                 />
