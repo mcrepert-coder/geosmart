@@ -16,6 +16,8 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 subprojects {
+    // Certains plugins Android ne declarent pas de compileSdk : on applique celui de Flutter.
+    // Ce bloc doit etre enregistre avant evaluationDependsOn, sinon le projet est deja evalue.
     afterEvaluate {
         if (plugins.hasPlugin("com.android.library")) {
             extensions.configure<com.android.build.gradle.LibraryExtension> {
@@ -23,9 +25,7 @@ subprojects {
             }
         }
     }
-    subprojects {
-        project.evaluationDependsOn(":app")
-    }
+    project.evaluationDependsOn(":app")
 }
 
 tasks.register<Delete>("clean") {

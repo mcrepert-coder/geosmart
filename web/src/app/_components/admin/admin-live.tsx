@@ -223,8 +223,8 @@ export function AdminLiveShell({ children }: { children: React.ReactNode }) {
   const supportedPath =
     pathname === "/admin" ||
     pathname === "/admin/comptes" ||
-    pathname === "/admin/journal" ||
     pathname === "/admin/alertes" ||
+    pathname === "/admin/journal" ||
     pathname === "/admin/connexion";
   const [actor, setActor] = useState<AdminActor | null>(null);
   const [checking, setChecking] = useState(true);
@@ -292,8 +292,8 @@ export function AdminLiveShell({ children }: { children: React.ReactNode }) {
 
   const links = [
     { href: "/admin", label: "Tableau de bord", icon: LayoutDashboard },
-    { href: "/admin/alertes", label: "Alertes", icon: TriangleAlert },
     { href: "/admin/comptes", label: "Comptes", icon: Users },
+    { href: "/admin/alertes", label: "Alertes", icon: TriangleAlert },
     { href: "/admin/journal", label: "Journal", icon: ScrollText },
   ];
 
@@ -795,9 +795,9 @@ export function AdminUnavailableScreen() {
           Cette rubrique n’est pas encore reliée à l’API
         </h1>
         <p className="gs-help mt-2">
-          Les données de démonstration sont désactivées. Pour le moment, seules
-          la connexion administrateur, le tableau de bord des comptes et la
-          gestion des comptes sont connectés.
+          Les données de démonstration sont désactivées. Pour le moment, seuls
+          la connexion administrateur, le tableau de bord, la gestion des
+          comptes, les alertes de chevauchement et le journal sont connectés.
         </p>
       </div>
     </div>
@@ -941,77 +941,7 @@ export function AdminLiveJournal() {
             </option>
           ))}
         </select>
-        <span className="gs-caption">{shown.length} entrée(s)</span>
       </div>
-      {loading ? (
-        <p className="gs-help mt-5" role="status">Chargement du journal…</p>
-      ) : (
-        <div className="gs-card gs-card--flush mt-4 overflow-x-auto">
-          <table className="gs-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Date</th>
-                <th>Action</th>
-                <th>Ressource</th>
-                <th>Résultat</th>
-                <th>Acteur</th>
-                <th>Détails</th>
-                <th>Empreinte</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((entry) => (
-                <tr key={entry.seq}>
-                  <td className="gs-mono">{entry.seq}</td>
-                  <td className="whitespace-nowrap">
-                    {new Date(entry.at).toLocaleString("fr-FR")}
-                  </td>
-                  <td>{entry.action}</td>
-                  <td>
-                    {entry.resourceType}
-                    {entry.resourceId && (
-                      <span className="gs-caption block">
-                        {entry.resourceId}
-                      </span>
-                    )}
-                  </td>
-                  <td>{entry.result}</td>
-                  <td>
-                    {entry.actorId ?? "Système"}
-                    {entry.actorRole && (
-                      <span className="gs-caption block">
-                        {entry.actorRole}
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    <details>
-                      <summary className="cursor-pointer">Voir</summary>
-                      <pre className="mt-2 max-w-sm whitespace-pre-wrap break-words text-xs">
-                        {JSON.stringify(entry.details, null, 2)}
-                      </pre>
-                    </details>
-                  </td>
-                  <td className="gs-mono" title={entry.hash}>
-                    {entry.hash.slice(0, 12)}…
-                  </td>
-                </tr>
-              ))}
-              {shown.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="py-10 text-center text-[var(--text-muted)]"
-                  >
-                    Aucune entrée dans le journal.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }
