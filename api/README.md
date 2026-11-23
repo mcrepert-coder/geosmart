@@ -29,6 +29,12 @@ npm run start:dev
 Database migrations are applied automatically on API startup. The API does not
 use TypeORM schema synchronization.
 
+## API documentation
+
+Swagger UI is available at `https://API-URL/docs` and the
+OpenAPI JSON at `https://API-URL/docs-json`. The detailed per
+module contracts remain in the repository `contracts/` directory.
+
 ## First Super Admin
 
 The public registration flow never grants the `ADMIN` role. Create the first
