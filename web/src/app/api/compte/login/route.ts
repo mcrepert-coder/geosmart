@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchApi, parseApiJson, type AdminTokens } from "@/lib/admin-server";
 import { setUserCookies, type UserActor } from "@/lib/account-server";
+import { isAgent, setAgentCookies } from "@/lib/agent-server";
 import { rejectCrossSiteMutation } from "@/lib/request-guard";
 
 export async function POST(request: NextRequest) {
@@ -52,5 +53,6 @@ export async function POST(request: NextRequest) {
   }
   const response = NextResponse.json({ actor });
   setUserCookies(response, tokens);
+  if (isAgent(actor)) setAgentCookies(response, tokens);
   return response;
 }

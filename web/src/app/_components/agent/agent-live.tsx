@@ -12,6 +12,7 @@ import {
 } from "@/lib/agent-listing-form";
 import { errorText, isUnauthorized, readJson } from "@/lib/http";
 import { LISTINGS_API_PATH } from "@/lib/listings-api";
+import { loginPhone } from "@/lib/phone";
 import { formatPrice } from "@/lib/format";
 import { LogoMark } from "../logo";
 import { PasswordField } from "../password-field";
@@ -157,7 +158,7 @@ function AgentLogin({ onLoggedIn }: { onLoggedIn: (actor: AgentActor) => void })
         await fetch("/api/agent/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone, password }),
+          body: JSON.stringify({ phone: loginPhone(phone), password }),
         }),
       );
       onLoggedIn(body.actor);
@@ -191,6 +192,7 @@ function AgentLogin({ onLoggedIn }: { onLoggedIn: (actor: AgentActor) => void })
                 type="tel"
                 inputMode="tel"
                 autoComplete="username"
+                placeholder="+228 90 00 00 00"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
               />

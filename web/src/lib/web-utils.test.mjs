@@ -20,6 +20,7 @@ register(
 
 const { fileProblem, requiredDocuments } = await import("./account-documents.ts");
 const { EMPTY_DRAFT, listingPayload, validateDraft } = await import("./agent-listing-form.ts");
+const { loginPhone } = await import("./phone.ts");
 
 test("requiredDocuments selon le role", () => {
   assert.deepEqual(requiredDocuments("CLIENT"), ["la pièce d’identité"]);
@@ -32,6 +33,14 @@ test("requiredDocuments selon le role", () => {
     "la pièce d’identité",
     "l’attestation d’inscription à l’Ordre",
   ]);
+});
+
+test("loginPhone accepte les formats local et international", () => {
+  assert.equal(loginPhone("90 00 00 03"), "+22890000003");
+  assert.equal(loginPhone("90000003"), "+22890000003");
+  assert.equal(loginPhone("+228 90 00 00 03"), "+22890000003");
+  assert.equal(loginPhone("+228(90)00-00-03"), "+22890000003");
+  assert.equal(loginPhone(" 22890000003 "), "+22890000003");
 });
 
 test("fileProblem controle type et taille", () => {

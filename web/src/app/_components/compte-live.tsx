@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { FileUp, LogOut, UserRound } from "lucide-react";
 import { fileProblem, requiredDocuments } from "@/lib/account-documents";
 import { errorText, isUnauthorized, readJson } from "@/lib/http";
+import { loginPhone } from "@/lib/phone";
 import { PasswordField } from "./password-field";
 
 // Mon compte (EF-403) : tout compte se connecte, y compris en attente de
@@ -87,7 +88,7 @@ function AccountLogin({ onLoggedIn }: { onLoggedIn: (actor: Actor) => void }) {
         await fetch("/api/compte/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone, password }),
+          body: JSON.stringify({ phone: loginPhone(phone), password }),
         }),
       );
       onLoggedIn(body.actor);
@@ -122,6 +123,7 @@ function AccountLogin({ onLoggedIn }: { onLoggedIn: (actor: Actor) => void }) {
                 type="tel"
                 inputMode="tel"
                 autoComplete="username"
+                placeholder="+228 90 00 00 00"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
               />

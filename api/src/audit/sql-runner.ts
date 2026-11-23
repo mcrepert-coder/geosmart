@@ -10,6 +10,13 @@ export interface TransactionRunner {
 
 // TypeORM renvoie un tableau de lignes, PGlite un objet { rows }.
 export function rowsOf<T>(result: unknown): T[] {
+  if (
+    Array.isArray(result) &&
+    Array.isArray(result[0]) &&
+    typeof result[1] === 'number'
+  ) {
+    return result[0] as T[];
+  }
   if (Array.isArray(result)) return result as T[];
   return (result as { rows?: T[] } | null)?.rows ?? [];
 }
