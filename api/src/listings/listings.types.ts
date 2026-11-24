@@ -53,6 +53,35 @@ export interface ListingPage<T = ListingSummary> {
   total: number;
 }
 
+export interface ListingContact {
+  id: string;
+  propertyId: string;
+  propertyTitle: string;
+  parcelId: string;
+  clientName: string;
+  clientPhone: string;
+  message: string;
+  createdAt: string;
+  readAt: string | null;
+}
+
+export interface ListingContactPage {
+  items: ListingContact[];
+  total: number;
+  unreadCount: number;
+}
+
+export interface ListingContactInput {
+  clientName?: unknown;
+  clientPhone?: unknown;
+  message?: unknown;
+}
+
+export interface ListingContactCreated {
+  id: string;
+  createdAt: string;
+}
+
 export interface ListingSearch {
   type?: string;
   transaction?: string;

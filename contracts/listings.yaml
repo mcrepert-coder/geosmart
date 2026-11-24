@@ -83,7 +83,10 @@ info:
       un lien public et une image telechargeable, sans publication automatisee.
     pagination: page=1, pageSize=20 (maximum 100), tri recent par defaut.
     agent-contact: Aucun nom, telephone ou contact d'agent n'est expose publiquement
-      avant validation d'une regle de consentement.
+      avant validation d'une regle de consentement. Le client envoie un message
+      via POST /properties/{propertyId}/contacts ; l'agent actif le lit dans sa
+      boite de reception. Le message contient le nom et le numero laisses par le
+      client, accessibles a l'agent seul.
 
 servers:
   - url: http://localhost:3001
@@ -93,6 +96,7 @@ tags:
   - name: recherche
   - name: partage
   - name: photos
+  - name: contacts
 
 paths:
   /properties:
@@ -286,6 +290,71 @@ paths:
               schema: { $ref: '#/components/schemas/ShareLinks' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /properties/{propertyId}/contacts:
+    parameters:
+      - $ref: '#/components/parameters/PropertyId'
+    post:
+      tags: [contacts]
+      summary: Envoyer un message a l'agent d'un bien public
+      description: |
+        Public, sans compte. Le bien doit etre PUBLIE et sa parcelle ne pas etre
+        en litige. Le corpus du message ne contient ni nom ni coordonnees de
+        l'agent : seul l'agent auteur du bien pourra lire le nom et le numero
+        laisses par le client. Limite a 5 requetes par minute et par adresse IP ;
+        un meme numero ne peut pas envoyer deux fois dans la minute.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContactInput' }
+      responses:
+        '201':
+          description: Message enregistre
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactCreated' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /properties/mine/contacts:
+    get:
+      tags: [contacts]
+      summary: Boite de reception des messages d'un agent actif
+      description: |
+        Role AGENT actif. Renvoie les messages des biens de l'agent, les non lus
+        d'abord. Aucun message n'est visible par un autre agent.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Messages recus
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /properties/mine/contacts/{contactId}/read:
+    parameters:
+      - $ref: '#/components/parameters/ContactId'
+    patch:
+      tags: [contacts]
+      summary: Marquer un message comme lu
+      description: Role AGENT actif, destinataire du message.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Message mis a jour
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contact' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /properties/{propertyId}/photos:
     parameters:
       - $ref: '#/components/parameters/PropertyId'
@@ -375,6 +444,14 @@ components:
         type: string
         format: uuid
         description: Identifiant de la photo.
+    ContactId:
+      name: contactId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+        description: Identifiant du message.
 
   schemas:
     PropertyType:
@@ -589,6 +666,58 @@ components:
         pageSize: { type: integer, minimum: 1 }
         total: { type: integer, minimum: 0 }
 
+    ContactInput:
+      type: object
+      description: Message laisse par un client sur la fiche d'un bien public.
+      required: [clientName, clientPhone, message]
+      properties:
+        clientName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        clientPhone:
+          type: string
+          minLength: 8
+          maxLength: 30
+          description: Numero du client, visible par l'agent destinataire seulement.
+          example: +22890123456
+        message:
+          type: string
+          minLength: 5
+          maxLength: 2000
+
+    ContactCreated:
+      type: object
+      required: [id, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+
+    Contact:
+      type: object
+      description: Message visible par l'agent destinataire.
+      required: [id, propertyId, propertyTitle, parcelId, clientName, clientPhone, message, createdAt, readAt]
+      properties:
+        id: { type: string, format: uuid }
+        propertyId: { type: string, format: uuid }
+        propertyTitle: { type: string }
+        parcelId: { type: string, example: TG-AG3-00457 }
+        clientName: { type: string }
+        clientPhone: { type: string }
+        message: { type: string }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: string, format: date-time, nullable: true }
+
+    ContactPage:
+      type: object
+      required: [items, total, unreadCount]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Contact' }
+        total: { type: integer, minimum: 0 }
+        unreadCount: { type: integer, minimum: 0 }
+
     ShareLinks:
       type: object
       description: |
@@ -675,3 +804,11 @@ components:
           example:
             code: UNSUPPORTED_MEDIA_TYPE
             message: Format de fichier non pris en charge.
+    TooManyRequests:
+      description: Trop de messages envoyes
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            code: TOO_MANY_REQUESTS
+            message: Trop de requetes. Reessayez dans un instant.

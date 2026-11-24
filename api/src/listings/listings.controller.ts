@@ -15,10 +15,13 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { actorFromRequest } from '../audit/current-actor.decorator';
+import { CONTACT_LIMITS } from '../security/rate-limit';
 import type {
   ListingActor,
+  ListingContactInput,
   ListingInput,
   ListingSearch,
   ListingUpdateInput,
@@ -66,6 +69,28 @@ export class ListingsController {
     @Query('pageSize') pageSize?: string,
   ) {
     return this.listings.mine(actor, { status, page, pageSize });
+  }
+
+  @Get('mine/contacts')
+  contacts(@ListingCurrentActor() actor: ListingActor) {
+    return this.listings.contactsFor(actor);
+  }
+
+  @Patch('mine/contacts/:contactId/read')
+  readContact(
+    @ListingCurrentActor() actor: ListingActor,
+    @Param('contactId') contactId: string,
+  ) {
+    return this.listings.markContactRead(actor, contactId);
+  }
+
+  @Post(':propertyId/contacts')
+  @Throttle(CONTACT_LIMITS)
+  createContact(
+    @Param('propertyId') propertyId: string,
+    @Body() body: ListingContactInput,
+  ) {
+    return this.listings.createContact(propertyId, body);
   }
 
   @Get(':propertyId/share')

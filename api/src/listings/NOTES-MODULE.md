@@ -8,7 +8,9 @@ Dossiers couverts : `api/src/listings/`, `api/test/listings/`, `contracts/listin
   les filtres, le stockage photo en PostgreSQL et la localisation approximative.
 - L'API Listings fournit la recherche et la fiche publique, la gestion des biens
   par agent, les badges fonciers, les liens de partage et l'upload/suppression
-  des photos. Le module est branche dans `app.module.ts`.
+  des photos. Les messages de contact restent prives entre le client et l'agent
+  auteur du bien ; aucune coordonnee d'agent n'est exposee publiquement.
+  Le module est branche dans `app.module.ts`.
 - Le catalogue web consomme l'API lorsque `NEXT_PUBLIC_API_URL` est configuree ;
   sans cette variable, il affiche explicitement les donnees de demonstration.
 - Le client mobile Listings est integre dans la coque Flutter : catalogue
