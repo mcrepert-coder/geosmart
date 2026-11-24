@@ -7,9 +7,9 @@ FROM node:22-alpine AS build
 WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
-ARG NEXT_PUBLIC_API_URL=http://localhost:3001
+ARG NEXT_PUBLIC_API_URL=https://geosmart-zueq.onrender.com
 ARG NEXT_PUBLIC_DEMO_MODE=false
-ARG API_INTERNAL_URL=http://backend:3001
+ARG API_INTERNAL_URL=https://geosmart-zueq.onrender.com
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_DEMO_MODE=$NEXT_PUBLIC_DEMO_MODE
 ENV API_INTERNAL_URL=$API_INTERNAL_URL

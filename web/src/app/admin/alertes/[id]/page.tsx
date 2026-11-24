@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { ALERTS } from "@/lib/data";
+import { DEMO_MODE_ENABLED } from "@/lib/runtime-config";
+import { AdminUnavailableScreen } from "../../../_components/admin/admin-live";
 import { AlerteDetail } from "../../../_components/admin/alerte-detail";
 
 export const metadata: Metadata = { title: "Alerte de chevauchement" };
@@ -14,6 +16,7 @@ async function AlertePage({ params }: { params: Promise<{ id: string }> }) {
 }
 
 export default function Page({ params }: { params: Promise<{ id: string }> }) {
+  if (!DEMO_MODE_ENABLED) return <AdminUnavailableScreen />;
   return (
     <Suspense
       fallback={

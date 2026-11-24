@@ -4,8 +4,8 @@ import { agentAccessToken, setAgentCookies } from "@/lib/agent-server";
 import { rejectCrossSiteMutation } from "@/lib/request-guard";
 
 // Relais de l'espace agent vers contracts/listings.yaml, avec le jeton de
-// l'agent : mes biens, creation, modification, photos. Les lectures
-// publiques passent directement par l'API.
+// l'agent : mes biens, creation, modification, photos et messages recus.
+// Les lectures publiques passent directement par l'API.
 
 type RouteContext = { params: Promise<{ parts?: string[] }> };
 
@@ -20,6 +20,24 @@ function upstreamPath(request: NextRequest, parts: string[]): string | null {
       if (value !== null) search.set(key, value);
     }
     return `/properties/mine${search.size ? `?${search.toString()}` : ""}`;
+  }
+  if (
+    parts.length === 2 &&
+    parts[0] === "mine" &&
+    parts[1] === "contacts" &&
+    method === "GET"
+  ) {
+    return "/properties/mine/contacts";
+  }
+  if (
+    parts.length === 4 &&
+    parts[0] === "mine" &&
+    parts[1] === "contacts" &&
+    UUID.test(parts[2]) &&
+    parts[3] === "read" &&
+    method === "PATCH"
+  ) {
+    return `/properties/mine/contacts/${parts[2]}/read`;
   }
   if (parts.length === 0 && method === "POST") return "/properties";
   if (parts.length === 1 && UUID.test(parts[0]) && method === "PATCH") {
