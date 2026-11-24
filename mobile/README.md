@@ -46,12 +46,14 @@ flutter analyze
 
 ## Version de production
 
-L'adresse par defaut de l'API (`http://10.0.2.2:3001`) ne sert qu'a l'emulateur. Une
-version de production doit recevoir une adresse `https` a la construction :
+L'adresse par defaut de l'API est `https://geosmart-zueq.onrender.com`. La route
+de connexion en decoule : `/auth/login`. La creation de compte se fait sur le
+site web. Un autre environnement peut recevoir sa propre adresse `https` a la
+construction :
 
 ```powershell
 Copy-Item .env.release.example .env.release.json
-# Remplacer api.exemple.tg par l'adresse https reelle de l'API.
+# Remplacer l'adresse par celle https de l'environnement vise.
 flutter build apk --release --dart-define-from-file=.env.release.json
 ```
 

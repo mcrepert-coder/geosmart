@@ -55,38 +55,6 @@ void main() {
       expect(controller.status, AuthStatus.signedOut);
     });
 
-    test('inscription puis code SMS : en attente de validation (EF-401)', () async {
-      final controller = controllerWith((request) async {
-        if (request.url.path == '/auth/registrations') {
-          return http.Response(
-            jsonEncode({
-              'id': 'compte-1',
-              'phone': '+22890000000',
-              'status': 'TELEPHONE_NON_VERIFIE',
-            }),
-            201,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-        return http.Response(
-          jsonEncode({
-            'id': 'compte-1',
-            'phone': '+22890000000',
-            'status': 'EN_ATTENTE',
-          }),
-          200,
-          headers: {'content-type': 'application/json'},
-        );
-      });
-
-      await controller.register(phone: '+22890000000', password: 'motdepasse');
-      expect(controller.status, AuthStatus.pendingVerification);
-      expect(controller.pendingPhone, '+22890000000');
-
-      await controller.verifyCode('123456');
-      expect(controller.status, AuthStatus.pendingApproval);
-    });
-
     test('connexion reussie ouvre la session avec le role du serveur', () async {
       final store = InMemorySessionStore();
       final controller = controllerWith((request) async {

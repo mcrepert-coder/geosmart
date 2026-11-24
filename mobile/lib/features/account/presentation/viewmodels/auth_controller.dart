@@ -14,18 +14,12 @@ enum AuthStatus {
   /// Pas de session : ecran de connexion.
   signedOut,
 
-  /// Inscription faite, le code SMS est attendu.
-  pendingVerification,
-
-  /// Telephone verifie : la demande attend la validation d'un administrateur.
-  pendingApproval,
-
   /// Session ouverte.
   signedIn,
 }
 
-/// Pilote le parcours comptes : inscription, code SMS, connexion, jetons et
-/// deconnexion. Le role vient toujours du serveur (RG-06).
+/// Pilote le parcours comptes : connexion, jetons et deconnexion. Le role vient
+/// toujours du serveur (RG-06).
 class AuthController extends ChangeNotifier {
   AuthController({required AuthApi api, required SessionStore store})
     : _api = api,
@@ -37,15 +31,11 @@ class AuthController extends ChangeNotifier {
   AuthStatus _status = AuthStatus.loading;
   AccountSession? _session;
   String? _error;
-  String? _pendingPhone;
   String? _lockedUntil;
 
   AuthStatus get status => _status;
   AccountUser? get user => _session?.user;
   String? get error => _error;
-
-  /// Telephone en attente du code SMS, apres l'inscription.
-  String? get pendingPhone => _pendingPhone;
 
   /// Fin du blocage apres cinq echecs de connexion (EF-407).
   String? get lockedUntil => _lockedUntil;
@@ -73,45 +63,6 @@ class AuthController extends ChangeNotifier {
       } else {
         await _signOut(keepError: error.message);
       }
-    }
-  }
-
-  /// POST /auth/registrations, puis attente du code SMS (simule dans le
-  /// journal du serveur tant qu'il n'y a pas de fournisseur).
-  Future<void> register({
-    required String phone,
-    required String password,
-  }) async {
-    _error = null;
-    try {
-      final account = await _api.register(phone: phone, password: password);
-      if (account.status == 'TELEPHONE_NON_VERIFIE') {
-        _pendingPhone = account.phone;
-        _set(AuthStatus.pendingVerification);
-      } else {
-        _pendingPhone = account.phone;
-        _set(AuthStatus.pendingApproval);
-      }
-      notifyListeners();
-    } on AuthApiException catch (error) {
-      _fail(error);
-    }
-  }
-
-  /// POST /auth/phone-verifications : le compte passe EN_ATTENTE, la
-  /// validation par un administrateur est necessaire avant la connexion.
-  Future<void> verifyCode(String code) async {
-    final phone = _pendingPhone;
-    if (phone == null) {
-      _set(AuthStatus.signedOut);
-      return;
-    }
-    _error = null;
-    try {
-      await _api.verifyPhone(phone: phone, code: code);
-      _set(AuthStatus.pendingApproval);
-    } on AuthApiException catch (error) {
-      _fail(error);
     }
   }
 
@@ -144,7 +95,6 @@ class AuthController extends ChangeNotifier {
   Future<void> logout() async {
     await _store.clear();
     _session = null;
-    _pendingPhone = null;
     _lockedUntil = null;
     await _signOut();
   }
