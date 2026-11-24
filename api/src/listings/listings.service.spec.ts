@@ -9,6 +9,7 @@ import type { ListingActor, ListingLegalStatus } from './listings.types';
 
 const AGENT_ID = 'b1f0c2a4-1111-4a10-9c01-0a1b2c3d4e01';
 const PROPERTY_ID = 'b1f0c2a4-2222-4a10-9c01-0a1b2c3d4e02';
+const CONTACT_ID = 'b1f0c2a4-4444-4a10-9c01-0a1b2c3d4e04';
 const PARCEL_ID = 'TG-AGO-00001';
 
 const row = {
@@ -35,6 +36,18 @@ const row = {
   approximate_longitude: 1.21,
 };
 
+const contactRow = {
+  id: CONTACT_ID,
+  property_id: PROPERTY_ID,
+  property_title: 'Terrain a vendre',
+  parcel_id: PARCEL_ID,
+  client_name: 'Awa',
+  client_phone: '+22890123456',
+  message: 'Bonjour, ce terrain est-il toujours disponible ?',
+  created_at: new Date('2026-11-20T10:00:00Z'),
+  read_at: null,
+};
+
 const activeAgent: ListingActor = {
   id: AGENT_ID,
   role: 'AGENT',
@@ -56,6 +69,10 @@ function setup() {
   const query = jest.fn((sql: string) => {
     if (sql.includes('count(*)::text')) return [{ total: '1' }];
     if (sql.includes('FROM property_photos')) return [];
+    if (sql.includes('FROM property_contacts contact')) return [contactRow];
+    if (sql.includes('INSERT INTO property_contacts'))
+      return [{ id: CONTACT_ID, created_at: new Date('2026-11-20T10:00:00Z') }];
+    if (sql.includes('FROM property_contacts')) return [];
     if (sql.includes('FROM properties prop')) return [row];
     return [];
   });
@@ -208,5 +225,75 @@ describe('ListingsService', () => {
       "parcel.legal_status <> 'EN_LITIGE'",
     );
     expect(query.mock.calls[0]?.[0]).toContain('parcel.certified = $3');
+  });
+
+  it('enregistre un message public sans exposer l agent', async () => {
+    const { service, query } = setup();
+    const result = await service.createContact(PROPERTY_ID, {
+      clientName: 'Awa',
+      clientPhone: '+22890123456',
+      message: 'Bonjour, ce terrain est-il toujours disponible ?',
+    });
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO property_contacts'),
+      expect.arrayContaining([
+        PROPERTY_ID,
+        AGENT_ID,
+        'Awa',
+        '+22890123456',
+        'Bonjour, ce terrain est-il toujours disponible ?',
+      ]),
+    );
+    expect(result).toEqual({
+      id: CONTACT_ID,
+      createdAt: '2026-11-20T10:00:00.000Z',
+    });
+  });
+
+  it('refuse un message public invalide avant toute requete', async () => {
+    const { service, query } = setup();
+    await expect(
+      service.createContact(PROPERTY_ID, {
+        clientName: 'Awa',
+        clientPhone: 'abc',
+        message: 'Bonjour',
+      }),
+    ).rejects.toMatchObject({
+      response: { code: 'VALIDATION_ERROR' },
+    });
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('liste les messages recus par l agent auteur du bien', async () => {
+    const { service } = setup();
+    const result = await service.contactsFor(activeAgent);
+
+    expect(result.total).toBe(1);
+    expect(result.unreadCount).toBe(1);
+    expect(result.items[0]).toEqual({
+      id: CONTACT_ID,
+      propertyId: PROPERTY_ID,
+      propertyTitle: 'Terrain a vendre',
+      parcelId: PARCEL_ID,
+      clientName: 'Awa',
+      clientPhone: '+22890123456',
+      message: 'Bonjour, ce terrain est-il toujours disponible ?',
+      createdAt: '2026-11-20T10:00:00.000Z',
+      readAt: null,
+    });
+    expect(result.items[0]).not.toHaveProperty('agentId');
+  });
+
+  it('refuse la boite de reception a un client', async () => {
+    const { service, query } = setup();
+    await expect(
+      service.contactsFor({
+        id: AGENT_ID,
+        role: 'CLIENT',
+        accountActive: true,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(query).not.toHaveBeenCalled();
   });
 });

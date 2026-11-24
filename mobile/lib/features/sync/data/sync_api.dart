@@ -29,8 +29,9 @@ class SyncApiException implements Exception {
 }
 
 /// Envoie un element de la file locale vers `POST /sync` (contracts/sync.yaml)
-/// avec le jeton du compte connecte (module comptes). Implemente le port
-/// SyncTransport du module GNSS pour remplacer l'envoi sans authentification.
+/// avec le jeton du compte connecte (module comptes). Le chemin est `/sync`
+/// sur l'adresse de base, sans prefixe `/api`. Implemente le port SyncTransport
+/// du module GNSS pour remplacer l'envoi sans authentification.
 class SyncApi implements SyncTransport {
   SyncApi(
     this._client, {

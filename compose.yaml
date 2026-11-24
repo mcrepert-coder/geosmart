@@ -31,7 +31,7 @@ services:
       # Adresses publiques des liens de partage et des photos : obligatoires en
       # production, sinon la fiche d'un bien repond 500.
       WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
-      API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:3001}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-https://geosmart-zueq.onrender.com}
       LAND_OVERLAP_TOLERANCE_M2: ${LAND_OVERLAP_TOLERANCE_M2:-0}
       THROTTLE_LIMIT: ${THROTTLE_LIMIT:-300}
     volumes:
@@ -80,13 +80,13 @@ services:
       context: ./web
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://geosmart-zueq.onrender.com}
         NEXT_PUBLIC_DEMO_MODE: ${NEXT_PUBLIC_DEMO_MODE:-false}
-        API_INTERNAL_URL: ${API_INTERNAL_URL:-http://backend:3001}
+        API_INTERNAL_URL: ${API_INTERNAL_URL:-https://geosmart-zueq.onrender.com}
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
     environment:
-      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://backend:3001}
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-https://geosmart-zueq.onrender.com}
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
       ADMIN_COOKIE_SECURE: ${ADMIN_COOKIE_SECURE:-true}
     depends_on:

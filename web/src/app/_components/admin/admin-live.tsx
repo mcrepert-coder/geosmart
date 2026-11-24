@@ -16,6 +16,7 @@ import {
   Users,
 } from "lucide-react";
 import { ROLE_LABEL, type Role } from "@/lib/data";
+import { formatStamp } from "@/lib/format";
 import { PasswordField } from "../password-field";
 
 type AdminActor = {
@@ -102,6 +103,18 @@ const STATUS_STYLE: Record<AccountStatus, string> = {
   ACTIF: "gs-badge--success",
   REJETE: "gs-badge--danger",
   SUSPENDU: "gs-badge--neutral",
+};
+
+const AUDIT_RESULT_LABEL: Record<AuditEntry["result"], string> = {
+  SUCCESS: "Succès",
+  REJECTED: "Rejeté",
+  DENIED: "Refusé",
+};
+
+const AUDIT_RESULT_STYLE: Record<AuditEntry["result"], string> = {
+  SUCCESS: "gs-badge--success",
+  REJECTED: "gs-badge--warning",
+  DENIED: "gs-badge--danger",
 };
 
 const ASSIGNABLE_ROLES: Role[] = ["CLIENT", "AGENT", "TOPOGRAPHE", "GEOMETRE"];
@@ -288,8 +301,6 @@ export function AdminLiveShell({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  if (!supportedPath) return <AdminUnavailableScreen />;
-
   const links = [
     { href: "/admin", label: "Tableau de bord", icon: LayoutDashboard },
     { href: "/admin/comptes", label: "Comptes", icon: Users },
@@ -342,7 +353,9 @@ export function AdminLiveShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
       </aside>
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="min-w-0 flex-1">
+        {supportedPath ? children : <AdminUnavailableScreen />}
+      </main>
     </div>
   );
 }
@@ -799,6 +812,9 @@ export function AdminUnavailableScreen() {
           la connexion administrateur, le tableau de bord, la gestion des
           comptes, les alertes de chevauchement et le journal sont connectés.
         </p>
+        <Link href="/admin" className="gs-btn gs-btn--primary mt-5">
+          <LayoutDashboard size={16} aria-hidden /> Retour au tableau de bord
+        </Link>
       </div>
     </div>
   );
@@ -941,7 +957,65 @@ export function AdminLiveJournal() {
             </option>
           ))}
         </select>
+        <span className="gs-caption">{shown.length} ligne(s)</span>
       </div>
+      {loading ? (
+        <p className="gs-help mt-6" role="status">Chargement du journal…</p>
+      ) : shown.length === 0 ? (
+        <div className="gs-card mt-5 p-6 text-center">
+          <p className="gs-h3">Aucune entrée pour ce filtre</p>
+        </div>
+      ) : (
+        <div className="gs-card gs-card--flush mt-5 overflow-x-auto">
+          <table className="gs-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Horodatage</th>
+                <th>Action</th>
+                <th>Acteur</th>
+                <th>Ressource</th>
+                <th>Résultat</th>
+                <th>Empreinte précédente</th>
+                <th>Empreinte</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((entry) => (
+                <tr key={entry.seq}>
+                  <td className="gs-mono">{entry.seq}</td>
+                  <td className="gs-mono whitespace-nowrap">
+                    {formatStamp(entry.at)}
+                  </td>
+                  <td className="whitespace-nowrap">{entry.action}</td>
+                  <td className="gs-mono">
+                    {entry.actorId
+                      ? entry.actorRole
+                        ? `${entry.actorRole} · ${entry.actorId}`
+                        : entry.actorId
+                      : "Système"}
+                  </td>
+                  <td className="gs-mono">
+                    {entry.resourceType}
+                    {entry.resourceId ? ` · ${entry.resourceId}` : ""}
+                  </td>
+                  <td>
+                    <span
+                      className={`gs-badge ${AUDIT_RESULT_STYLE[entry.result]}`}
+                    >
+                      {AUDIT_RESULT_LABEL[entry.result]}
+                    </span>
+                  </td>
+                  <td className="gs-mono text-[var(--text-muted)]">
+                    {entry.prevHash}
+                  </td>
+                  <td className="gs-mono">{entry.hash}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

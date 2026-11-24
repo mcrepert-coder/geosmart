@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
   PayloadTooLargeException,
@@ -12,6 +14,10 @@ import { ParcelStatusService } from '../land/parcel-status.service';
 import { rowsOf } from '../audit/sql-runner';
 import type {
   ListingActor,
+  ListingContact,
+  ListingContactCreated,
+  ListingContactInput,
+  ListingContactPage,
   ListingInput,
   ListingLegalStatus,
   ListingPage,
@@ -25,6 +31,7 @@ import type {
 import { PARCEL_ID_PATTERN } from '../land/parcel-id';
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+const CONTACT_COOLDOWN_MS = 60_000;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 // Meme format que le foncier : la commune tient en 3 lettres ou chiffres
@@ -53,6 +60,13 @@ const BASE_SELECT = `
     FROM properties prop
     JOIN parcels parcel ON parcel.id = prop.parcel_id
     LEFT JOIN accounts agent ON agent.id = prop.agent_id`;
+
+const CONTACT_SELECT = `
+  SELECT contact.id, contact.property_id, prop.title AS property_title,
+         prop.parcel_id, contact.client_name, contact.client_phone,
+         contact.message, contact.created_at, contact.read_at
+    FROM property_contacts contact
+    JOIN properties prop ON prop.id = contact.property_id`;
 
 interface ListingRow {
   id: string;
@@ -86,6 +100,18 @@ interface PhotoRow {
   uploaded_at: Date | string;
   is_primary: boolean;
   file_data?: Buffer;
+}
+
+interface ContactRow {
+  id: string;
+  property_id: string;
+  property_title: string;
+  parcel_id: string;
+  client_name: string;
+  client_phone: string;
+  message: string;
+  created_at: Date | string;
+  read_at: Date | string | null;
 }
 
 interface PhotoUpload {
@@ -404,6 +430,104 @@ export class ListingsService {
     };
   }
 
+  async createContact(
+    propertyId: string,
+    input: ListingContactInput,
+  ): Promise<ListingContactCreated> {
+    const values = this.validateContactInput(input);
+    const property = await this.findPublicRow(propertyId);
+    const [recent] = rowsOf<{ created_at: Date | string }>(
+      await this.dataSource.query(
+        `SELECT created_at
+           FROM property_contacts
+          WHERE property_id = $1 AND client_phone = $2
+          ORDER BY created_at DESC
+          LIMIT 1`,
+        [property.id, values.clientPhone],
+      ),
+    );
+    if (
+      recent &&
+      Date.now() - new Date(recent.created_at).getTime() < CONTACT_COOLDOWN_MS
+    ) {
+      throw new HttpException(
+        {
+          code: 'TOO_MANY_REQUESTS',
+          message: 'Un message vient d’etre envoye. Reessayez dans une minute.',
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    const [created] = rowsOf<{ id: string; created_at: Date | string }>(
+      await this.dataSource.query(
+        `INSERT INTO property_contacts
+           (property_id, agent_id, client_name, client_phone, message)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, created_at`,
+        [
+          property.id,
+          property.agent_id,
+          values.clientName,
+          values.clientPhone,
+          values.message,
+        ],
+      ),
+    );
+    if (!created) throw this.notFound();
+    return {
+      id: created.id,
+      createdAt: new Date(created.created_at).toISOString(),
+    };
+  }
+
+  async contactsFor(actor: ListingActor): Promise<ListingContactPage> {
+    this.requireAgent(actor);
+    const rows = rowsOf<ContactRow>(
+      await this.dataSource.query(
+        `${CONTACT_SELECT}
+          WHERE prop.agent_id = $1
+          ORDER BY contact.read_at NULLS FIRST, contact.created_at DESC`,
+        [actor.id],
+      ),
+    );
+    const items = rows.map((row) => this.toContact(row));
+    return {
+      items,
+      total: items.length,
+      unreadCount: items.filter((item) => item.readAt === null).length,
+    };
+  }
+
+  async markContactRead(
+    actor: ListingActor,
+    contactId: string,
+  ): Promise<ListingContact> {
+    this.requireAgent(actor);
+    if (!UUID_PATTERN.test(contactId)) throw this.notFound();
+    const [updated] = rowsOf<{ id: string }>(
+      await this.dataSource.query(
+        `UPDATE property_contacts contact
+            SET read_at = now()
+          WHERE contact.id = $1
+            AND contact.property_id IN (
+              SELECT prop.id FROM properties prop WHERE prop.agent_id = $2
+            )
+          RETURNING contact.id`,
+        [contactId, actor.id],
+      ),
+    );
+    if (!updated) throw this.notFound();
+    const [row] = rowsOf<ContactRow>(
+      await this.dataSource.query(
+        `${CONTACT_SELECT}
+          WHERE contact.id = $1 AND prop.agent_id = $2`,
+        [contactId, actor.id],
+      ),
+    );
+    if (!row) throw this.notFound();
+    return this.toContact(row);
+  }
+
   async uploadPhoto(
     actor: ListingActor,
     propertyId: string,
@@ -713,6 +837,52 @@ export class ListingsService {
           ? undefined
           : this.optionalText(input.zone, 'zone', 120) || null,
       status: input.status as ListingStatus | undefined,
+    };
+  }
+
+  private validateContactInput(input: ListingContactInput) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw this.invalid('Le corps de la requete doit etre un objet.');
+    }
+    const allowed = new Set(['clientName', 'clientPhone', 'message']);
+    for (const key of Object.keys(input)) {
+      if (!allowed.has(key)) throw this.invalid(`Champ non autorise : ${key}.`);
+    }
+    const clientName = this.requiredText(input.clientName, 'clientName', 120);
+    const clientPhone = this.requiredPhone(input.clientPhone);
+    const message = this.requiredText(input.message, 'message', 2000);
+    if (message.length < 5) {
+      throw this.invalid('message doit contenir au moins 5 caracteres.');
+    }
+    return { clientName, clientPhone, message };
+  }
+
+  private requiredPhone(value: unknown): string {
+    const phone = this.requiredText(value, 'clientPhone', 30);
+    const digits = phone.replace(/\D/g, '');
+    if (
+      digits.length < 8 ||
+      digits.length > 15 ||
+      !/^\+?[0-9 ().-]+$/.test(phone)
+    ) {
+      throw this.invalid(
+        'clientPhone doit etre un numero de telephone valide.',
+      );
+    }
+    return phone;
+  }
+
+  private toContact(row: ContactRow): ListingContact {
+    return {
+      id: row.id,
+      propertyId: row.property_id,
+      propertyTitle: row.property_title,
+      parcelId: row.parcel_id,
+      clientName: row.client_name,
+      clientPhone: row.client_phone,
+      message: row.message,
+      createdAt: new Date(row.created_at).toISOString(),
+      readAt: row.read_at ? new Date(row.read_at).toISOString() : null,
     };
   }
 

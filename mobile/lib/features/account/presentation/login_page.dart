@@ -1,8 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../../../app/theme/geosmart_theme.dart';
-import 'register_page.dart';
-import 'verification_page.dart';
 import 'viewmodels/auth_controller.dart';
 
 /// Ecran de connexion (EF-401, EF-407). Le blocage apres cinq echecs est
@@ -34,7 +32,25 @@ class _LoginPageState extends State<LoginPage> {
       phone: _phone.text.trim(),
       password: _password.text,
     );
-    if (mounted) setState(() => _busy = false);
+    if (!mounted) return;
+    setState(() => _busy = false);
+
+    // Le changement de statut remplace la page d'accueil du MaterialApp, mais
+    // la route du formulaire reste empilee : il faut la retirer pour voir la
+    // coque connectee.
+    if (widget.auth.status == AuthStatus.signedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connexion reussie.')),
+      );
+      Navigator.of(context).pop();
+      return;
+    }
+    final message = widget.auth.error;
+    if (message != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
   }
 
   @override
@@ -50,10 +66,6 @@ class _LoginPageState extends State<LoginPage> {
       body: ListenableBuilder(
         listenable: widget.auth,
         builder: (context, _) {
-          // Apres inscription, le code SMS est demande (EF-401).
-          if (widget.auth.status == AuthStatus.pendingVerification) {
-            return VerificationPage(auth: widget.auth);
-          }
           return ListView(
             padding: const EdgeInsets.all(GeoSmartDimens.space4),
             children: [
@@ -89,15 +101,6 @@ class _LoginPageState extends State<LoginPage> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Text('Se connecter'),
-              ),
-              const SizedBox(height: GeoSmartDimens.space3),
-              TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => RegisterPage(auth: widget.auth),
-                  ),
-                ),
-                child: const Text('Creer un compte'),
               ),
             ],
           );

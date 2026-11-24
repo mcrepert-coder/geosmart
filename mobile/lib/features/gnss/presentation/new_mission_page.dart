@@ -30,7 +30,14 @@ class _NewMissionPageState extends State<NewMissionPage> {
   void initState() {
     super.initState();
     _missions.addListener(_onMissionsChanged);
-    if (_missions.choosesProject) _loadProjects();
+    // loadProjects notifie des la premiere affectation. Attendre la fin du
+    // build : sinon la page mere, elle aussi abonnee, appelle setState pendant
+    // que ce formulaire est encore en cours de construction.
+    if (_missions.choosesProject) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadProjects();
+      });
+    }
   }
 
   @override

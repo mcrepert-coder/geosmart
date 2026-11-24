@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
-import { Camera, Clapperboard, Link2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Camera, Clapperboard, Link2, MessageCircle, Send, X } from "lucide-react";
 import type { Property } from "@/lib/data";
 import { TYPE_LABEL } from "@/lib/data";
 import { formatPrice, formatSurface } from "@/lib/format";
+import { errorText, readJson } from "@/lib/http";
+import { LISTINGS_API_PATH } from "@/lib/listings-api";
+import { loginPhone } from "@/lib/phone";
 import { downloadShareCard, type ShareFormat } from "@/lib/share-card";
 import { CertBadge, LegalBadge } from "../badges";
 import { Notice } from "../notice";
@@ -25,7 +28,14 @@ export function PropertyDrawer({
   useDialog(true, onClose, drawerRef);
 
   const [exporting, setExporting] = useState<ShareFormat | null>(null);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [contact, setContact] = useState({ clientName: "", clientPhone: "", message: "" });
+  const [sending, setSending] = useState(false);
   const sharePath = `/?bien=${encodeURIComponent(property.id)}`;
+
+  useEffect(() => {
+    if (contactOpen) document.getElementById("contact-name")?.focus();
+  }, [contactOpen]);
 
   const absoluteUrl = () =>
     typeof window === "undefined" ? sharePath : `${window.location.origin}${sharePath}`;
@@ -58,6 +68,42 @@ export function PropertyDrawer({
       onToast("Export impossible sur ce navigateur");
     } finally {
       setExporting(null);
+    }
+  };
+
+  const submitContact = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!LISTINGS_API_PATH) {
+      onToast("Le contact agent est indisponible en démonstration.");
+      return;
+    }
+    const clientName = contact.clientName.trim();
+    const clientPhone = loginPhone(contact.clientPhone);
+    const text = contact.message.trim();
+    const digits = clientPhone.replace(/\D/g, "");
+    if (!clientName || text.length < 5 || digits.length < 8 || digits.length > 15) {
+      onToast("Renseignez votre nom, un numéro valide et un message d'au moins 5 caractères.");
+      return;
+    }
+    setSending(true);
+    try {
+      await readJson(
+        await fetch(
+          `${LISTINGS_API_PATH}/properties/${encodeURIComponent(property.id)}/contacts`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clientName, clientPhone, message: text }),
+          },
+        ),
+      );
+      setContact({ clientName: "", clientPhone: "", message: "" });
+      setContactOpen(false);
+      onToast("Message envoyé à l'agent. Il vous répondra au numéro indiqué.");
+    } catch (submitError) {
+      onToast(errorText(submitError));
+    } finally {
+      setSending(false);
     }
   };
 
@@ -130,6 +176,76 @@ export function PropertyDrawer({
               Vérifier le statut de la parcelle
             </Link>
             <Notice>Ne vaut pas titre foncier</Notice>
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-sunken)] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="gs-label">Contacter l&apos;agent</p>
+                  <p className="mt-1 text-[13px] leading-[19px] text-[var(--text-muted)]">
+                    Votre numéro reste privé : il est transmis uniquement à l&apos;agent qui a publié
+                    cette annonce.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="gs-btn gs-btn--primary gs-btn--sm"
+                  aria-expanded={contactOpen}
+                  aria-controls="property-contact-form"
+                  onClick={() => setContactOpen((open) => !open)}
+                >
+                  <MessageCircle size={15} aria-hidden />
+                  {contactOpen ? "Fermer" : "Contacter l'agent"}
+                </button>
+              </div>
+              {contactOpen && (
+                <form id="property-contact-form" className="mt-3 grid gap-2" onSubmit={submitContact}>
+                  <label className="gs-label" htmlFor="contact-name">
+                    Votre nom
+                  </label>
+                  <input
+                    id="contact-name"
+                    className="gs-input"
+                    autoComplete="name"
+                    maxLength={120}
+                    placeholder="Votre nom complet"
+                    value={contact.clientName}
+                    onChange={(e) => setContact((c) => ({ ...c, clientName: e.target.value }))}
+                    required
+                  />
+                  <label className="gs-label" htmlFor="contact-phone">
+                    Téléphone ou WhatsApp
+                  </label>
+                  <input
+                    id="contact-phone"
+                    className="gs-input"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    maxLength={30}
+                    placeholder="+228 90 12 34 56"
+                    value={contact.clientPhone}
+                    onChange={(e) => setContact((c) => ({ ...c, clientPhone: e.target.value }))}
+                    required
+                  />
+                  <label className="gs-label" htmlFor="contact-message">
+                    Votre message
+                  </label>
+                  <textarea
+                    id="contact-message"
+                    className="gs-input"
+                    rows={3}
+                    maxLength={2000}
+                    placeholder="Bonjour, ce bien est-il toujours disponible ?"
+                    value={contact.message}
+                    onChange={(e) => setContact((c) => ({ ...c, message: e.target.value }))}
+                    required
+                  />
+                  <button className="gs-btn gs-btn--primary gs-btn--block" disabled={sending}>
+                    <Send size={15} aria-hidden />
+                    {sending ? "Envoi en cours…" : "Envoyer le message"}
+                  </button>
+                </form>
+              )}
+            </div>
             <div className="flex flex-col gap-2 border-t border-[var(--border)] pt-4">
               <p className="gs-label">Partager l&apos;annonce</p>
               <button

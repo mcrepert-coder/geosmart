@@ -44,6 +44,8 @@ export const AUTH_LIMITS = {
   refresh: { default: { limit: 30, ttl: MINUTE_MS } },
 };
 
+export const CONTACT_LIMITS = { default: { limit: 5, ttl: MINUTE_MS } };
+
 // Meme forme d'erreur que le reste de l'API (schema Error des contrats).
 @Injectable()
 export class RateLimitGuard extends ThrottlerGuard {

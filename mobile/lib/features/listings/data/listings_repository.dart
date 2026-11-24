@@ -7,7 +7,7 @@ import '../domain/property_summary.dart';
 
 const String defaultListingsApiBaseUrl = String.fromEnvironment(
   'GEOSMART_API_URL',
-  defaultValue: '',
+  defaultValue: 'https://geosmart-zueq.onrender.com',
 );
 
 class ListingsException implements Exception {

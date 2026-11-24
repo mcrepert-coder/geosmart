@@ -1,8 +1,20 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import {
+  ArrowRight,
+  BadgeCheck,
+  Crosshair,
+  FileCheck2,
+  MapPin,
+  ScanSearch,
+  Search,
+  ShieldCheck,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import { PROPERTIES, COMMUNES, communeOf, type LegalStatus, type Property, type PropertyType, type TransactionType } from "@/lib/data";
 import { fetchPublicListings, LISTINGS_API_PATH, LISTINGS_DEMO_ENABLED } from "@/lib/listings-api";
 import { PropertyCard } from "./property-card";
@@ -217,38 +229,84 @@ export function AnnoncesScreen({ initialSelectedId }: { initialSelectedId: strin
       {/* Hero brand-blue + recherche */}
       <section className="gs-hero gs-hero--market">
         <HeroTopo />
-        <div className="gs-wrap relative z-[3] flex flex-col gap-6 py-12 lg:flex-row lg:items-center lg:justify-between lg:py-16">
-          <div className="max-w-xl">
-            <h1 className="gs-display gs-rise text-[26px] font-bold leading-[34px] lg:text-[32px] lg:leading-[42px]">
-              Des biens rattachés à des parcelles levées au centimètre
-            </h1>
-            <p className="gs-rise mt-3 max-w-lg text-[15px] leading-[24px] text-[#cfe0ea]" style={{ animationDelay: "90ms" }}>
-              Chaque annonce indique le statut juridique de sa parcelle et si elle est certifiée.
-            </p>
+        <div className="gs-wrap relative z-[3] py-12 lg:py-16">
+          <div className="flex flex-col gap-9 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-2xl">
+              <p className="gs-hero-eyebrow gs-rise">GeoSmart Field · Togo</p>
+              <h1 className="gs-display gs-rise mt-5 text-[30px] font-bold leading-[38px] lg:text-[42px] lg:leading-[52px]">
+                Des biens rattachés à des parcelles{" "}
+                <span className="gs-hero-accent">levées au centimètre</span>
+              </h1>
+              <p className="gs-rise mt-4 max-w-xl text-[15px] leading-[24px] text-[#cfe0ea]" style={{ animationDelay: "90ms" }}>
+                Chaque annonce indique le statut juridique de sa parcelle et si elle est certifiée. Vérifiez avant d&apos;acheter, sans créer de compte.
+              </p>
+              <div className="gs-hero-metrics gs-rise mt-7" style={{ animationDelay: "140ms" }}>
+                <span className="gs-hero-metric"><Crosshair size={17} aria-hidden /> Levé RTK</span>
+                <span className="gs-hero-metric"><FileCheck2 size={17} aria-hidden /> Statut juridique visible</span>
+                <span className="gs-hero-metric"><ShieldCheck size={17} aria-hidden /> Vérification sans compte</span>
+              </div>
+            </div>
+            <div className="gs-rise w-full max-w-lg" style={{ animationDelay: "170ms" }}>
+              <form
+                className="gs-search flex items-center gap-2 p-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+                role="search"
+              >
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary)]">
+                  <Search aria-hidden size={19} />
+                </span>
+                <input
+                  className="h-11 min-w-0 flex-1 bg-transparent px-1 text-[15px] text-[#1b2a33] outline-none placeholder:text-[#5b6b75]"
+                  placeholder="Agoè-Nyivé, Adidogomé, TG-AGO-00457..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  aria-label="Rechercher par zone ou identifiant"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    className="gs-iconbtn h-9 w-9 shrink-0"
+                    onClick={() => setQuery("")}
+                    aria-label="Effacer la recherche"
+                  >
+                    <X size={16} aria-hidden />
+                  </button>
+                )}
+                <button type="submit" className="gs-btn gs-btn--accent gs-btn--sm shrink-0">
+                  Rechercher <ArrowRight size={15} aria-hidden />
+                </button>
+              </form>
+              <p className="mt-3 text-[12px] text-[#cfe0ea]">
+                Par zone, commune ou identifiant de parcelle.
+              </p>
+            </div>
           </div>
-          <form
-            className="gs-rise flex w-full max-w-lg items-center gap-2 rounded-[14px] bg-white p-1.5 ring-1 ring-black/5 transition-shadow focus-within:ring-2 focus-within:ring-[#2b7aa0]/60"
-            style={{ animationDelay: "170ms", boxShadow: "0 12px 34px rgba(6,34,48,0.34)" }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-            role="search"
-          >
-            <Search aria-hidden size={18} className="ml-2 shrink-0 text-[#5b6b75]" />
-            <input
-              className="h-11 min-w-0 flex-1 bg-transparent px-1 text-[15px] text-[#1b2a33] outline-none placeholder:text-[#5b6b75]"
-              placeholder="Agoè-Nyivé, Adidogomé, TG-AGO-00457..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              aria-label="Rechercher par zone ou identifiant"
-            />
-            <button type="submit" className="gs-btn gs-btn--primary gs-btn--sm shrink-0" style={{ background: "#0b3549", color: "#fff" }}>
-              Rechercher
-            </button>
-          </form>
         </div>
       </section>
+
+      <div className="gs-wrap pt-6">
+        <div className="gs-trust gs-rise">
+          <div className="gs-trust-item">
+            <span className="gs-trust-icon"><BadgeCheck size={20} aria-hidden /></span>
+            <div><strong>Parcelles identifiées</strong><span>Une emprise levée et un identifiant par bien</span></div>
+          </div>
+          <div className="gs-trust-item">
+            <span className="gs-trust-icon"><FileCheck2 size={20} aria-hidden /></span>
+            <div><strong>Statut juridique affiché</strong><span>Titré, coutumier ou en litige, sans ambiguïté</span></div>
+          </div>
+          <div className="gs-trust-item">
+            <span className="gs-trust-icon"><ScanSearch size={20} aria-hidden /></span>
+            <div><strong>Vérification ouverte à tous</strong><span>Consultez le statut d&apos;une parcelle sans compte</span></div>
+          </div>
+          <div className="gs-trust-item">
+            <span className="gs-trust-icon"><MapPin size={20} aria-hidden /></span>
+            <div><strong>Carte et annonces liées</strong><span>Repérez le bien puis sa parcelle en un clic</span></div>
+          </div>
+        </div>
+      </div>
 
       <div className="gs-wrap mt-4">
         {apiError ? (
@@ -263,8 +321,20 @@ export function AnnoncesScreen({ initialSelectedId }: { initialSelectedId: strin
       </div>
 
       {/* Filtres + resultats */}
-      <div ref={resultsRef} className="gs-wrap scroll-mt-20 py-6">
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div ref={resultsRef} className="gs-wrap scroll-mt-20 py-8">
+        <div className="gs-section-head mb-5">
+          <div>
+            <p className="gs-module text-[var(--primary)]">Le catalogue</p>
+            <h2 className="gs-h2 gs-display mt-2">Annonces rattachées à une parcelle</h2>
+            <p className="mt-1 text-[13px] text-[var(--text-muted)]">
+              Filtrez par statut juridique, certification et zone.
+            </p>
+          </div>
+          <span className="gs-badge gs-badge--primary">
+            {filtered.length} bien{filtered.length > 1 ? "s" : ""} affiché{filtered.length > 1 ? "s" : ""}
+          </span>
+        </div>
+        <div className="gs-filterbar mb-5">
           <div className="hidden md:flex flex-wrap items-center gap-2">
             <FilterControls filters={filters} setFilters={setFilters} communes={communes} />
           </div>
@@ -281,9 +351,9 @@ export function AnnoncesScreen({ initialSelectedId }: { initialSelectedId: strin
               <X size={14} /> Réinitialiser
             </button>
           )}
-          <p className="ml-auto text-[13px] font-semibold text-[var(--text-muted)]">
-            {filtered.length} bien{filtered.length > 1 ? "s" : ""}
-          </p>
+          <span className="gs-caption ml-auto hidden lg:block">
+            {activeFilterCount === 0 ? "Aucun filtre actif" : `${activeFilterCount} filtre(s) actif(s)`}
+          </span>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
@@ -315,14 +385,25 @@ export function AnnoncesScreen({ initialSelectedId }: { initialSelectedId: strin
           </div>
           {(LISTINGS_API_PATH || LISTINGS_DEMO_ENABLED) && (
             <div className="lg:sticky lg:top-20 lg:self-start">
-              <AnnoncesMap
-                properties={filtered}
-                liveLocations={Boolean(LISTINGS_API_PATH)}
-                hoveredId={hoveredId}
-                selectedId={selectedId}
-                onHover={setHoveredId}
-                onSelect={setSelectedId}
-              />
+              <div className="gs-panel">
+                <div className="gs-panel-head">
+                  <div>
+                    <p className="gs-module">Localisation</p>
+                    <p className="gs-h3 mt-1">Carte des parcelles</p>
+                  </div>
+                  <span className="gs-badge gs-badge--primary">
+                    <MapPin size={14} aria-hidden /> {filtered.length} repère{filtered.length > 1 ? "s" : ""}
+                  </span>
+                </div>
+                <AnnoncesMap
+                  properties={filtered}
+                  liveLocations={Boolean(LISTINGS_API_PATH)}
+                  hoveredId={hoveredId}
+                  selectedId={selectedId}
+                  onHover={setHoveredId}
+                  onSelect={setSelectedId}
+                />
+              </div>
               <p className="gs-caption mt-2">
                 Survolez une carte : le repère grossit. Cliquez un repère pour ouvrir la fiche.
               </p>
@@ -330,6 +411,57 @@ export function AnnoncesScreen({ initialSelectedId }: { initialSelectedId: strin
           )}
         </div>
       </div>
+
+      <section className="gs-wrap pb-12 pt-4">
+        <div className="gs-section-head mb-5">
+          <div>
+            <p className="gs-module text-[var(--primary)]">La méthode</p>
+            <h2 className="gs-h2 gs-display mt-2">
+              Trois étapes pour décider en connaissance de cause
+            </h2>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <article className="gs-step">
+            <span className="gs-step-icon"><Search size={21} aria-hidden /></span>
+            <p className="gs-module mt-5 text-[var(--accent-text)]">Étape 01</p>
+            <h3 className="gs-h3 gs-display mt-1">Repérer un bien</h3>
+            <p className="mt-2 text-[14px] leading-[22px] text-[var(--text-muted)]">
+              Parcourez les annonces et situez la parcelle sur la carte.
+            </p>
+          </article>
+          <article className="gs-step">
+            <span className="gs-step-icon"><ScanSearch size={21} aria-hidden /></span>
+            <p className="gs-module mt-5 text-[var(--accent-text)]">Étape 02</p>
+            <h3 className="gs-h3 gs-display mt-1">Contrôler la parcelle</h3>
+            <p className="mt-2 text-[14px] leading-[22px] text-[var(--text-muted)]">
+              Vérifiez le statut juridique, la surface et la certification déclarés.
+            </p>
+          </article>
+          <article className="gs-step">
+            <span className="gs-step-icon"><ShieldCheck size={21} aria-hidden /></span>
+            <p className="gs-module mt-5 text-[var(--accent-text)]">Étape 03</p>
+            <h3 className="gs-h3 gs-display mt-1">Avancer en confiance</h3>
+            <p className="mt-2 text-[14px] leading-[22px] text-[var(--text-muted)]">
+              Comparez les biens avec les mêmes informations, sans créer de compte.
+            </p>
+          </article>
+        </div>
+        <div className="gs-cta-band mt-6 flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+          <div className="relative z-[1]">
+            <h3 className="gs-h2 gs-display">
+              Une parcelle en tête ? Vérifiez-la avant d&apos;avancer.
+            </h3>
+            <p className="mt-2 max-w-xl text-[14px] leading-[22px] text-[#cfe0ea]">
+              Statut juridique, surface levée, certification et litiges éventuels :
+              tout est consultable sans compte.
+            </p>
+          </div>
+          <Link href="/parcelle" className="gs-btn gs-btn--accent gs-btn--lg relative z-[1] shrink-0">
+            Vérifier une parcelle <ArrowRight size={17} aria-hidden />
+          </Link>
+        </div>
+      </section>
 
       {/* Filtres mobile en tiroir */}
       {filtersOpen && (
@@ -365,6 +497,7 @@ export function AnnoncesScreen({ initialSelectedId }: { initialSelectedId: strin
 
       {selected && (
         <PropertyDrawer
+          key={selected.id}
           property={selected}
           onClose={() => setSelectedId(null)}
           onToast={setToast}

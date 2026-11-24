@@ -5,7 +5,7 @@ const bool demoModeEnabled = bool.fromEnvironment(
 
 const String apiBaseUrl = String.fromEnvironment(
   'GEOSMART_API_BASE_URL',
-  defaultValue: 'http://10.0.2.2:3001',
+  defaultValue: 'https://geosmart-zueq.onrender.com',
 );
 
 const String demoSessionId = 'demo-session';

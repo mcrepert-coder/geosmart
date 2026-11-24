@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { createContext, useContext, useEffect, useState } from "react";
-import { ArrowLeft, Briefcase, ImagePlus, LogOut, Plus, RefreshCw, Share2 } from "lucide-react";
+import { ArrowLeft, Briefcase, ImagePlus, LogOut, MessageCircle, Plus, RefreshCw, Share2 } from "lucide-react";
 import {
   EMPTY_DRAFT,
   listingPayload,
@@ -43,6 +43,18 @@ type AgentListing = {
   status: Status;
   badges: { parcelCertified: boolean; agentCertified: boolean };
   primaryPhotoUrl: string | null;
+};
+
+type AgentContact = {
+  id: string;
+  propertyId: string;
+  propertyTitle: string;
+  parcelId: string;
+  clientName: string;
+  clientPhone: string;
+  message: string;
+  createdAt: string;
+  readAt: string | null;
 };
 
 type SharePayload = {
@@ -238,6 +250,8 @@ export function AgentLiveListings() {
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [shares, setShares] = useState<Record<string, SharePayload>>({});
+  const [contacts, setContacts] = useState<AgentContact[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(true);
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
@@ -260,8 +274,27 @@ export function AgentLiveListings() {
     };
   }, [version]);
 
+  useEffect(() => {
+    let active = true;
+    fetch("/api/agent/properties/mine/contacts", { cache: "no-store" })
+      .then((response) => readJson<{ items: AgentContact[] }>(response))
+      .then((page) => {
+        if (active) setContacts(page.items);
+      })
+      .catch((loadError: unknown) => {
+        if (active) setError(errorText(loadError));
+      })
+      .finally(() => {
+        if (active) setContactsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [version]);
+
   const reload = () => {
     setLoading(true);
+    setContactsLoading(true);
     setVersion((v) => v + 1);
   };
 
@@ -353,6 +386,18 @@ export function AgentLiveListings() {
     }
   };
 
+  const markRead = (contact: AgentContact) =>
+    run(
+      `contact-${contact.id}`,
+      async () =>
+        readJson(
+          await fetch(`/api/agent/properties/mine/contacts/${contact.id}/read`, {
+            method: "PATCH",
+          }),
+        ),
+      "Message marqué comme lu.",
+    );
+
   const field = (key: keyof Draft) => ({
     value: draft[key],
     onChange: (
@@ -360,10 +405,19 @@ export function AgentLiveListings() {
     ) => setDraft((d) => ({ ...d, [key]: e.target.value })),
   });
 
+  const unreadCount = contacts.filter((contact) => !contact.readAt).length;
+
   return (
     <div className="p-4 md:p-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <h1 className="gs-h1 gs-display">Mes biens</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="gs-h1 gs-display">Mes biens</h1>
+          {unreadCount > 0 && (
+            <span className="gs-badge gs-badge--cert">
+              {unreadCount} message{unreadCount > 1 ? "s" : ""} non lu{unreadCount > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
         <button className="gs-btn gs-btn--secondary gs-btn--sm" onClick={reload} disabled={loading}>
           <RefreshCw size={15} aria-hidden /> Actualiser
         </button>
@@ -574,6 +628,68 @@ export function AgentLiveListings() {
           ))}
         </ul>
       )}
+
+      <section className="gs-card mt-5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 font-semibold">
+              <MessageCircle size={17} aria-hidden /> Messages reçus
+            </h2>
+            <p className="gs-help mt-1">
+              Les coordonnées laissées par les clients ne sont visibles que dans cet espace agent.
+            </p>
+          </div>
+          <button
+            className="gs-btn gs-btn--secondary gs-btn--sm"
+            onClick={reload}
+            disabled={contactsLoading}
+          >
+            <RefreshCw size={15} aria-hidden /> Actualiser
+          </button>
+        </div>
+        {contactsLoading ? (
+          <p className="gs-help mt-4" role="status">
+            Chargement des messages…
+          </p>
+        ) : contacts.length === 0 ? (
+          <p className="gs-help mt-4">Aucun message pour l’instant.</p>
+        ) : (
+          <ul className="mt-4 grid gap-3">
+            {contacts.map((contact) => (
+              <li
+                key={contact.id}
+                className={`rounded-xl border p-3 ${
+                  contact.readAt ? "border-[var(--border)]" : "border-[var(--primary)] bg-[var(--surface-sunken)]"
+                }`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[13px] text-[var(--text-muted)]">
+                      {contact.clientName} ·{" "}
+                      <a className="underline" href={`tel:${contact.clientPhone.replace(/\s/g, "")}`}>
+                        {contact.clientPhone}
+                      </a>{" "}
+                      · {new Date(contact.createdAt).toLocaleString("fr-FR")}
+                    </p>
+                    <p className="mt-1 font-semibold">{contact.propertyTitle}</p>
+                    <p className="gs-mono text-[12px]">{contact.parcelId}</p>
+                  </div>
+                  {!contact.readAt && (
+                    <button
+                      className="gs-btn gs-btn--secondary gs-btn--sm"
+                      disabled={busy === `contact-${contact.id}`}
+                      onClick={() => void markRead(contact)}
+                    >
+                      Marquer comme lu
+                    </button>
+                  )}
+                </div>
+                <p className="mt-2 text-[14px] leading-[22px]">{contact.message}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

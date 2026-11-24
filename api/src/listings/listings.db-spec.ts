@@ -7,6 +7,7 @@ import { AuthAccounts1793104000000 } from '../auth/migrations/1793104000000-auth
 import { LandParcels1793102500000 } from '../land/migrations/1793102500000-land-parcels';
 import { LandParcelIdFormat1793103100000 } from '../land/migrations/1793103100000-land-parcel-id-format';
 import { Listings1793103200000 } from './migrations/1793103200000-listings';
+import { PropertyContacts1793104100000 } from './migrations/1793104100000-property-contacts';
 import { ListingsService } from './listings.service';
 
 jest.setTimeout(60000);
@@ -26,6 +27,7 @@ describe('ListingsService with PostgreSQL migrations', () => {
   const land = new LandParcels1793102500000();
   const idFormat = new LandParcelIdFormat1793103100000();
   const listings = new Listings1793103200000();
+  const contacts = new PropertyContacts1793104100000();
 
   beforeAll(async () => {
     const { PGlite } = await import('@electric-sql/pglite');
@@ -44,6 +46,7 @@ describe('ListingsService with PostgreSQL migrations', () => {
     await land.up(runner);
     await idFormat.up(runner);
     await listings.up(runner);
+    await contacts.up(runner);
     await db.query(
       `INSERT INTO parcels
          (id, commune, geom, area_m2, perimeter_m, geometry_hash,
@@ -82,6 +85,7 @@ describe('ListingsService with PostgreSQL migrations', () => {
   });
 
   afterAll(async () => {
+    await contacts.down(db as unknown as QueryRunner);
     await listings.down(db as unknown as QueryRunner);
     // L'ancien format (commune en lettres) refuse TG-AG3 : vider avant.
     await db.query('DELETE FROM parcels');
@@ -174,6 +178,50 @@ describe('ListingsService with PostgreSQL migrations', () => {
     });
     await service.deletePhoto(AGENT, created.id, photo.id);
     await expect(service.photoContent(created.id, photo.id)).rejects.toThrow();
+  });
+
+  it('enregistre un message prive et le rend visible au seul agent auteur', async () => {
+    const created = await service.create(AGENT, {
+      parcelId: PARCEL_ID,
+      type: 'TERRAIN',
+      transaction: 'VENTE',
+      title: 'Terrain avec contact',
+      price: 12_000_000,
+      status: 'PUBLIE',
+    });
+    const sent = await service.createContact(created.id, {
+      clientName: 'Awa',
+      clientPhone: '+22890123456',
+      message: 'Bonjour, ce terrain est-il toujours disponible ?',
+    });
+
+    expect(sent.id).toEqual(expect.any(String));
+    expect(sent.createdAt).toEqual(expect.any(String));
+    const inbox = await service.contactsFor(AGENT);
+    expect(inbox.total).toBe(1);
+    expect(inbox.unreadCount).toBe(1);
+    expect(inbox.items[0]).toMatchObject({
+      propertyId: created.id,
+      propertyTitle: 'Terrain avec contact',
+      parcelId: PARCEL_ID,
+      clientName: 'Awa',
+      clientPhone: '+22890123456',
+      readAt: null,
+    });
+    expect(inbox.items[0]).not.toHaveProperty('agentId');
+    const read = await service.markContactRead(AGENT, sent.id);
+    expect(read.readAt).not.toBeNull();
+    expect((await service.contactsFor(AGENT)).unreadCount).toBe(0);
+    await expect(
+      service.createContact(created.id, {
+        clientName: 'Awa',
+        clientPhone: '+22890123456',
+        message: 'Toujours disponible ?',
+      }),
+    ).rejects.toMatchObject({
+      status: 429,
+      response: { code: 'TOO_MANY_REQUESTS' },
+    });
   });
 
   it('ne publie pas une parcelle en litige', async () => {

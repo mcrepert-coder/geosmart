@@ -1,7 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../features/account/presentation/login_gate_page.dart';
-import '../features/account/presentation/verification_page.dart';
 import '../features/account/presentation/viewmodels/auth_controller.dart';
 import '../features/gnss/presentation/home_shell.dart';
 import '../features/gnss/presentation/viewmodels/missions_controller.dart';
@@ -106,8 +105,6 @@ class _GeoSmartAppState extends State<GeoSmartApp> {
         // session est restauree pendant le chargement, la coque connectee
         // remplace cette page des que le statut change.
         AuthStatus.loading || AuthStatus.signedOut => LoginGatePage(auth: auth),
-        AuthStatus.pendingVerification ||
-        AuthStatus.pendingApproval => VerificationPage(auth: auth),
         AuthStatus.signedIn => AuthenticatedHomeShell(
           survey: widget.controller,
           theme: _theme,
