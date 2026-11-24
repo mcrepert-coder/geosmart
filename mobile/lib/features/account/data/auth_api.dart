@@ -26,30 +26,6 @@ class AuthApiException implements Exception {
   String toString() => 'AuthApiException($status, $code, $message)';
 }
 
-/// Compte renvoye par l'inscription : le statut explique ou en est la
-/// demande (TELEPHONE_NON_VERIFIE, EN_ATTENTE, ACTIF, REJETE, SUSPENDU).
-class RegisteredAccount {
-  const RegisteredAccount({
-    required this.id,
-    required this.phone,
-    required this.status,
-    this.rejectionReason,
-  });
-
-  factory RegisteredAccount.fromJson(Map<String, dynamic> json) =>
-      RegisteredAccount(
-        id: json['id'] as String,
-        phone: json['phone'] as String,
-        status: json['status'] as String,
-        rejectionReason: json['rejectionReason'] as String?,
-      );
-
-  final String id;
-  final String phone;
-  final String status;
-  final String? rejectionReason;
-}
-
 /// Jetons renvoyes par login et refresh (EF-407).
 class AuthTokens {
   const AuthTokens({required this.accessToken, required this.refreshToken});
@@ -63,8 +39,7 @@ class AuthTokens {
   final String refreshToken;
 }
 
-/// Routes de contracts/auth.yaml : inscription, code SMS, connexion,
-/// renouvellement et profil.
+/// Routes de contracts/auth.yaml : connexion, renouvellement et profil.
 class AuthApi {
   AuthApi(
     this._client, {
@@ -78,31 +53,8 @@ class AuthApi {
   final String _baseUrl;
   final Duration timeout;
 
-  /// POST /auth/registrations : le code SMS est simule dans le journal du
-  /// serveur tant qu'il n'y a pas de fournisseur (EF-401).
-  Future<RegisteredAccount> register({
-    required String phone,
-    required String password,
-  }) async => RegisteredAccount.fromJson(
-    await _send('POST', '/auth/registrations', body: {
-      'phone': phone,
-      'password': password,
-    }) as Map<String, dynamic>,
-  );
-
-  /// POST /auth/phone-verifications : valide le code recu par SMS.
-  Future<RegisteredAccount> verifyPhone({
-    required String phone,
-    required String code,
-  }) async => RegisteredAccount.fromJson(
-    await _send('POST', '/auth/phone-verifications', body: {
-      'phone': phone,
-      'code': code,
-    }) as Map<String, dynamic>,
-  );
-
-  /// POST /auth/login : 403 si le compte n'est pas actif, 423 apres cinq
-  /// echecs pendant 15 minutes (EF-407).
+  /// POST `baseUrl`/auth/login : 403 si le compte n'est pas actif, 423 apres
+  /// cinq echecs pendant 15 minutes (EF-407).
   Future<AuthTokens> login({
     required String phone,
     required String password,

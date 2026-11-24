@@ -14,62 +14,6 @@ void main() {
   ) => AuthApi(MockClient(handler), baseUrl: baseUrl);
 
   group('AuthApi', () {
-    test('register envoie le telephone et le mot de passe', () async {
-      late http.Request seen;
-      final api = apiWith((request) async {
-        seen = request;
-        return http.Response(
-          jsonEncode({
-            'id': 'compte-1',
-            'phone': '+22890000000',
-            'status': 'TELEPHONE_NON_VERIFIE',
-            'role': null,
-            'createdAt': '2026-11-10T08:00:00.000Z',
-          }),
-          201,
-          headers: {'content-type': 'application/json'},
-        );
-      });
-
-      final account = await api.register(
-        phone: '+228 90 00 00 00',
-        password: 'motdepasse',
-      );
-
-      expect(seen.url.path, '/auth/registrations');
-      expect(jsonDecode(seen.body), {
-        'phone': '+228 90 00 00 00',
-        'password': 'motdepasse',
-      });
-      expect(account.status, 'TELEPHONE_NON_VERIFIE');
-    });
-
-    test('verifyPhone valide le code SMS', () async {
-      late http.Request seen;
-      final api = apiWith((request) async {
-        seen = request;
-        return http.Response(
-          jsonEncode({
-            'id': 'compte-1',
-            'phone': '+22890000000',
-            'status': 'EN_ATTENTE',
-            'role': null,
-            'createdAt': '2026-11-10T08:00:00.000Z',
-          }),
-          200,
-          headers: {'content-type': 'application/json'},
-        );
-      });
-
-      final account = await api.verifyPhone(
-        phone: '+22890000000',
-        code: '123456',
-      );
-
-      expect(seen.url.path, '/auth/phone-verifications');
-      expect(account.status, 'EN_ATTENTE');
-    });
-
     test('login renvoie les jetons (EF-407)', () async {
       final api = apiWith(
         (request) async => http.Response(
