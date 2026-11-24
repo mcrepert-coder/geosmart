@@ -78,10 +78,22 @@ class AccountPage extends StatelessWidget {
           if (user == null) {
             return const Center(child: CircularProgressIndicator());
           }
-          final actions = actionsForRole(
+          var actions = actionsForRole(
             user.role,
             accountActive: user.accountActive,
           );
+          // Ces trois actions sont deja dans la barre de navigation du
+          // geometre : on evite les raccourcis redondants sur cette page.
+          if (user.role == AccountRole.geometre) {
+            actions = actions
+                .where(
+                  (a) =>
+                      a != AccountAction.survey &&
+                      a != AccountAction.map &&
+                      a != AccountAction.sync,
+                )
+                .toList();
+          }
           return ListView(
             padding: const EdgeInsets.all(GeoSmartDimens.space4),
             children: [

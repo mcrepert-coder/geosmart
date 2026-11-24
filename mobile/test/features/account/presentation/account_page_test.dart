@@ -85,14 +85,25 @@ void main() {
     expect(find.text('Espace administrateur'), findsNothing);
   });
 
-  testWidgets('EF-402 : un geometre voit le leve et la synchronisation', (tester) async {
+  testWidgets('EF-402 : le geometre n a pas de raccourcis redondants', (tester) async {
     final controller = await signedInAs(user('GEOMETRE'));
 
     await pumpPage(tester, controller);
 
+    expect(find.text('Leves GNSS'), findsNothing);
+    expect(find.text('Carte des parcelles'), findsNothing);
+    expect(find.text('Synchronisation'), findsNothing);
+    expect(find.text('Demandes de leve'), findsNothing);
+  });
+
+  testWidgets('EF-402 : le topographe garde ses raccourcis de leve', (tester) async {
+    final controller = await signedInAs(user('TOPOGRAPHE'));
+
+    await pumpPage(tester, controller);
+
     expect(find.text('Leves GNSS'), findsOneWidget);
+    expect(find.text('Carte des parcelles'), findsOneWidget);
     expect(find.text('Synchronisation'), findsOneWidget);
-    expect(find.text('Baux et loyers'), findsNothing);
   });
 
   testWidgets('EF-402 : un administrateur voit son espace', (tester) async {

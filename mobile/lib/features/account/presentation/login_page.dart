@@ -1,14 +1,27 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme/geosmart_theme.dart';
 import 'viewmodels/auth_controller.dart';
 
+/// Adresse du site web pour la creation de compte.
+const String accountCreationUrl =
+    'https://geosmart-web.onrender.com/inscription';
+
 /// Ecran de connexion (EF-401, EF-407). Le blocage apres cinq echecs est
 /// affiche avec le message du serveur.
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key, required this.auth});
+  const LoginPage({
+    super.key,
+    required this.auth,
+    this.onOpenAccountCreation,
+  });
 
   final AuthController auth;
+
+  /// Ouverture du site, injectee dans les tests. Par defaut le lien s'ouvre
+  /// dans le navigateur de l'appareil.
+  final Future<bool> Function(Uri url)? onOpenAccountCreation;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -24,6 +37,24 @@ class _LoginPageState extends State<LoginPage> {
     _phone.dispose();
     _password.dispose();
     super.dispose();
+  }
+
+  Future<void> _openAccountCreation() async {
+    final url = Uri.parse(accountCreationUrl);
+    var opened = false;
+    try {
+      opened = await (widget.onOpenAccountCreation?.call(url) ??
+          launchUrl(url, mode: LaunchMode.externalApplication));
+    } catch (_) {
+      // Canal natif absent ou navigateur indisponible : on affiche le message
+      // ci-dessous au lieu de laisser une exception non geree.
+      opened = false;
+    }
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Impossible d ouvrir le site.')),
+      );
+    }
   }
 
   Future<void> _submit() async {
@@ -101,6 +132,12 @@ class _LoginPageState extends State<LoginPage> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Text('Se connecter'),
+              ),
+              const SizedBox(height: GeoSmartDimens.space2),
+              OutlinedButton.icon(
+                onPressed: _openAccountCreation,
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Creer un compte sur le site'),
               ),
             ],
           );
